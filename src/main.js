@@ -436,7 +436,10 @@
 
   // Apply a requested change in velocity, not a fixed impulse. Multiplying
   // by each part's mass makes every segment receive comparable acceleration.
-  function blastRagdoll(ragdoll, origin, strength, radius) {
+  function blastRagdoll(ragdoll, origin, strength, radius, hitLocation = null) {
+    const hitPartName = hitLocation === "head" ? "head" :
+      hitLocation === "legs" ? "left-upper-leg" : "torso";
+    const hitBody = hitLocation ? ragdoll.byName[hitPartName]?.body : null;
     for (const { body } of ragdoll.pieces) {
       const center = body.getWorldCenter();
       const dx = center.x - origin.x;
@@ -446,14 +449,13 @@
       if (falloff <= 0) continue;
       const deltaV = strength * falloff;
       const mass = body.getMass();
-      body.applyLinearImpulse(
-        V(
-          (dx / distance * deltaV) * mass,
-          (dy / distance * deltaV + 0.5 * falloff) * mass
-        ),
-        center,
-        true
+      const impulse = V(
+        (dx / distance * deltaV) * mass,
+        (dy / distance * deltaV + 0.5 * falloff) * mass
       );
+      // Apply the direct-hit impulse at the projectile contact point so the
+      // hit can generate natural torque instead of an artificial spin impulse.
+      body.applyLinearImpulse(body === hitBody ? impulse : impulse, body === hitBody ? origin : center, true);
     }
   }
 
@@ -582,9 +584,11 @@
       // A direct hit always breaks the upright pose. A sufficiently strong
       // nearby blast does too; weaker splash uses mass-scaled knockback only.
       const knockback = 4.5 * Math.max(0, 1 - distance / 3.3);
-      if (isDirectTarget || knockback > 3.5) {
+      const ragdollDeltaV = 11 * Math.max(0, 1 - distance / blastRadius);
+      if (isDirectTarget || ragdollDeltaV > 3.5) {
         if (!character.ragdoll) createRagdoll(character, point, isDirectTarget ? directHit.location : "chest");
-        blastRagdoll(character.ragdoll, point, isDirectTarget ? 12 : 11, blastRadius);
+        blastRagdoll(character.ragdoll, point, isDirectTarget ? 12 : 11, blastRadius,
+          isDirectTarget ? directHit.location : null);
       } else if (character.ragdoll) {
         if (distance < blastRadius) blastRagdoll(character.ragdoll, point, 11, blastRadius);
       } else if (knockback > 0) {
