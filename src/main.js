@@ -35,6 +35,8 @@
   let characters = [];
   let activeIndex = 0;
   let projectile = null;
+  let projectilePrevious = null;
+  let impactPoint = null;
   let pendingImpact = false;
   let seed = 1;
   let held = { left: false, right: false, jump: false };
@@ -121,6 +123,8 @@
     activeIndex = 0;
     activeAction = null;
     projectile = null;
+    projectilePrevious = null;
+    impactPoint = null;
     pendingImpact = false;
     cameraY = 0;
     updateHud();
@@ -167,6 +171,7 @@
     const direction = (held.right ? 1 : 0) - (held.left ? 1 : 0);
     if ((direction || held.jump || jumpQueued) && activeAction !== "move") {
       activeAction = "move";
+      statusEl.textContent = "Movement action — firing is locked until the next turn";
       updateHud();
     }
     if (direction) character.body.setLinearVelocity(V(direction * 3.0, velocity.y));
@@ -202,15 +207,21 @@
     const speed = POWER_100_SPEED * power;
     body.setLinearVelocity(V(dx * speed, dy * speed));
     projectile = body;
+    projectilePrevious = V(start.x, start.y);
+    impactPoint = null;
     pendingImpact = false;
+    statusEl.textContent = "Projectile in flight — wait for impact, then end turn";
     fireButton.disabled = true;
   }
 
   function explode() {
     if (!projectile) return;
-    const point = projectile.getPosition();
+    const currentPosition = projectile.getPosition();
+    const point = impactPoint || currentPosition;
     world.destroyBody(projectile);
     projectile = null;
+    projectilePrevious = null;
+    impactPoint = null;
     const radius = 1.7;
     const removedCells = terrainSystem.carveCircle(point.x, point.y, radius);
     rebuildTerrain();
@@ -227,8 +238,41 @@
         character.body.applyLinearImpulse(V(dx / length * strength, dy / length * strength + 1.2), character.body.getWorldCenter(), true);
       }
     }
-    statusEl.textContent = "Explosion · crater radius " + radius.toFixed(2) + " · " + removedCells + " terrain cells removed";
+    statusEl.textContent = "Impact · crater radius " + radius.toFixed(2) + " · " + removedCells + " terrain cells removed";
     updateHud();
+  }
+
+  function detectProjectileImpact() {
+    if (!projectile || !projectilePrevious) return;
+    const current = projectile.getPosition();
+    let hit = false;
+
+    world.rayCast(projectilePrevious, current, (fixture, point, normal, fraction) => {
+      if (fixture.getUserData()?.kind === "projectile") return -1;
+      const bodyKind = fixture.getBody().getUserData()?.kind;
+      if (bodyKind === "terrain" || bodyKind === "character") {
+        impactPoint = V(point.x, point.y);
+        hit = true;
+        return fraction;
+      }
+      return -1;
+    });
+
+    if (hit) {
+      pendingImpact = true;
+      return;
+    }
+
+    if (current.x < 0 || current.x > WORLD_WIDTH || current.y < -0.5) {
+      impactPoint = V(
+        Math.max(0, Math.min(WORLD_WIDTH, current.x)),
+        Math.max(-0.5, current.y)
+      );
+      pendingImpact = true;
+      return;
+    }
+
+    projectilePrevious = V(current.x, current.y);
   }
 
   function checkBoundaries() {
@@ -390,6 +434,7 @@
     while (accumulator >= FIXED_STEP) {
       moveActive();
       world.step(FIXED_STEP, 8, 3);
+      detectProjectileImpact();
       if (pendingImpact) {
         pendingImpact = false;
         explode();
