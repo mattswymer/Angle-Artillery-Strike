@@ -212,7 +212,7 @@
     const point = projectile.getPosition();
     world.destroyBody(projectile);
     projectile = null;
-    const radius = 1.15;
+    const radius = 1.7;
     const radiusSquared = radius * radius;
 
     for (let i = 0; i < terrainHeights.length; i++) {
@@ -220,7 +220,7 @@
       const dx = x - point.x;
       if (Math.abs(dx) > radius) continue;
       const depth = Math.sqrt(Math.max(0, radiusSquared - dx * dx));
-      const craterFloor = point.y - depth * 0.88;
+      const craterFloor = point.y - depth * 1.28;
       terrainHeights[i] = Math.min(terrainHeights[i], craterFloor);
     }
     rebuildTerrain();
@@ -326,28 +326,44 @@
 
   function drawAim(scale, offsetX) {
     const character = activeCharacter();
-    if (!character || character.eliminated || projectile) return;
+    if (!character || character.eliminated || projectile || activeAction === "attack") return;
+
     const p = character.body.getPosition();
     const direction = character.team === 0 ? 1 : -1;
     const angle = Number(angleInput.value) * Math.PI / 180;
-    const speed = POWER_100_SPEED * Number(powerInput.value) / 100;
-    const startX = p.x + Math.cos(angle) * direction * 0.62;
-    const startY = p.y + Math.sin(angle) * 0.48 + 0.1;
+    const power = Number(powerInput.value) / 100;
+    const start = worldToScreen(p.x, p.y + 0.04, scale, offsetX);
+    const length = scale * (0.42 + power * 1.05);
+    const endX = start.x + Math.cos(angle) * direction * length;
+    const endY = start.y - Math.sin(angle) * length;
+    const headLength = Math.max(7, scale * 0.16);
+    const headAngle = Math.atan2(endY - start.y, endX - start.x);
+
+    ctx.save();
+    ctx.strokeStyle = "#fff0bd";
+    ctx.fillStyle = "#fff0bd";
+    ctx.lineWidth = Math.max(2.5, scale * 0.055);
+    ctx.lineCap = "round";
+    ctx.shadowColor = "#17232b88";
+    ctx.shadowBlur = 4;
     ctx.beginPath();
-    for (let t = 0; t <= 2.25; t += 0.055) {
-      const x = startX + Math.cos(angle) * direction * speed * t;
-      const y = startY + Math.sin(angle) * speed * t - 0.5 * GRAVITY * t * t;
-      if (x < 0 || x > WORLD_WIDTH || y < 0) break;
-      const point = worldToScreen(x, y, scale, offsetX);
-      if (t === 0) ctx.moveTo(point.x, point.y);
-      else ctx.lineTo(point.x, point.y);
-      if (y <= heightAt(x)) break;
-    }
-    ctx.setLineDash([4, 6]);
-    ctx.strokeStyle = "#fff4c7";
-    ctx.lineWidth = 2;
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(endX, endY);
     ctx.stroke();
-    ctx.setLineDash([]);
+
+    ctx.beginPath();
+    ctx.moveTo(endX, endY);
+    ctx.lineTo(
+      endX - Math.cos(headAngle - 0.48) * headLength,
+      endY - Math.sin(headAngle - 0.48) * headLength
+    );
+    ctx.lineTo(
+      endX - Math.cos(headAngle + 0.48) * headLength,
+      endY - Math.sin(headAngle + 0.48) * headLength
+    );
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
   }
 
   function drawProjectile(scale, offsetX) {
