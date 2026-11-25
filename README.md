@@ -11,9 +11,13 @@ A mobile-first, landscape 2D artillery tactics game built around physics-driven 
 - [Game Design Brief](docs/GAME_DESIGN.md)
 - [Technical Plan](docs/TECHNICAL_PLAN.md)
 
-## Running
+## Running the physics prototype
 
-The browser prototype will be designed to run locally with minimal setup. Run instructions will be added with the first playable build.
+1. Open `index.html` in a modern browser.
+2. Keep an internet connection available so the pinned Planck.js physics library can load from jsDelivr.
+3. Use A/D or the arrow keys to move, W/Up/Space to jump, adjust angle and power, and fire. The prototype enforces one action per turn; use **End turn** to switch combatants.
+
+The prototype is intentionally an early physics sandbox. It currently uses a destructible terrain surface profile; full polygon terrain, true ragdoll joints, damage, AI, and match systems are still planned.
 
 ## License
 
