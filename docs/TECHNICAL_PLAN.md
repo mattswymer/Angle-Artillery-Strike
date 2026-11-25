@@ -53,12 +53,12 @@ Build a small playable sandbox with:
 - Random terrain profile with fixed world dimensions.
 - Two simple stick-figure test characters placed randomly on opposite sides.
 - Walk and small jump controls.
-- Aiming indicator with angle and power.
+- Aiming indicator with full 0–360-degree angle and power; pullback-to-fire input plus precision controls.
 - A basic ballistic projectile.
 - Wind disabled initially; gravity fixed initially.
 - Grid-based terrain with contour collision, terrain holes, and disconnected sections that remain in place.\n- Terrain impact craters and collision rebuild.
 - Explosion impulse and character knockback.
-- Ragdoll response.
+- Jointed ragdoll response on direct hits, with a grounded recovery-to-standing state.
 - Left, right, and bottom lethal boundaries; open top.
 - Reset/regenerate control.
 
