@@ -38,6 +38,7 @@
   let activeIndex = 0;
   let aimMode = "pullback";
   let pullbackPointer = null;
+  let pullbackDistance = 0;
   let projectile = null;
   let projectilePrevious = null;
   let impactPoint = null;
@@ -757,6 +758,7 @@
     degrees = (degrees + 360) % 360;
     angleInput.value = String(Math.round(degrees));
     const pullDistance = Math.hypot(dx, dy);
+    pullbackDistance = pullDistance;
     powerInput.value = String(Math.max(10, Math.min(100, Math.round(pullDistance / 1.65))));
     setAimLabels();
     saveActiveAim();
@@ -844,6 +846,7 @@
     if (!character || character.eliminated || character.ragdoll) return;
     event.preventDefault();
     pullbackPointer = event.pointerId;
+    pullbackDistance = 0;
     canvas.setPointerCapture(event.pointerId);
     updatePullbackAim(event);
   });
@@ -856,8 +859,9 @@
     if (pullbackPointer !== event.pointerId) return;
     event.preventDefault();
     updatePullbackAim(event);
+    const shouldFire = pullbackDistance >= 14;
     pullbackPointer = null;
-    fire();
+    if (shouldFire) fire();
   };
   canvas.addEventListener("pointerup", finishPullback);
   canvas.addEventListener("pointercancel", event => {
