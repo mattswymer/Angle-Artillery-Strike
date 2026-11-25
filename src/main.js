@@ -38,6 +38,7 @@
   let activeIndex = 0;
   let aimMode = "pullback";
   let pullbackPointer = null;
+  let pullbackOrigin = null;
   let pullbackDistance = 0;
   let projectile = null;
   let projectilePrevious = null;
@@ -427,7 +428,7 @@
 
     character.body = torso;
     character.ragdoll = {
-      pieces, byName, joints, torso, startedAt: performance.now(),
+      pieces, byName, joints, torso, elapsedTime: 0,
       settledTime: 0, hitLocation
     };
     world.destroyBody(oldBody);
@@ -493,24 +494,28 @@
       const averageSpin = ragdoll.pieces.reduce(
         (sum, piece) => sum + Math.abs(piece.body.getAngularVelocity()), 0
       ) / ragdoll.pieces.length;
-      if (performance.now() - ragdoll.startedAt > 2200 &&
-          ragdollHasGroundContact(ragdoll) && averageSpeed < 0.32 && averageSpin < 1.15) {
-        ragdoll.settledTime += FIXED_STEP;
-      } else {
-        ragdoll.settledTime = 0;
-      }
-      if (ragdoll.settledTime < 0.65) continue;
+      ragdoll.elapsedTime += FIXED_STEP;
+      const settled = ragdoll.elapsedTime > 1.0 &&
+        ragdollHasGroundContact(ragdoll) && averageSpeed < 0.42 && averageSpin < 1.5;
+      if (settled) ragdoll.settledTime += FIXED_STEP;
+      else ragdoll.settledTime = 0;
+
+      // A ragdoll may not dangle indefinitely on a joint or terrain edge.
+      // Recover after a short maximum tumble window even if the solver never
+      // reaches the normal settling thresholds.
+      const timedOut = ragdoll.elapsedTime >= 4.5;
+      if (!timedOut && ragdoll.settledTime < 0.45) continue;
 
       const p = ragdoll.torso.getPosition();
       let surfaceY = null;
-      world.rayCast(V(p.x, p.y + 0.75), V(p.x, p.y - 2.2), (fixture, point, normal, fraction) => {
+      world.rayCast(V(p.x, Math.max(WORLD_HEIGHT + 2, p.y + 1)), V(p.x, -3), (fixture, point, normal, fraction) => {
         if (fixture.getBody().getUserData()?.kind === "terrain") {
           surfaceY = point.y;
           return fraction;
         }
         return -1;
       });
-      if (surfaceY === null) continue;
+      if (surfaceY === null) surfaceY = heightAt(Math.max(0, Math.min(WORLD_WIDTH, p.x)));
 
       const newBody = world.createBody({
         type: "dynamic",
@@ -535,6 +540,7 @@
       character.body = newBody;
       character.ragdoll = null;
       character.grounded = true;
+      character.gettingUp = { elapsed: 0, duration: 0.72 };
     }
   }
 
@@ -715,13 +721,12 @@
         } else {
           ctx.lineCap = "round";
           ctx.lineJoin = "round";
+          // Draw ragdoll segments as the same thin stick-like strokes used by
+          // the standing character; physics boxes remain invisible hit shapes.
           ctx.beginPath();
-          ctx.roundRect(
-            -piece.halfWidth * unit, -piece.halfHeight * unit,
-            piece.halfWidth * 2 * unit, piece.halfHeight * 2 * unit,
-            Math.min(piece.halfWidth, piece.halfHeight) * unit * 0.9
-          );
-          ctx.fill();
+          ctx.moveTo(0, -piece.halfHeight * unit);
+          ctx.lineTo(0, piece.halfHeight * unit);
+          ctx.lineWidth = Math.max(2.6, unit * 0.072);
           ctx.stroke();
         }
         ctx.restore();
@@ -734,10 +739,21 @@
     const jumping = !character.grounded;
     const phase = performance.now() * 0.012 * (velocity.x < 0 ? -1 : 1);
     const stride = moving ? Math.min(1, Math.abs(velocity.x) / 3.4) : 0;
-    const legSwing = jumping ? 0.23 : Math.sin(phase) * 0.28 * stride;
-    const armSwing = jumping ? -0.38 : -Math.sin(phase) * 0.22 * stride;
-    const kneeBend = moving ? Math.max(0, Math.sin(phase + 0.9)) * 0.12 * stride : 0;
-    const torsoLean = Math.max(-0.16, Math.min(0.16, velocity.x * 0.035));
+    const legSwing = character.gettingUp
+      ? getUpBlend * 0.42
+      : jumping ? 0.23 : Math.sin(phase) * 0.28 * stride;
+    const armSwing = character.gettingUp
+      ? getUpBlend * -0.62
+      : jumping ? -0.38 : -Math.sin(phase) * 0.22 * stride;
+    const kneeBend = character.gettingUp
+      ? getUpBlend * 0.24
+      : moving ? Math.max(0, Math.sin(phase + 0.9)) * 0.12 * stride : 0;
+    const getUpProgress = character.gettingUp
+      ? Math.min(1, character.gettingUp.elapsed / character.gettingUp.duration) : 1;
+    const getUpBlend = character.gettingUp ? 1 - getUpProgress : 0;
+    const torsoLean = character.gettingUp
+      ? getUpBlend * 0.95
+      : Math.max(-0.16, Math.min(0.16, velocity.x * 0.035));
 
     ctx.save();
     ctx.translate(screen.x, screen.y);
@@ -759,10 +775,14 @@
     const shoulderY = -unit * 0.22;
     const leftElbowX = -unit * (0.24 + armSwing * 0.55);
     const rightElbowX = unit * (0.24 + armSwing * 0.55);
-    const elbowY = jumping ? -unit * 0.48 : unit * 0.05;
+    const elbowY = character.gettingUp
+      ? -unit * (0.05 + getUpBlend * 0.38)
+      : jumping ? -unit * 0.48 : unit * 0.05;
     const leftHandX = -unit * (0.30 + armSwing);
     const rightHandX = unit * (0.30 + armSwing);
-    const handY = jumping ? -unit * 0.68 : unit * (0.02 + armSwing * 0.6);
+    const handY = character.gettingUp
+      ? -unit * (0.08 + getUpBlend * 0.42)
+      : jumping ? -unit * 0.68 : unit * (0.02 + armSwing * 0.6);
     ctx.beginPath();
     ctx.moveTo(0, shoulderY);
     ctx.lineTo(leftElbowX, elbowY);
@@ -777,10 +797,18 @@
     const rightKneeX = unit * (0.14 - legSwing * 0.62);
     const leftFootX = -unit * (0.23 + legSwing);
     const rightFootX = unit * (0.23 - legSwing);
-    const leftKneeY = jumping ? unit * 0.46 : unit * (0.50 + kneeBend);
-    const rightKneeY = jumping ? unit * 0.43 : unit * (0.50 - kneeBend);
-    const leftFootY = jumping ? unit * 0.69 : unit * (0.78 - Math.max(0, Math.sin(phase)) * 0.12 * stride);
-    const rightFootY = jumping ? unit * 0.66 : unit * (0.78 + Math.max(0, Math.sin(phase)) * 0.12 * stride);
+    const leftKneeY = character.gettingUp
+      ? unit * (0.50 - getUpBlend * 0.24)
+      : jumping ? unit * 0.46 : unit * (0.50 + kneeBend);
+    const rightKneeY = character.gettingUp
+      ? unit * (0.50 - getUpBlend * 0.20)
+      : jumping ? unit * 0.43 : unit * (0.50 - kneeBend);
+    const leftFootY = character.gettingUp
+      ? unit * (0.78 - getUpBlend * 0.28)
+      : jumping ? unit * 0.69 : unit * (0.78 - Math.max(0, Math.sin(phase)) * 0.12 * stride);
+    const rightFootY = character.gettingUp
+      ? unit * (0.78 - getUpBlend * 0.24)
+      : jumping ? unit * 0.66 : unit * (0.78 + Math.max(0, Math.sin(phase)) * 0.12 * stride);
     ctx.beginPath();
     ctx.moveTo(0, hipY);
     ctx.lineTo(leftKneeX, leftKneeY);
@@ -927,6 +955,12 @@
         if (!character.eliminated && !character.ragdoll) character.grounded = isGrounded(character);
       }
       recoverRagdolls();
+      for (const character of characters) {
+        if (character.gettingUp) {
+          character.gettingUp.elapsed += FIXED_STEP;
+          if (character.gettingUp.elapsed >= character.gettingUp.duration) character.gettingUp = null;
+        }
+      }
       accumulator -= FIXED_STEP;
     }
     render();
@@ -943,18 +977,17 @@
     const rect = canvas.getBoundingClientRect();
     const scale = Math.min(canvasWidth / WORLD_WIDTH, canvasHeight / WORLD_HEIGHT);
     const offsetX = (canvasWidth - WORLD_WIDTH * scale) / 2;
-    const p = activeCharacter().body.getPosition();
-    const anchor = worldToScreen(p.x, p.y + 0.04, scale, offsetX);
+    if (!pullbackOrigin) return;
     const pointerX = event.clientX - rect.left;
     const pointerY = event.clientY - rect.top;
-    const dx = anchor.x - pointerX;
-    const dy = pointerY - anchor.y;
-    if (Math.hypot(dx, dy) < 5) return;
+    const dx = pullbackOrigin.x - pointerX;
+    const dy = pointerY - pullbackOrigin.y;
+    const pullDistance = Math.hypot(dx, dy);
+    pullbackDistance = pullDistance;
+    if (pullDistance < 18) return;
     let degrees = Math.atan2(dy, dx) * 180 / Math.PI;
     degrees = (degrees + 360) % 360;
     angleInput.value = String(Math.round(degrees));
-    const pullDistance = Math.hypot(dx, dy);
-    pullbackDistance = pullDistance;
     powerInput.value = String(Math.max(10, Math.min(100, Math.round(pullDistance / 1.65))));
     setAimLabels();
     saveActiveAim();
@@ -1041,6 +1074,8 @@
     const character = activeCharacter();
     if (!character || character.eliminated || character.ragdoll) return;
     event.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    pullbackOrigin = { x: event.clientX - rect.left, y: event.clientY - rect.top };
     pullbackPointer = event.pointerId;
     pullbackDistance = 0;
     canvas.setPointerCapture(event.pointerId);
@@ -1055,13 +1090,18 @@
     if (pullbackPointer !== event.pointerId) return;
     event.preventDefault();
     updatePullbackAim(event);
-    const shouldFire = pullbackDistance >= 14;
+    const shouldFire = pullbackDistance >= 18;
     pullbackPointer = null;
+    pullbackOrigin = null;
     if (shouldFire) fire();
   };
   canvas.addEventListener("pointerup", finishPullback);
   canvas.addEventListener("pointercancel", event => {
-    if (pullbackPointer === event.pointerId) pullbackPointer = null;
+    if (pullbackPointer === event.pointerId) {
+      pullbackPointer = null;
+      pullbackOrigin = null;
+      pullbackDistance = 0;
+    }
   });
   angleInput.addEventListener("input", () => {
     setAimLabels();
