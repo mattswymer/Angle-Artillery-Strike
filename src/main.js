@@ -258,7 +258,7 @@
 
   function moveActive() {
     const character = activeCharacter();
-    if (!character || character.eliminated || character.ragdoll || projectile || activeAction === "attack") return;
+    if (!character || character.eliminated || (character.ragdoll && !character.ragdoll.standing) || projectile || activeAction === "attack") return;
     const velocity = character.body.getLinearVelocity();
     const heldDirection = (held.right ? 1 : 0) - (held.left ? 1 : 0);
     let direction = heldDirection || (tapMoveRemaining > 0 ? tapMoveDirection : 0);
@@ -414,22 +414,29 @@
       }, bodyA, bodyB)
     );
 
-    const joints = [
-      hinge(torso, head, [0, 0.29], [0, -0.18], -0.8, 0.8),
-      hinge(torso, leftUpperArm, [-0.17, 0.22], [0, 0.19], -2.35, 1.5),
-      hinge(leftUpperArm, leftLowerArm, [0, -0.19], [0, 0.17], -2.45, 0.35),
-      hinge(torso, rightUpperArm, [0.17, 0.22], [0, 0.19], -1.5, 2.35),
-      hinge(rightUpperArm, rightLowerArm, [0, -0.19], [0, 0.17], -0.35, 2.45),
-      hinge(torso, leftUpperLeg, [-0.105, -0.25], [0, 0.205], -1.25, 1.25),
-      hinge(leftUpperLeg, leftLowerLeg, [0, -0.205], [0, 0.17], -0.25, 2.2),
-      hinge(torso, rightUpperLeg, [0.105, -0.25], [0, 0.205], -1.25, 1.25),
-      hinge(rightUpperLeg, rightLowerLeg, [0, -0.205], [0, 0.17], -2.2, 0.25)
-    ];
+    const jointMap = {
+      neck: hinge(torso, head, [0, 0.29], [0, -0.18], -0.8, 0.8),
+      leftShoulder: hinge(torso, leftUpperArm, [-0.17, 0.22], [0, 0.19], -2.35, 1.5),
+      leftElbow: hinge(leftUpperArm, leftLowerArm, [0, -0.19], [0, 0.17], -2.45, 0.35),
+      rightShoulder: hinge(torso, rightUpperArm, [0.17, 0.22], [0, 0.19], -1.5, 2.35),
+      rightElbow: hinge(rightUpperArm, rightLowerArm, [0, -0.19], [0, 0.17], -0.35, 2.45),
+      leftHip: hinge(torso, leftUpperLeg, [-0.105, -0.25], [0, 0.205], -1.25, 1.25),
+      leftKnee: hinge(leftUpperLeg, leftLowerLeg, [0, -0.205], [0, 0.17], -0.25, 2.2),
+      rightHip: hinge(torso, rightUpperLeg, [0.105, -0.25], [0, 0.205], -1.25, 1.25),
+      rightKnee: hinge(rightUpperLeg, rightLowerLeg, [0, -0.205], [0, 0.17], -2.2, 0.25)
+    };
+    const joints = Object.values(jointMap);
+    for (const joint of joints) {
+      joint.enableMotor(true);
+      joint.setMotorSpeed(0);
+      joint.setMaxMotorTorque(0);
+    }
 
     character.body = torso;
     character.ragdoll = {
-      pieces, byName, joints, torso, elapsedTime: 0,
-      settledTime: 0, hitLocation
+      pieces, byName, joints, jointMap, torso, elapsedTime: 0,
+      settledTime: 0, hitLocation, gettingUp: false, getUpElapsed: 0,
+      standing: false, facing: character.team === 0 ? 1 : -1
     };
     world.destroyBody(oldBody);
 
@@ -484,6 +491,47 @@
     });
   }
 
+  function getUpPose(ragdoll, elapsed) {
+    // Both knees/hands -> one foot/knee/hands -> both feet/hands -> stand.
+    if (elapsed < 0.85) return {
+      leftHip: -0.48, rightHip: -0.48, leftKnee: 1.25, rightKnee: -1.25,
+      leftShoulder: -ragdoll.facing * 0.78, rightShoulder: -ragdoll.facing * 0.78,
+      leftElbow: ragdoll.facing * 1.05, rightElbow: ragdoll.facing * 1.05, neck: 0
+    };
+    if (elapsed < 1.65) return {
+      leftHip: -0.32, rightHip: 0, leftKnee: 1.05, rightKnee: 0,
+      leftShoulder: -ragdoll.facing * 0.72, rightShoulder: -ragdoll.facing * 0.72,
+      leftElbow: ragdoll.facing * 0.9, rightElbow: ragdoll.facing * 0.9, neck: 0
+    };
+    if (elapsed < 2.45) return {
+      leftHip: 0, rightHip: 0, leftKnee: 0, rightKnee: 0,
+      leftShoulder: -ragdoll.facing * 0.62, rightShoulder: -ragdoll.facing * 0.62,
+      leftElbow: ragdoll.facing * 0.82, rightElbow: ragdoll.facing * 0.82, neck: 0
+    };
+    return { leftHip: 0, rightHip: 0, leftKnee: 0, rightKnee: 0,
+      leftShoulder: 0, rightShoulder: 0, leftElbow: 0, rightElbow: 0, neck: 0 };
+  }
+
+  function driveGetUp(ragdoll) {
+    const targets = getUpPose(ragdoll, ragdoll.getUpElapsed);
+    const torque = ragdoll.getUpElapsed < 2.45 ? 0.42 : 0.32;
+    for (const [name, joint] of Object.entries(ragdoll.jointMap)) {
+      const error = (targets[name] ?? 0) - joint.getJointAngle();
+      joint.setMotorSpeed(Math.max(-5, Math.min(5, error * 7 - joint.getJointSpeed() * 0.9)));
+      joint.setMaxMotorTorque(torque);
+    }
+    const torso = ragdoll.torso;
+    let angle = torso.getAngle();
+    while (angle > Math.PI) angle -= Math.PI * 2;
+    while (angle < -Math.PI) angle += Math.PI * 2;
+    torso.applyTorque(-angle * 5.5 - torso.getAngularVelocity() * 1.6, true);
+    if (ragdoll.getUpElapsed > 1.55 && ragdoll.getUpElapsed < 3.0) {
+      const position = torso.getPosition();
+      const floor = heightAt(Math.max(0, Math.min(WORLD_WIDTH, position.x)));
+      if (position.y < floor + 0.94) torso.applyForceToCenter(V(0, torso.getMass() * 4.5), true);
+    }
+  }
+
   function recoverRagdolls() {
     for (const character of characters) {
       const ragdoll = character.ragdoll;
@@ -496,59 +544,34 @@
         }
         continue;
       }
-      const averageSpeed = ragdoll.pieces.reduce(
-        (sum, piece) => sum + piece.body.getLinearVelocity().length(), 0
-      ) / ragdoll.pieces.length;
-      const averageSpin = ragdoll.pieces.reduce(
-        (sum, piece) => sum + Math.abs(piece.body.getAngularVelocity()), 0
-      ) / ragdoll.pieces.length;
-      ragdoll.elapsedTime += FIXED_STEP;
-      const settled = ragdoll.elapsedTime > 1.0 &&
-        ragdollHasGroundContact(ragdoll) && averageSpeed < 0.42 && averageSpin < 1.5;
-      if (settled) ragdoll.settledTime += FIXED_STEP;
-      else ragdoll.settledTime = 0;
-
-      // A ragdoll may not dangle indefinitely on a joint or terrain edge.
-      // Recover after a short maximum tumble window even if the solver never
-      // reaches the normal settling thresholds.
-      const timedOut = ragdoll.elapsedTime >= 4.5;
-      if (!timedOut && ragdoll.settledTime < 0.45) continue;
-
-      const p = ragdoll.torso.getPosition();
-      let surfaceY = null;
-      world.rayCast(V(p.x, Math.max(WORLD_HEIGHT + 2, p.y + 1)), V(p.x, -3), (fixture, point, normal, fraction) => {
-        if (fixture.getBody().getUserData()?.kind === "terrain") {
-          surfaceY = point.y;
-          return fraction;
+      if (!ragdoll.gettingUp) {
+        const averageSpeed = ragdoll.pieces.reduce((sum, piece) =>
+          sum + piece.body.getLinearVelocity().length(), 0) / ragdoll.pieces.length;
+        const averageSpin = ragdoll.pieces.reduce((sum, piece) =>
+          sum + Math.abs(piece.body.getAngularVelocity()), 0) / ragdoll.pieces.length;
+        ragdoll.elapsedTime += FIXED_STEP;
+        const settled = ragdoll.elapsedTime > 0.8 && ragdollHasGroundContact(ragdoll) &&
+          averageSpeed < 0.55 && averageSpin < 1.8;
+        ragdoll.settledTime = settled ? ragdoll.settledTime + FIXED_STEP : 0;
+        if (ragdoll.settledTime >= 0.3 || ragdoll.elapsedTime >= 4.5) {
+          ragdoll.gettingUp = true;
+          ragdoll.getUpElapsed = 0;
+          ragdoll.pieces.forEach(piece => piece.body.setAwake(true));
         }
-        return -1;
-      });
-      if (surfaceY === null) surfaceY = heightAt(Math.max(0, Math.min(WORLD_WIDTH, p.x)));
-
-      const newBody = world.createBody({
-        type: "dynamic",
-        position: V(p.x, surfaceY + 0.82),
-        fixedRotation: true,
-        linearDamping: 0.7,
-        allowSleep: false,
-        userData: { kind: "character", team: character.team, number: character.number }
-      });
-      const hitboxes = [
-        { location: "head", shape: new P.Circle(V(0, 0.49), 0.14), density: 0.75 },
-        { location: "chest", shape: new P.Box(0.17, 0.29, V(0, 0.04)), density: 1.5 },
-        { location: "legs", shape: new P.Box(0.13, 0.28, V(0, -0.53)), density: 1.1 }
-      ];
-      for (const hitbox of hitboxes) {
-        const fixture = newBody.createFixture({
-          shape: hitbox.shape, density: hitbox.density, friction: 0.82, restitution: 0.02
-        });
-        fixture.setUserData({ kind: "character", location: hitbox.location });
+        continue;
       }
-      for (const piece of ragdoll.pieces) world.destroyBody(piece.body);
-      character.body = newBody;
-      character.ragdoll = null;
-      character.grounded = true;
-      character.gettingUp = { elapsed: 0, duration: 0.72 };
+      ragdoll.getUpElapsed += FIXED_STEP;
+      driveGetUp(ragdoll);
+      if (ragdoll.getUpElapsed >= 3.25) {
+        ragdoll.gettingUp = false;
+        ragdoll.standing = true;
+        ragdoll.elapsedTime = 0;
+        for (const joint of ragdoll.joints) {
+          joint.setMotorSpeed(0);
+          joint.setMaxMotorTorque(0.12);
+        }
+        character.grounded = true;
+      }
     }
   }
 
@@ -739,6 +762,12 @@
         }
         ctx.restore();
       }
+      const barWidth = unit * 0.64;
+      const barY = -unit * 0.96;
+      ctx.fillStyle = "#17232b";
+      ctx.fillRect(screen.x - barWidth / 2, screen.y + barY, barWidth, Math.max(3, unit * 0.055));
+      ctx.fillStyle = character.team === 0 ? "#58a8ff" : "#ff7770";
+      ctx.fillRect(screen.x - barWidth / 2, screen.y + barY, barWidth * (character.health / character.maxHealth), Math.max(3, unit * 0.055));
       return;
     }
 
@@ -747,21 +776,10 @@
     const jumping = !character.grounded;
     const phase = performance.now() * 0.012 * (velocity.x < 0 ? -1 : 1);
     const stride = moving ? Math.min(1, Math.abs(velocity.x) / 3.4) : 0;
-    const legSwing = character.gettingUp
-      ? getUpBlend * 0.42
-      : jumping ? 0.23 : Math.sin(phase) * 0.28 * stride;
-    const armSwing = character.gettingUp
-      ? getUpBlend * -0.62
-      : jumping ? -0.38 : -Math.sin(phase) * 0.22 * stride;
-    const kneeBend = character.gettingUp
-      ? getUpBlend * 0.24
-      : moving ? Math.max(0, Math.sin(phase + 0.9)) * 0.12 * stride : 0;
-    const getUpProgress = character.gettingUp
-      ? Math.min(1, character.gettingUp.elapsed / character.gettingUp.duration) : 1;
-    const getUpBlend = character.gettingUp ? 1 - getUpProgress : 0;
-    const torsoLean = character.gettingUp
-      ? getUpBlend * 0.95
-      : Math.max(-0.16, Math.min(0.16, velocity.x * 0.035));
+    const legSwing = jumping ? 0.23 : Math.sin(phase) * 0.28 * stride;
+    const armSwing = jumping ? -0.38 : -Math.sin(phase) * 0.22 * stride;
+    const kneeBend = moving ? Math.max(0, Math.sin(phase + 0.9)) * 0.12 * stride : 0;
+    const torsoLean = Math.max(-0.16, Math.min(0.16, velocity.x * 0.035));
 
     ctx.save();
     ctx.translate(screen.x, screen.y);
@@ -783,14 +801,10 @@
     const shoulderY = -unit * 0.22;
     const leftElbowX = -unit * (0.24 + armSwing * 0.55);
     const rightElbowX = unit * (0.24 + armSwing * 0.55);
-    const elbowY = character.gettingUp
-      ? -unit * (0.05 + getUpBlend * 0.38)
-      : jumping ? -unit * 0.48 : unit * 0.05;
+    const elbowY = jumping ? -unit * 0.48 : unit * 0.05;
     const leftHandX = -unit * (0.30 + armSwing);
     const rightHandX = unit * (0.30 + armSwing);
-    const handY = character.gettingUp
-      ? -unit * (0.08 + getUpBlend * 0.42)
-      : jumping ? -unit * 0.68 : unit * (0.02 + armSwing * 0.6);
+    const handY = jumping ? -unit * 0.68 : unit * (0.02 + armSwing * 0.6);
     ctx.beginPath();
     ctx.moveTo(0, shoulderY);
     ctx.lineTo(leftElbowX, elbowY);
@@ -805,18 +819,10 @@
     const rightKneeX = unit * (0.14 - legSwing * 0.62);
     const leftFootX = -unit * (0.23 + legSwing);
     const rightFootX = unit * (0.23 - legSwing);
-    const leftKneeY = character.gettingUp
-      ? unit * (0.50 - getUpBlend * 0.24)
-      : jumping ? unit * 0.46 : unit * (0.50 + kneeBend);
-    const rightKneeY = character.gettingUp
-      ? unit * (0.50 - getUpBlend * 0.20)
-      : jumping ? unit * 0.43 : unit * (0.50 - kneeBend);
-    const leftFootY = character.gettingUp
-      ? unit * (0.78 - getUpBlend * 0.28)
-      : jumping ? unit * 0.69 : unit * (0.78 - Math.max(0, Math.sin(phase)) * 0.12 * stride);
-    const rightFootY = character.gettingUp
-      ? unit * (0.78 - getUpBlend * 0.24)
-      : jumping ? unit * 0.66 : unit * (0.78 + Math.max(0, Math.sin(phase)) * 0.12 * stride);
+    const leftKneeY = jumping ? unit * 0.46 : unit * (0.50 + kneeBend);
+    const rightKneeY = jumping ? unit * 0.43 : unit * (0.50 - kneeBend);
+    const leftFootY = jumping ? unit * 0.69 : unit * (0.78 - Math.max(0, Math.sin(phase)) * 0.12 * stride);
+    const rightFootY = jumping ? unit * 0.66 : unit * (0.78 + Math.max(0, Math.sin(phase)) * 0.12 * stride);
     ctx.beginPath();
     ctx.moveTo(0, hipY);
     ctx.lineTo(leftKneeX, leftKneeY);
@@ -952,7 +958,9 @@
     accumulator += elapsed;
     while (accumulator >= FIXED_STEP) {
       moveActive();
-      world.step(FIXED_STEP, 8, 3);
+      // Two smaller substeps improve revolute-joint anchor stability.
+      world.step(FIXED_STEP / 2, 10, 6);
+      world.step(FIXED_STEP / 2, 10, 6);
       detectProjectileImpact();
       if (pendingImpact) {
         pendingImpact = false;
@@ -963,12 +971,6 @@
         if (!character.eliminated && !character.ragdoll) character.grounded = isGrounded(character);
       }
       recoverRagdolls();
-      for (const character of characters) {
-        if (character.gettingUp) {
-          character.gettingUp.elapsed += FIXED_STEP;
-          if (character.gettingUp.elapsed >= character.gettingUp.duration) character.gettingUp = null;
-        }
-      }
       accumulator -= FIXED_STEP;
     }
     render();
