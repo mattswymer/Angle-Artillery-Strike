@@ -18,15 +18,19 @@ Use Planck.js, a JavaScript/TypeScript rewrite of Box2D, for fixed-step rigid-bo
 
 Reference: https://piqnt.dev/planck.js/docs/
 
-### Terrain geometry: polygon clipping plus physics fixtures
+### Terrain geometry: destructible occupancy grid and contour chains
 
-Destructible terrain is the largest technical risk. A heightmap-only terrain representation is insufficient as a final architecture because it cannot naturally represent caves, overhangs, enclosed spaces, or multiple disconnected terrain regions.
+The first surface-profile prototype has been replaced with a two-dimensional solid/empty occupancy grid. The current cell size is 0.05 world units. Explosions remove cells inside a circular blast region; the remaining solid cells are converted into closed boundary contours.
 
-Evaluate a polygon/multipolygon representation with boolean difference operations for explosions. The polygon-clipping JavaScript library supports polygon and multipolygon difference operations and has an established Martínez-Rueda implementation.
+Planck.js chain fixtures represent the resulting terrain boundaries. The outer terrain boundary is intentionally left open along the left, right, and deep bottom edges so those world exits remain lethal rather than becoming invisible walls. Internal contours represent cave walls, holes, and disconnected terrain sections. Detached sections remain static; they do not fall under gravity.
 
-Reference: https://github.com/mfogel/polygon-clipping
+This representation supports caves, tunnels, holes, and multiple disconnected regions without relying on polygon boolean operations or convex decomposition. It is a practical step toward Worms-style terrain destruction. Its tradeoffs are grid resolution, contour complexity, and the cost of rebuilding collision boundaries after an explosion. The current implementation rebuilds the terrain boundary after each blast; profile this on mobile before increasing resolution or blast frequency.
 
-Planck polygon fixtures have convex-vertex constraints, so terrain output must be decomposed into convex pieces or represented with suitable chain/edge fixtures. Terrain edits should be batched: remove affected static fixtures, update geometry, rebuild collision fixtures, then resume simulation. Avoid rebuilding the entire world for every frame.
+Planck chain shapes are two-sided and support connected terrain contours. Their loops must not self-intersect, and very short adjacent edges should be avoided.
+
+References:
+- https://piqnt.com/planck.js/docs/shape/chain.html
+- https://piqnt.com/planck.js/docs/api/classes/ChainShape.html
 
 ### Rendering
 
@@ -52,13 +56,13 @@ Build a small playable sandbox with:
 - Aiming indicator with angle and power.
 - A basic ballistic projectile.
 - Wind disabled initially; gravity fixed initially.
-- Terrain impact crater and collision rebuild.
+- Grid-based terrain with contour collision, terrain holes, and disconnected sections that remain in place.\n- Terrain impact craters and collision rebuild.
 - Explosion impulse and character knockback.
 - Ragdoll response.
 - Left, right, and bottom lethal boundaries; open top.
 - Reset/regenerate control.
 
-This milestone is a physics test, not a complete match. It does not include drafting, AI strategy, the full roster, special weapons, health balancing, or polished match UI.
+This milestone is a physics test, not a complete match. It does not include drafting, AI strategy, the full roster, special weapons, health balancing, or polished match UI. The current terrain is a 2D occupancy grid with contour-chain collision, not a continuous vector-polygon system.
 
 ## Physics acceptance tests
 
