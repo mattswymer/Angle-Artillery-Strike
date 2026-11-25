@@ -455,7 +455,7 @@
       );
       // Apply the direct-hit impulse at the projectile contact point so the
       // hit can generate natural torque instead of an artificial spin impulse.
-      body.applyLinearImpulse(body === hitBody ? impulse : impulse, body === hitBody ? origin : center, true);
+      body.applyLinearImpulse(impulse, body === hitBody ? origin : center, true);
     }
   }
 
