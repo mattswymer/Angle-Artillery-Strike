@@ -316,3 +316,58 @@ body.aim-precision .control-panel { grid-template-columns: auto minmax(150px, 1f
   .action-buttons .button { min-height: 40px; }
   .turn-card { padding: 5px 7px; }
 }
+
+
+/* Landscape controls are a dedicated footer, not an overlay on the battlefield. */
+@media (orientation: landscape) and (max-height: 600px) {
+  .app-shell { --control-footer-height: 74px; }
+  .game-frame {
+    inset: 0 0 var(--control-footer-height) 0;
+    height: auto;
+    bottom: var(--control-footer-height);
+  }
+  .control-panel {
+    position: absolute;
+    inset: auto 0 0;
+    width: 100%;
+    height: var(--control-footer-height);
+    min-height: var(--control-footer-height);
+    display: grid;
+    grid-template-columns: 112px minmax(0, 1fr) 62px;
+    grid-template-areas: "movement actions jump";
+    gap: 8px;
+    align-items: center;
+    padding: 6px max(10px, env(safe-area-inset-right)) 6px max(10px, env(safe-area-inset-left));
+    border: 0;
+    border-top: 1px solid #8ba0aa88;
+    border-radius: 0;
+    background: #14232d;
+    box-shadow: 0 -5px 18px #0003;
+    backdrop-filter: none;
+  }
+  .movement-buttons { grid-area: movement; }
+  .action-buttons { grid-area: actions; justify-content: center; }
+  .jump-button { grid-area: jump; }
+  .control-group { display: none !important; }
+  body.aim-precision .app-shell { --control-footer-height: 92px; }
+  body.aim-precision .game-frame { bottom: var(--control-footer-height); }
+  body.aim-precision .control-panel {
+    height: var(--control-footer-height);
+    min-height: var(--control-footer-height);
+    grid-template-columns: 104px minmax(72px, 1fr) minmax(72px, 1fr) 150px 56px;
+    grid-template-areas: "movement angle power actions jump";
+    gap: 6px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+  }
+  body.aim-precision .control-group { display: grid !important; gap: 3px; }
+  body.aim-precision .control-heading { font-size: 10px; }
+  .movement-buttons .button { min-height: 46px; }
+  .jump-button { height: 52px; min-height: 52px; }
+}
+@media (orientation: landscape) and (max-height: 390px) {
+  .app-shell { --control-footer-height: 64px; }
+  body.aim-precision .app-shell { --control-footer-height: 82px; }
+  .movement-buttons .button { min-height: 40px; }
+  .jump-button { height: 46px; min-height: 46px; }
+}
