@@ -79,8 +79,23 @@
       noise = noise * 0.72 + (random() - 0.5) * 0.62;
       const x = i / (TERRAIN_SAMPLES - 1);
       const broad = Math.sin(x * Math.PI * 2.1 + 0.4) * 0.78;
-      const ridge = Math.sin(x * Math.PI * 5.3 + 1.7) * 0.34;
+      const ridge = Math.sin(x * Math.PI * 4.7 + 1.7) * 0.28;
       terrainHeights.push(Math.max(2.2, Math.min(5.2, 3.55 + broad + ridge + noise)));
+    }
+
+    // Smooth the generated height profile without flattening its larger hills and valleys.
+    const source = terrainHeights.slice();
+    const weights = [1, 4, 6, 4, 1];
+    for (let i = 0; i < TERRAIN_SAMPLES; i++) {
+      let total = 0;
+      let weightTotal = 0;
+      for (let offset = -2; offset <= 2; offset++) {
+        const sampleIndex = Math.max(0, Math.min(TERRAIN_SAMPLES - 1, i + offset));
+        const weight = weights[offset + 2];
+        total += source[sampleIndex] * weight;
+        weightTotal += weight;
+      }
+      terrainHeights[i] = Math.max(2.2, Math.min(5.2, total / weightTotal));
     }
   }
 
@@ -203,8 +218,8 @@
     const grounded = isGrounded(character);
     if (direction && grounded) {
       const stepHeight = stepHeightAhead(character, direction);
-      if (stepHeight > 0.07 && stepHeight <= 0.3) {
-        verticalVelocity = Math.max(verticalVelocity, 2.5);
+      if (stepHeight > 0.07 && stepHeight <= 0.4) {
+        verticalVelocity = Math.max(verticalVelocity, 2.8);
       }
     }
 
@@ -212,7 +227,7 @@
     else character.body.setLinearVelocity(V(velocity.x * 0.78, velocity.y));
 
     if ((held.jump || jumpQueued) && grounded) {
-      character.body.setLinearVelocity(V(character.body.getLinearVelocity().x, 4.1));
+      character.body.setLinearVelocity(V(character.body.getLinearVelocity().x, 3.5));
       jumpQueued = false;
       held.jump = false;
     }
@@ -268,9 +283,9 @@
       const dy = p.y - point.y;
       const distance = Math.hypot(dx, dy);
       if (distance < 3.3) {
-        const strength = 8.5 * (1 - distance / 3.3);
+        const strength = 4.5 * (1 - distance / 3.3);
         const length = Math.max(0.01, distance);
-        character.body.applyLinearImpulse(V(dx / length * strength, dy / length * strength + 1.2), character.body.getWorldCenter(), true);
+        character.body.applyLinearImpulse(V(dx / length * strength, dy / length * strength + 0.55), character.body.getWorldCenter(), true);
       }
     }
     statusEl.textContent = "Impact · crater radius " + radius.toFixed(2) + " · " + removedCells + " terrain cells removed";
