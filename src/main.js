@@ -360,9 +360,14 @@
         allowSleep: false,
         userData: { kind: "character", team: character.team, number: character.number, ragdoll: true, part: name }
       });
+      // A negative group index prevents this character's overlapping ragdoll
+      // segments from colliding with one another, while preserving terrain and
+      // other-character collisions.
+      const collisionGroup = -((character.team * 4) + character.number);
       const fixture = body.createFixture({
         shape: circle ? new P.Circle(halfWidth) : new P.Box(halfWidth, halfHeight),
-        density, friction: 0.92, restitution: 0.015
+        density, friction: 0.4, restitution: 0.2,
+        filterGroupIndex: collisionGroup
       });
       fixture.setUserData({
         kind: "character",
@@ -383,16 +388,18 @@
     };
 
     // Segment centers and local hinge anchors are aligned exactly at creation.
-    const torso = addPart("torso", 0, 0, 0.17, 0.29, 1.8);
-    const head = addPart("head", 0, 0.47, 0.135, 0.135, 0.65, true);
-    const leftUpperArm = addPart("left-upper-arm", -0.17, 0.03, 0.065, 0.19, 0.28);
-    const leftLowerArm = addPart("left-lower-arm", -0.17, -0.33, 0.055, 0.17, 0.22);
-    const rightUpperArm = addPart("right-upper-arm", 0.17, 0.03, 0.065, 0.19, 0.28);
-    const rightLowerArm = addPart("right-lower-arm", 0.17, -0.33, 0.055, 0.17, 0.22);
-    const leftUpperLeg = addPart("left-upper-leg", -0.105, -0.455, 0.075, 0.205, 0.48);
-    const leftLowerLeg = addPart("left-lower-leg", -0.105, -0.83, 0.06, 0.17, 0.34);
-    const rightUpperLeg = addPart("right-upper-leg", 0.105, -0.455, 0.075, 0.205, 0.48);
-    const rightLowerLeg = addPart("right-lower-leg", 0.105, -0.83, 0.06, 0.17, 0.34);
+    // Keep the torso relatively light and give the limbs enough mass to
+    // carry their own momentum instead of being dragged like weightless strings.
+    const torso = addPart("torso", 0, 0, 0.17, 0.29, 1.5);
+    const head = addPart("head", 0, 0.47, 0.135, 0.135, 1.05, true);
+    const leftUpperArm = addPart("left-upper-arm", -0.17, 0.03, 0.065, 0.19, 0.8);
+    const leftLowerArm = addPart("left-lower-arm", -0.17, -0.33, 0.055, 0.17, 0.8);
+    const rightUpperArm = addPart("right-upper-arm", 0.17, 0.03, 0.065, 0.19, 0.8);
+    const rightLowerArm = addPart("right-lower-arm", 0.17, -0.33, 0.055, 0.17, 0.8);
+    const leftUpperLeg = addPart("left-upper-leg", -0.105, -0.455, 0.075, 0.205, 1.15);
+    const leftLowerLeg = addPart("left-lower-leg", -0.105, -0.83, 0.06, 0.17, 1.1);
+    const rightUpperLeg = addPart("right-upper-leg", 0.105, -0.455, 0.075, 0.205, 1.15);
+    const rightLowerLeg = addPart("right-lower-leg", 0.105, -0.83, 0.06, 0.17, 1.1);
 
     const hinge = (bodyA, bodyB, anchorA, anchorB, lower, upper) => world.createJoint(
       new P.RevoluteJoint({
@@ -425,23 +432,27 @@
     };
     world.destroyBody(oldBody);
 
-    const target = byName[hitLocation === "head" ? "head" :
-      hitLocation === "legs" ? "left-upper-leg" : "torso"];
-    const targetPosition = target.body.getPosition();
-    const dx = targetPosition.x - impact.x;
-    const dy = targetPosition.y - impact.y;
-    const length = Math.max(0.05, Math.hypot(dx, dy));
-    const impulse = V(dx / length * 5.2, dy / length * 5.2 + 1.1);
-    target.body.applyLinearImpulse(impulse, target.body.getWorldCenter(), true);
-    target.body.applyAngularImpulse((character.team === 0 ? 1 : -1) * 1.35, true);
+  }
 
-    for (const piece of pieces) {
-      if (piece === target) continue;
-      const p = piece.body.getPosition();
-      const falloff = Math.max(0.18, 1 - Math.hypot(p.x - targetPosition.x, p.y - targetPosition.y) / 1.25);
-      piece.body.applyLinearImpulse(
-        V(impulse.x * 0.18 * falloff, impulse.y * 0.18 * falloff),
-        piece.body.getWorldCenter(), true
+  // Apply a requested change in velocity, not a fixed impulse. Multiplying
+  // by each part's mass makes every segment receive comparable acceleration.
+  function blastRagdoll(ragdoll, origin, strength, radius) {
+    for (const { body } of ragdoll.pieces) {
+      const center = body.getWorldCenter();
+      const dx = center.x - origin.x;
+      const dy = center.y - origin.y;
+      const distance = Math.max(0.1, Math.hypot(dx, dy));
+      const falloff = Math.max(0, 1 - distance / radius);
+      if (falloff <= 0) continue;
+      const deltaV = strength * falloff;
+      const mass = body.getMass();
+      body.applyLinearImpulse(
+        V(
+          (dx / distance * deltaV) * mass,
+          (dy / distance * deltaV + 0.5 * falloff) * mass
+        ),
+        center,
+        true
       );
     }
   }
@@ -548,9 +559,9 @@
       const dy = p.y - point.y;
       const distance = Math.hypot(dx, dy);
       const isDirectTarget = directHit?.character === character;
-      if (isDirectTarget) createRagdoll(character, point, directHit.location);
       let damage = 0;
       if (isDirectTarget) {
+        if (!character.ragdoll) createRagdoll(character, point, directHit.location);
         damage = { head: 40, chest: 30, legs: 20 }[directHit.location];
       } else if (distance < blastRadius) {
         damage = Math.round(18 * (1 - distance / blastRadius));
@@ -567,10 +578,23 @@
           if (!character.ragdoll) character.body.setActive(false);
         }
       }
-      if (distance < 3.3) {
-        const strength = 4.5 * (1 - distance / 3.3);
-        const length = Math.max(0.01, distance);
-        character.body.applyLinearImpulse(V(dx / length * strength, dy / length * strength + 0.55), character.body.getWorldCenter(), true);
+
+      // A direct hit always breaks the upright pose. A sufficiently strong
+      // nearby blast does too; weaker splash uses mass-scaled knockback only.
+      const knockback = 4.5 * Math.max(0, 1 - distance / 3.3);
+      if (isDirectTarget || knockback > 3.5) {
+        if (!character.ragdoll) createRagdoll(character, point, isDirectTarget ? directHit.location : "chest");
+        blastRagdoll(character.ragdoll, point, isDirectTarget ? 12 : 11, blastRadius);
+      } else if (character.ragdoll) {
+        if (distance < blastRadius) blastRagdoll(character.ragdoll, point, 11, blastRadius);
+      } else if (knockback > 0) {
+        const length = Math.max(0.1, distance);
+        const mass = character.body.getMass();
+        character.body.applyLinearImpulse(
+          V((dx / length * knockback) * mass, (dy / length * knockback + 0.55) * mass),
+          character.body.getWorldCenter(),
+          true
+        );
       }
     }
     const damageSummary = damageEvents.map(event =>
