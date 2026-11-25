@@ -78,13 +78,17 @@ input[type="range"] { width: 100%; accent-color: #f2b84b; cursor: pointer; }
 /* Short landscape viewports (phones rotated sideways): keep touch movement on the left. */
 @media (orientation: landscape) and (max-height: 600px) {
   .control-panel {
-    grid-template-columns: auto minmax(130px, 1fr) minmax(130px, 1fr) auto auto;
+    grid-template-columns: 116px minmax(110px, 1fr) minmax(110px, 1fr) 174px 64px;
     grid-template-areas: "movement angle power actions jump";
+    gap: 10px;
     align-items: center;
+    padding: 12px;
   }
-  .movement-buttons { grid-area: movement; justify-content: flex-start; gap: 7px; }
-  .jump-button { grid-area: jump; }
+  .movement-buttons { grid-area: movement; justify-content: flex-start; gap: 6px; }
+  .movement-buttons .button { width: 52px; min-width: 52px; padding: 0; }
+  .jump-button { grid-area: jump; width: 58px; min-width: 58px; height: 58px; justify-self: end; }
   .aim-group { grid-area: angle; }
   .control-group:not(.aim-group) { grid-area: power; }
-  .action-buttons { grid-area: actions; justify-content: flex-end; }
+  .action-buttons { grid-area: actions; justify-content: stretch; gap: 6px; }
+  .action-buttons .button { min-width: 0; flex: 1; padding: 0 8px; white-space: nowrap; }
 }
