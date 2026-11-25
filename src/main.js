@@ -134,7 +134,7 @@
   }
 
   function makeCharacter(team, number, x) {
-    const y = heightAt(x) + 0.48;
+    const y = heightAt(x) + 0.78;
     const body = world.createBody({
       type: "dynamic",
       position: V(x, y),
@@ -143,9 +143,24 @@
       allowSleep: false,
       userData: { kind: "character", team, number }
     });
-    const fixture = body.createFixture({ shape: new P.Circle(0.36), density: 1.25, friction: 0.82, restitution: 0.02 });
-    fixture.setUserData({ kind: "character" });
-    return { body, team, number, color: COLORS[team], grounded: false, eliminated: false, aimAngle: 45, aimPower: 100 };
+    const hitboxes = [
+      { location: "head", shape: new P.Circle(V(0, 0.49), 0.14), density: 0.45 },
+      { location: "chest", shape: new P.Box(0.17, 0.29, V(0, 0.04)), density: 0.9 },
+      { location: "legs", shape: new P.Box(0.13, 0.28, V(0, -0.53)), density: 0.65 }
+    ];
+    for (const hitbox of hitboxes) {
+      const fixture = body.createFixture({
+        shape: hitbox.shape,
+        density: hitbox.density,
+        friction: 0.82,
+        restitution: 0.02
+      });
+      fixture.setUserData({ kind: "character", location: hitbox.location });
+    }
+    return {
+      body, team, number, color: COLORS[team], grounded: false, eliminated: false,
+      health: 100, maxHealth: 100, aimAngle: 45, aimPower: 100
+    };
   }
 
   function createWorld() {
@@ -206,7 +221,7 @@
   function isGrounded(character) {
     const p = character.body.getPosition();
     let found = false;
-    world.rayCast(V(p.x, p.y - 0.39), V(p.x, p.y - 0.57), (fixture, point, normal, fraction) => {
+    world.rayCast(V(p.x, p.y - 0.77), V(p.x, p.y - 0.91), (fixture, point, normal, fraction) => {
       if (fixture.getBody() === character.body) return -1;
       if (fixture.getBody().getUserData()?.kind === "terrain") {
         found = true;
@@ -219,8 +234,8 @@
 
   function stepHeightAhead(character, direction) {
     const position = character.body.getPosition();
-    const footY = position.y - 0.36;
-    const probeX = position.x + direction * 0.43;
+    const footY = position.y - 0.81;
+    const probeX = position.x + direction * 0.32;
     let surfaceY = null;
 
     world.rayCast(V(probeX, position.y + 0.55), V(probeX, position.y - 0.5),
@@ -255,7 +270,7 @@
         const otherPosition = other.body.getPosition();
         const dx = otherPosition.x - position.x;
         const dy = Math.abs(otherPosition.y - position.y);
-        return dx * direction > 0 && Math.abs(dx) < 0.79 && dy < 0.66;
+        return dx * direction > 0 && Math.abs(dx) < 0.58 && dy < 1.25;
       });
       if (blockedByCharacter) direction = 0;
     }
@@ -301,7 +316,7 @@
     const dx = Math.cos(angle) * direction;
     const dy = Math.sin(angle);
     const p = character.body.getPosition();
-    const start = V(p.x + dx * 0.62, p.y + dy * 0.48 + 0.1);
+    const start = V(p.x + dx * 0.42, p.y + dy * 0.72 + 0.05);
     const body = world.createBody({
       type: "dynamic",
       position: start,
@@ -333,8 +348,10 @@
     const directHit = projectileHit;
     projectileHit = null;
     const radius = 1.7;
+    const blastRadius = 2.6;
     const removedCells = terrainSystem.carveCircle(point.x, point.y, radius);
     rebuildTerrain();
+    const damageEvents = [];
 
     for (const character of characters) {
       if (character.eliminated) continue;
@@ -342,20 +359,45 @@
       const dx = p.x - point.x;
       const dy = p.y - point.y;
       const distance = Math.hypot(dx, dy);
+      const isDirectTarget = directHit?.character === character;
+      let damage = 0;
+      if (isDirectTarget) {
+        damage = { head: 40, chest: 30, legs: 20 }[directHit.location];
+      } else if (distance < blastRadius) {
+        damage = Math.round(18 * (1 - distance / blastRadius));
+      }
+      if (damage > 0) {
+        character.health = Math.max(0, character.health - damage);
+        damageEvents.push({ character, damage, direct: isDirectTarget, location: isDirectTarget ? directHit.location : "splash" });
+        if (character.health <= 0) {
+          character.eliminated = true;
+          character.body.setActive(false);
+        }
+      }
       if (distance < 3.3) {
         const strength = 4.5 * (1 - distance / 3.3);
         const length = Math.max(0.01, distance);
         character.body.applyLinearImpulse(V(dx / length * strength, dy / length * strength + 0.55), character.body.getWorldCenter(), true);
       }
     }
-    statusEl.textContent = directHit ? "Direct " + directHit.location + " hit on " + (directHit.character.team === 0 ? "Blue " : "Red ") + directHit.character.number + " · crater radius " + radius.toFixed(2) : "Impact · crater radius " + radius.toFixed(2) + " · " + removedCells + " terrain cells removed";
+    const damageSummary = damageEvents.map(event =>
+      (event.character.team === 0 ? "Blue " : "Red ") + event.character.number +
+      " -" + event.damage + (event.direct ? " direct " + event.location : " splash")
+    ).join(" · ");
+    const eliminated = damageEvents.filter(event => event.character.health <= 0)
+      .map(event => (event.character.team === 0 ? "Blue " : "Red ") + event.character.number + " eliminated");
+    statusEl.textContent = (damageSummary || "No combatants damaged") +
+      (eliminated.length ? " · " + eliminated.join(", ") : "") +
+      " · crater " + removedCells + " cells";
     updateHud();
   }
 
-  function classifyHitLocation(character, point) {
+  function classifyHitLocation(character, fixture, point) {
+    const fixtureLocation = fixture.getUserData()?.location;
+    if (fixtureLocation) return fixtureLocation;
     const relativeHeight = point.y - character.body.getPosition().y;
-    if (relativeHeight > 0.14) return "head";
-    if (relativeHeight > -0.12) return "chest";
+    if (relativeHeight > 0.34) return "head";
+    if (relativeHeight > -0.25) return "chest";
     return "legs";
   }
 
@@ -371,7 +413,7 @@
         impactPoint = V(point.x, point.y);
         if (bodyKind === "character") {
           const target = characters.find(character => character.body === fixture.getBody());
-          if (target) projectileHit = { character: target, location: classifyHitLocation(target, point) };
+          if (target) projectileHit = { character: target, location: classifyHitLocation(target, fixture, point) };
         }
         hit = true;
         return fraction;
@@ -442,21 +484,27 @@
     ctx.lineWidth = Math.max(2.4, unit * 0.075);
     ctx.fillStyle = character.color;
     ctx.beginPath();
-    ctx.arc(0, -unit * 0.22, unit * 0.13, 0, Math.PI * 2);
+    ctx.arc(0, -unit * 0.49, unit * 0.14, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
     ctx.beginPath();
-    ctx.moveTo(0, -unit * 0.36);
-    ctx.lineTo(0, unit * 0.12);
-    ctx.moveTo(0, -unit * 0.22);
-    ctx.lineTo(-unit * 0.2, -unit * 0.02);
-    ctx.moveTo(0, -unit * 0.22);
-    ctx.lineTo(unit * 0.2, -unit * 0.02);
-    ctx.moveTo(0, unit * 0.12);
-    ctx.lineTo(-unit * 0.17, unit * 0.36);
-    ctx.moveTo(0, unit * 0.12);
-    ctx.lineTo(unit * 0.17, unit * 0.36);
+    ctx.moveTo(0, -unit * 0.35);
+    ctx.lineTo(0, unit * 0.25);
+    ctx.moveTo(0, -unit * 0.23);
+    ctx.lineTo(-unit * 0.29, unit * 0.04);
+    ctx.moveTo(0, -unit * 0.23);
+    ctx.lineTo(unit * 0.29, unit * 0.04);
+    ctx.moveTo(0, unit * 0.25);
+    ctx.lineTo(-unit * 0.23, unit * 0.78);
+    ctx.moveTo(0, unit * 0.25);
+    ctx.lineTo(unit * 0.23, unit * 0.78);
     ctx.stroke();
+    const barWidth = unit * 0.64;
+    const barY = -unit * 0.96;
+    ctx.fillStyle = "#17232b";
+    ctx.fillRect(-barWidth / 2, barY, barWidth, Math.max(3, unit * 0.055));
+    ctx.fillStyle = character.team === 0 ? "#58a8ff" : "#ff7770";
+    ctx.fillRect(-barWidth / 2, barY, barWidth * (character.health / character.maxHealth), Math.max(3, unit * 0.055));
     ctx.restore();
   }
 
