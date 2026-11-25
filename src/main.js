@@ -487,7 +487,15 @@
   function recoverRagdolls() {
     for (const character of characters) {
       const ragdoll = character.ragdoll;
-      if (!ragdoll || character.eliminated) continue;
+      if (!ragdoll) continue;
+      if (character.eliminated) {
+        ragdoll.elapsedTime += FIXED_STEP;
+        if (ragdoll.elapsedTime >= 4.5) {
+          ragdoll.pieces.forEach(piece => world.destroyBody(piece.body));
+          character.ragdoll = null;
+        }
+        continue;
+      }
       const averageSpeed = ragdoll.pieces.reduce(
         (sum, piece) => sum + piece.body.getLinearVelocity().length(), 0
       ) / ragdoll.pieces.length;
