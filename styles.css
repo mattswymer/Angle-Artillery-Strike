@@ -74,3 +74,16 @@ input[type="range"] { width: 100%; accent-color: #f2b84b; cursor: pointer; }
   .action-buttons { grid-column: 1 / -1; grid-row: 2; justify-content: stretch; }
   .action-buttons .button { flex: 1; }
 }
+
+/* Short landscape viewports (phones rotated sideways): keep touch movement on the left. */
+@media (orientation: landscape) and (max-height: 600px) {
+  .control-panel {
+    grid-template-columns: auto minmax(130px, 1fr) minmax(130px, 1fr) auto;
+    grid-template-areas: "touch angle power actions";
+    align-items: center;
+  }
+  .touch-controls { grid-area: touch; justify-content: flex-start; gap: 12px; }
+  .aim-group { grid-area: angle; }
+  .control-group:not(.aim-group) { grid-area: power; }
+  .action-buttons { grid-area: actions; justify-content: flex-end; }
+}
