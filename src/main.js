@@ -144,7 +144,7 @@
     });
     const fixture = body.createFixture({ shape: new P.Circle(0.36), density: 1.25, friction: 0.82, restitution: 0.02 });
     fixture.setUserData({ kind: "character" });
-    return { body, team, number, color: COLORS[team], grounded: false, eliminated: false };
+    return { body, team, number, color: COLORS[team], grounded: false, eliminated: false, aimAngle: 45, aimPower: 100 };
   }
 
   function createWorld() {
@@ -177,6 +177,7 @@
     impactPoint = null;
     pendingImpact = false;
     cameraY = 0;
+    restoreActiveAim();
     updateHud();
     statusEl.textContent = "Physics running";
     statusEl.style.color = "#9fb0ba";
@@ -236,10 +237,23 @@
     if (!character || character.eliminated || projectile || activeAction === "attack") return;
     const velocity = character.body.getLinearVelocity();
     const heldDirection = (held.right ? 1 : 0) - (held.left ? 1 : 0);
-    const direction = heldDirection || (tapMoveRemaining > 0 ? tapMoveDirection : 0);
+    let direction = heldDirection || (tapMoveRemaining > 0 ? tapMoveDirection : 0);
     if (tapMoveRemaining > 0) {
       tapMoveRemaining = Math.max(0, tapMoveRemaining - FIXED_STEP);
       if (tapMoveRemaining === 0) tapMoveDirection = 0;
+    }
+
+    // Other combatants are solid obstacles, but ordinary walking cannot shove them.
+    if (direction) {
+      const position = character.body.getPosition();
+      const blocked = characters.some(other => {
+        if (other === character || other.eliminated) return false;
+        const otherPosition = other.body.getPosition();
+        const dx = otherPosition.x - position.x;
+        const dy = Math.abs(otherPosition.y - position.y);
+        return dx * direction > 0 && Math.abs(dx) < 0.79 && dy < 0.66;
+      });
+      if (blocked) direction = 0;
     }
     if ((direction || held.jump || jumpQueued) && activeAction !== "move") {
       activeAction = "move";
@@ -261,7 +275,7 @@
     }
 
     if (direction) character.body.setLinearVelocity(V(direction * 3.4, verticalVelocity));
-    else character.body.setLinearVelocity(V(velocity.x * 0.78, velocity.y));
+    else character.body.setLinearVelocity(V(0, verticalVelocity));
 
     if (jumpBufferTime > 0 && coyoteTime > 0) {
       character.body.setLinearVelocity(V(character.body.getLinearVelocity().x, 3.9));
@@ -534,8 +548,24 @@
     requestAnimationFrame(frame);
   }
 
+  function saveActiveAim() {
+    const character = activeCharacter();
+    if (!character) return;
+    character.aimAngle = Number(angleInput.value);
+    character.aimPower = Number(powerInput.value);
+  }
+
+  function restoreActiveAim() {
+    const character = activeCharacter();
+    if (!character) return;
+    angleInput.value = String(character.aimAngle);
+    powerInput.value = String(character.aimPower);
+    setAimLabels();
+  }
+
   function changeTurn() {
     if (projectile) return;
+    saveActiveAim();
     held = { left: false, right: false, jump: false };
     jumpBufferTime = 0;
     coyoteTime = 0;
@@ -550,6 +580,7 @@
         break;
       }
     }
+    restoreActiveAim();
     updateHud();
   }
 
@@ -586,8 +617,14 @@
   });
   fireButton.addEventListener("click", fire);
   endTurnButton.addEventListener("click", changeTurn);
-  angleInput.addEventListener("input", setAimLabels);
-  powerInput.addEventListener("input", setAimLabels);
+  angleInput.addEventListener("input", () => {
+    setAimLabels();
+    saveActiveAim();
+  });
+  powerInput.addEventListener("input", () => {
+    setAimLabels();
+    saveActiveAim();
+  });
   bindHoldButton("move-left", "left");
   bindHoldButton("move-right", "right");
   bindHoldButton("jump", "jump");
