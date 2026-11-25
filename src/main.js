@@ -166,6 +166,23 @@
     return found;
   }
 
+  function stepHeightAhead(character, direction) {
+    const position = character.body.getPosition();
+    const footY = position.y - 0.36;
+    const probeX = position.x + direction * 0.43;
+    let surfaceY = null;
+
+    world.rayCast(V(probeX, position.y + 0.55), V(probeX, position.y - 0.5),
+      (fixture, point, normal, fraction) => {
+        if (fixture.getBody().getUserData()?.kind !== "terrain") return -1;
+        surfaceY = point.y;
+        return fraction;
+      });
+
+    if (surfaceY === null) return 0;
+    return surfaceY - footY;
+  }
+
   function moveActive() {
     const character = activeCharacter();
     if (!character || character.eliminated || projectile || activeAction === "attack") return;
@@ -181,10 +198,21 @@
       statusEl.textContent = "Movement action — firing is locked until the next turn";
       updateHud();
     }
-    if (direction) character.body.setLinearVelocity(V(direction * 3.0, velocity.y));
+
+    let verticalVelocity = velocity.y;
+    const grounded = isGrounded(character);
+    if (direction && grounded) {
+      const stepHeight = stepHeightAhead(character, direction);
+      if (stepHeight > 0.07 && stepHeight <= 0.3) {
+        verticalVelocity = Math.max(verticalVelocity, 2.5);
+      }
+    }
+
+    if (direction) character.body.setLinearVelocity(V(direction * 3.4, verticalVelocity));
     else character.body.setLinearVelocity(V(velocity.x * 0.78, velocity.y));
-    if ((held.jump || jumpQueued) && isGrounded(character)) {
-      character.body.applyLinearImpulse(V(0, 4.7), character.body.getWorldCenter(), true);
+
+    if ((held.jump || jumpQueued) && grounded) {
+      character.body.setLinearVelocity(V(character.body.getLinearVelocity().x, 4.1));
       jumpQueued = false;
       held.jump = false;
     }
