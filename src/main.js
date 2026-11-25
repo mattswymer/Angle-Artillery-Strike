@@ -37,6 +37,7 @@
   let pendingImpact = false;
   let seed = 1;
   let held = { left: false, right: false, jump: false };
+  let activeAction = null;
   let jumpQueued = false;
   let lastFrame = 0;
   let accumulator = 0;
@@ -119,6 +120,7 @@
     const redX = 15 + random() * 6.5;
     characters = [makeCharacter(0, 1, blueX), makeCharacter(1, 1, redX)];
     activeIndex = 0;
+    activeAction = null;
     projectile = null;
     pendingImpact = false;
     cameraY = 0;
@@ -137,6 +139,7 @@
     seedLabel.textContent = "Seed " + seed;
     const direction = active?.team === 0 ? "right" : "left";
     fireButton.textContent = "Fire " + (direction === "right" ? "→" : "←");
+    fireButton.disabled = activeAction === "move" || activeAction === "attack" || Boolean(projectile);
   }
 
   function setAimLabels() {
@@ -160,9 +163,10 @@
 
   function moveActive() {
     const character = activeCharacter();
-    if (!character || character.eliminated || projectile) return;
+    if (!character || character.eliminated || projectile || activeAction === "attack") return;
     const velocity = character.body.getLinearVelocity();
     const direction = (held.right ? 1 : 0) - (held.left ? 1 : 0);
+    if (direction || held.jump || jumpQueued) activeAction = "move";
     if (direction) character.body.setLinearVelocity(V(direction * 3.0, velocity.y));
     else character.body.setLinearVelocity(V(velocity.x * 0.78, velocity.y));
     if ((held.jump || jumpQueued) && isGrounded(character)) {
@@ -174,7 +178,9 @@
 
   function fire() {
     const character = activeCharacter();
-    if (!character || character.eliminated || projectile) return;
+    if (!character || character.eliminated || projectile || activeAction === "move" || activeAction === "attack") return;
+    activeAction = "attack";
+    updateHud();
     const angle = Number(angleInput.value) * Math.PI / 180;
     const power = Number(powerInput.value) / 100;
     const direction = character.team === 0 ? 1 : -1;
@@ -229,7 +235,7 @@
       }
     }
     statusEl.textContent = "Explosion · crater radius " + radius.toFixed(2);
-    fireButton.disabled = false;
+    updateHud();
   }
 
   function checkBoundaries() {
@@ -409,6 +415,7 @@
     if (projectile) return;
     held = { left: false, right: false, jump: false };
     jumpQueued = false;
+    activeAction = null;
     activeIndex = (activeIndex + 1) % characters.length;
     updateHud();
   }
