@@ -44,6 +44,8 @@
   let tapMoveRemaining = 0;
   let activeAction = null;
   let jumpQueued = false;
+  let jumpBufferTime = 0;
+  let coyoteTime = 0;
   let lastFrame = 0;
   let accumulator = 0;
   let cameraY = 0;
@@ -247,6 +249,10 @@
 
     let verticalVelocity = velocity.y;
     const grounded = isGrounded(character);
+    if (grounded) coyoteTime = 0.12;
+    else coyoteTime = Math.max(0, coyoteTime - FIXED_STEP);
+    if (held.jump || jumpQueued) jumpBufferTime = 0.16;
+    else jumpBufferTime = Math.max(0, jumpBufferTime - FIXED_STEP);
     if (direction && grounded) {
       const stepHeight = stepHeightAhead(character, direction);
       if (stepHeight > 0.07 && stepHeight <= 0.4) {
@@ -257,10 +263,11 @@
     if (direction) character.body.setLinearVelocity(V(direction * 3.4, verticalVelocity));
     else character.body.setLinearVelocity(V(velocity.x * 0.78, velocity.y));
 
-    if ((held.jump || jumpQueued) && grounded) {
-      character.body.setLinearVelocity(V(character.body.getLinearVelocity().x, 3.5));
+    if (jumpBufferTime > 0 && coyoteTime > 0) {
+      character.body.setLinearVelocity(V(character.body.getLinearVelocity().x, 3.9));
+      jumpBufferTime = 0;
+      coyoteTime = 0;
       jumpQueued = false;
-      held.jump = false;
     }
   }
 
@@ -530,6 +537,8 @@
   function changeTurn() {
     if (projectile) return;
     held = { left: false, right: false, jump: false };
+    jumpBufferTime = 0;
+    coyoteTime = 0;
     tapMoveDirection = 0;
     tapMoveRemaining = 0;
     jumpQueued = false;
@@ -564,6 +573,7 @@
     };
     button.addEventListener("selectstart", event => event.preventDefault());
     button.addEventListener("contextmenu", event => event.preventDefault());
+    button.addEventListener("dragstart", event => event.preventDefault());
     button.addEventListener("pointerdown", start);
     button.addEventListener("pointerup", stop);
     button.addEventListener("pointercancel", stop);
@@ -592,6 +602,12 @@
   window.addEventListener("keyup", event => {
     if (event.key.toLowerCase() === "a" || event.key === "ArrowLeft") held.left = false;
     if (event.key.toLowerCase() === "d" || event.key === "ArrowRight") held.right = false;
+  });
+  document.addEventListener("selectstart", event => {
+    if (event.target.closest?.(".touch-control")) event.preventDefault();
+  });
+  document.addEventListener("contextmenu", event => {
+    if (event.target.closest?.(".touch-control")) event.preventDefault();
   });
   window.addEventListener("resize", resize);
 
