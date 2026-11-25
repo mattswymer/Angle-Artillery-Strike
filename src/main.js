@@ -40,6 +40,8 @@
   let pendingImpact = false;
   let seed = 1;
   let held = { left: false, right: false, jump: false };
+  let tapMoveDirection = 0;
+  let tapMoveRemaining = 0;
   let activeAction = null;
   let jumpQueued = false;
   let lastFrame = 0;
@@ -168,7 +170,12 @@
     const character = activeCharacter();
     if (!character || character.eliminated || projectile || activeAction === "attack") return;
     const velocity = character.body.getLinearVelocity();
-    const direction = (held.right ? 1 : 0) - (held.left ? 1 : 0);
+    const heldDirection = (held.right ? 1 : 0) - (held.left ? 1 : 0);
+    const direction = heldDirection || (tapMoveRemaining > 0 ? tapMoveDirection : 0);
+    if (tapMoveRemaining > 0) {
+      tapMoveRemaining = Math.max(0, tapMoveRemaining - FIXED_STEP);
+      if (tapMoveRemaining === 0) tapMoveDirection = 0;
+    }
     if ((direction || held.jump || jumpQueued) && activeAction !== "move") {
       activeAction = "move";
       statusEl.textContent = "Movement action — firing is locked until the next turn";
@@ -449,6 +456,8 @@
   function changeTurn() {
     if (projectile) return;
     held = { left: false, right: false, jump: false };
+    tapMoveDirection = 0;
+    tapMoveRemaining = 0;
     jumpQueued = false;
     activeAction = null;
     activeIndex = (activeIndex + 1) % characters.length;
@@ -457,8 +466,10 @@
 
   function bindHoldButton(id, key) {
     const button = document.getElementById(id);
+    let pressedAt = 0;
     const start = event => {
       event.preventDefault();
+      pressedAt = Date.now();
       held[key] = true;
       if (key === "jump") jumpQueued = true;
       button.setPointerCapture?.(event.pointerId);
@@ -466,6 +477,10 @@
     const stop = event => {
       event.preventDefault();
       held[key] = false;
+      if ((key === "left" || key === "right") && Date.now() - pressedAt < 180) {
+        tapMoveDirection = key === "right" ? 1 : -1;
+        tapMoveRemaining = 0.28;
+      }
     };
     button.addEventListener("pointerdown", start);
     button.addEventListener("pointerup", stop);
