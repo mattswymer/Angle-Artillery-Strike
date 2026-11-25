@@ -4,7 +4,7 @@ A mobile-first, landscape 2D artillery tactics game built around physics-driven 
 
 ## Project status
 
-**Pre-production / physics prototype.** The initial work is focused on validating movement, projectile physics, terrain destruction, explosions, knockback, and ragdolls before building the full game.
+**Early playable prototype.** Current work validates movement, projectile physics, destructible terrain, hit regions, prototype health/damage, and knockback before building the full game. Ragdolls and the full match loop are still future work.
 
 ## Design and development notes
 
@@ -17,7 +17,7 @@ A mobile-first, landscape 2D artillery tactics game built around physics-driven 
 2. Keep an internet connection available so the pinned Planck.js physics library can load from jsDelivr.
 3. Use A/D or the arrow keys to move, W/Up/Space to jump, adjust angle and power, and fire. The prototype enforces one action per turn; use **End turn** to switch combatants.
 
-The prototype is intentionally an early physics sandbox. It currently uses a destructible terrain surface profile; full polygon terrain, true ragdoll joints, damage, AI, and match systems are still planned.
+The prototype currently includes eight combatants, randomized starting positions and turn order, destructible terrain, direct head/chest/leg hit regions, health bars, floating damage numbers, and distance-falloff blast damage. Direct-hit damage is currently higher than splash damage; these are provisional prototype values, not final weapon balance. Full roster/drafting, true ragdoll joints, AI, scoring, camera zoom/pan, and the complete match loop remain planned.
 
 ## License
 
