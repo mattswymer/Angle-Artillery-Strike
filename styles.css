@@ -188,6 +188,7 @@ input[type="range"] { width: 100%; accent-color: #f2b84b; cursor: pointer; }
 .control-panel { grid-template-columns: auto minmax(0, 1fr) auto; }
 .control-group { display: none; }
 body.aim-precision .control-group { display: grid; }
+body.aim-precision .control-panel { grid-template-columns: auto minmax(150px, 1fr) minmax(150px, 1fr) auto auto; }
 .hud-new-game {
   pointer-events: auto;
   min-height: 38px;
