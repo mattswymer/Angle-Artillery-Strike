@@ -20,7 +20,7 @@
       </div>
       <div class="top-actions">
         <span id="status" class="status" role="status">Initializing physics…</span>
-        <button id="new-map" class="button button-secondary">New battlefield</button>
+        
       </div>
     </header>
 
@@ -33,7 +33,7 @@
           <strong id="active-name">Blue 1</strong>
           <span id="seed-label" class="muted">Seed —</span>
         </div>
-        <div class="hud-help">Drag back from your combatant to aim and fire</div>
+        <button id="new-map" class="button button-secondary hud-new-game">New game</button>
       </div>
     </section>
 
@@ -43,7 +43,7 @@
         <button id="move-right" class="button button-secondary hold-button touch-control" aria-label="Walk right"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 5 7 7-7 7M16 12H4"/></svg></button>
       </div>
       <div class="control-group aim-group">
-        <div class="control-heading"><label for="angle">Aim angle</label><output id="angle-value">0°</output><button id="aim-mode" class="aim-mode-button" type="button">Aim: Pullback</button></div>
+        <div class="control-heading"><label for="angle">Aim angle</label><output id="angle-value">0°</output></div>
         <input id="angle" type="range" min="0" max="360" step="1" value="0">
       </div>
       <div class="control-group">
@@ -53,6 +53,7 @@
       <div class="action-buttons">
         <button id="fire" class="button button-primary">Fire</button>
         <button id="end-turn" class="button button-secondary">End turn</button>
+        <button id="aim-mode" class="button button-secondary aim-mode-button" type="button">Aim: Pullback</button>
       </div>
       <button id="jump" class="button button-secondary hold-button touch-control jump-button" aria-label="Jump"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6M5 19h14"/></svg></button>
     </section>
