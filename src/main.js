@@ -454,6 +454,7 @@
         if (character.health <= 0) {
           character.eliminated = true;
           character.body.setActive(false);
+          character.ragdoll?.pieces.forEach(piece => piece.body.setActive(false));
         }
       }
       if (distance < 3.3) {
@@ -528,6 +529,7 @@
       if (p.x < 0 || p.x > WORLD_WIDTH || p.y < 0) {
         character.eliminated = true;
         character.body.setActive(false);
+        character.ragdoll?.pieces.forEach(piece => piece.body.setActive(false));
         statusEl.textContent = (character.team === 0 ? "Blue" : "Red") + " character crossed a lethal boundary";
       }
     }
