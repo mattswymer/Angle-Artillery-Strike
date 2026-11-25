@@ -35,6 +35,8 @@
   let characters = [];
   let damagePopups = [];
   let activeIndex = 0;
+  let aimMode = "pullback";
+  let pullbackPointer = null;
   let projectile = null;
   let projectilePrevious = null;
   let impactPoint = null;
@@ -160,7 +162,8 @@
     }
     return {
       body, team, number, color: COLORS[team], grounded: false, eliminated: false,
-      health: 100, maxHealth: 100, aimAngle: 45, aimPower: 100
+      health: 100, maxHealth: 100, aimAngle: team === 0 ? 0 : 180, aimPower: 100,
+      ragdoll: null
     };
   }
 
@@ -210,8 +213,7 @@
     const active = activeCharacter();
     activeNameEl.textContent = active ? (active.team === 0 ? "Blue" : "Red") + " " + active.number : "—";
     seedLabel.textContent = "Seed " + seed;
-    const direction = active?.team === 0 ? "right" : "left";
-    fireButton.textContent = "Fire " + (direction === "right" ? "→" : "←");
+    fireButton.textContent = "Fire";
     fireButton.disabled = activeAction === "move" || activeAction === "attack" || Boolean(projectile);
   }
 
@@ -314,8 +316,7 @@
     updateHud();
     const angle = Number(angleInput.value) * Math.PI / 180;
     const power = Number(powerInput.value) / 100;
-    const direction = character.team === 0 ? 1 : -1;
-    const dx = Math.cos(angle) * direction;
+    const dx = Math.cos(angle);
     const dy = Math.sin(angle);
     const p = character.body.getPosition();
     const start = V(p.x + dx * 0.42, p.y + dy * 0.72 + 0.05);
@@ -519,12 +520,11 @@
     if (!character || character.eliminated || projectile || activeAction === "attack") return;
 
     const p = character.body.getPosition();
-    const direction = character.team === 0 ? 1 : -1;
     const angle = Number(angleInput.value) * Math.PI / 180;
     const power = Number(powerInput.value) / 100;
     const start = worldToScreen(p.x, p.y + 0.04, scale, offsetX);
     const length = scale * (0.42 + power * 1.05);
-    const endX = start.x + Math.cos(angle) * direction * length;
+    const endX = start.x + Math.cos(angle) * length;
     const endY = start.y - Math.sin(angle) * length;
     const headLength = Math.max(7, scale * 0.16);
     const headAngle = Math.atan2(endY - start.y, endX - start.x);
