@@ -315,7 +315,7 @@
 
   function fire() {
     const character = activeCharacter();
-    if (!character || character.eliminated || projectile || activeAction === "move" || activeAction === "attack") return;
+    if (!character || character.eliminated || (character.ragdoll && !character.ragdoll.standing) || projectile || activeAction === "move" || activeAction === "attack") return;
     activeAction = "attack";
     updateHud();
     const angle = Number(angleInput.value) * Math.PI / 180;
@@ -614,7 +614,8 @@
         });
         if (character.health <= 0) {
           character.eliminated = true;
-          if (!character.ragdoll) character.body.setActive(false);
+          if (character.ragdoll) character.ragdoll.pieces.forEach(piece => piece.body.setActive(false));
+          else character.body.setActive(false);
         }
       }
 
@@ -624,10 +625,26 @@
       const ragdollDeltaV = 11 * Math.max(0, 1 - distance / blastRadius);
       if (isDirectTarget || ragdollDeltaV > 3.5) {
         if (!character.ragdoll) createRagdoll(character, point, isDirectTarget ? directHit.location : "chest");
+        if (character.ragdoll.standing || character.ragdoll.gettingUp) {
+          character.ragdoll.standing = false;
+          character.ragdoll.gettingUp = false;
+          character.ragdoll.elapsedTime = 0;
+          character.ragdoll.settledTime = 0;
+          character.ragdoll.joints.forEach(joint => joint.setMaxMotorTorque(0));
+        }
         blastRagdoll(character.ragdoll, point, isDirectTarget ? 12 : 11, blastRadius,
           isDirectTarget ? directHit.location : null);
       } else if (character.ragdoll) {
-        if (distance < blastRadius) blastRagdoll(character.ragdoll, point, 11, blastRadius);
+        if (distance < blastRadius) {
+          if (character.ragdoll.standing || character.ragdoll.gettingUp) {
+            character.ragdoll.standing = false;
+            character.ragdoll.gettingUp = false;
+            character.ragdoll.elapsedTime = 0;
+            character.ragdoll.settledTime = 0;
+            character.ragdoll.joints.forEach(joint => joint.setMaxMotorTorque(0));
+          }
+          blastRagdoll(character.ragdoll, point, 11, blastRadius);
+        }
       } else if (knockback > 0) {
         const length = Math.max(0.1, distance);
         const mass = character.body.getMass();
@@ -968,7 +985,7 @@
       }
       checkBoundaries();
       for (const character of characters) {
-        if (!character.eliminated && !character.ragdoll) character.grounded = isGrounded(character);
+        if (!character.eliminated && (!character.ragdoll || character.ragdoll.standing)) character.grounded = isGrounded(character);
       }
       recoverRagdolls();
       accumulator -= FIXED_STEP;
@@ -1082,7 +1099,7 @@
   canvas.addEventListener("pointerdown", event => {
     if (aimMode !== "pullback" || projectile || activeAction === "move" || activeAction === "attack") return;
     const character = activeCharacter();
-    if (!character || character.eliminated || character.ragdoll) return;
+    if (!character || character.eliminated || (character.ragdoll && !character.ragdoll.standing)) return;
     event.preventDefault();
     const rect = canvas.getBoundingClientRect();
     pullbackOrigin = { x: event.clientX - rect.left, y: event.clientY - rect.top };
