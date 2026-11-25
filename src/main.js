@@ -350,7 +350,8 @@
       const body = world.createBody({ type: "dynamic", position: V(origin.x + x, origin.y + y),
         linearDamping: 0.12, angularDamping: 1.1, allowSleep: false,
         userData: { kind: "character", team: character.team, number: character.number, ragdoll: true, part: name } });
-      body.createFixture({ shape, density, friction: 0.65, restitution: 0.02 });
+      const fixture = body.createFixture({ shape, density, friction: 0.65, restitution: 0.02 });
+      fixture.setUserData({ kind: "character", location: name === "arm" ? "chest" : name === "leg" ? "legs" : name });
       pieces.push({ name, body });
       return body;
     };
@@ -491,7 +492,8 @@
       if (bodyKind === "terrain" || bodyKind === "character") {
         impactPoint = V(point.x, point.y);
         if (bodyKind === "character") {
-          const target = characters.find(character => character.body === fixture.getBody());
+          const target = characters.find(character => character.body === fixture.getBody() ||
+            character.ragdoll?.pieces.some(piece => piece.body === fixture.getBody()));
           if (target) projectileHit = { character: target, location: classifyHitLocation(target, fixture, point) };
         }
         hit = true;
@@ -734,6 +736,31 @@
     requestAnimationFrame(frame);
   }
 
+  function updateAimModeLabel() {
+    aimModeButton.textContent = aimMode === "pullback" ? "Aim: Pullback" : "Aim: Precision";
+  }
+
+  function updatePullbackAim(event) {
+    if (!pullbackPointer) return;
+    const rect = canvas.getBoundingClientRect();
+    const scale = Math.min(canvasWidth / WORLD_WIDTH, canvasHeight / WORLD_HEIGHT);
+    const offsetX = (canvasWidth - WORLD_WIDTH * scale) / 2;
+    const p = activeCharacter().body.getPosition();
+    const anchor = worldToScreen(p.x, p.y + 0.04, scale, offsetX);
+    const pointerX = event.clientX - rect.left;
+    const pointerY = event.clientY - rect.top;
+    const dx = anchor.x - pointerX;
+    const dy = pointerY - anchor.y;
+    if (Math.hypot(dx, dy) < 5) return;
+    let degrees = Math.atan2(dy, dx) * 180 / Math.PI;
+    degrees = (degrees + 360) % 360;
+    angleInput.value = String(Math.round(degrees));
+    const pullDistance = Math.hypot(dx, dy);
+    powerInput.value = String(Math.max(10, Math.min(100, Math.round(pullDistance / 1.65))));
+    setAimLabels();
+    saveActiveAim();
+  }
+
   function saveActiveAim() {
     const character = activeCharacter();
     if (!character) return;
@@ -803,6 +830,38 @@
   });
   fireButton.addEventListener("click", fire);
   endTurnButton.addEventListener("click", changeTurn);
+  aimModeButton.addEventListener("click", () => {
+    aimMode = aimMode === "pullback" ? "precision" : "pullback";
+    updateAimModeLabel();
+    statusEl.textContent = aimMode === "pullback"
+      ? "Pullback aiming — drag away from your combatant and release to fire"
+      : "Precision aiming — adjust angle and power, then fire";
+  });
+  canvas.addEventListener("pointerdown", event => {
+    if (aimMode !== "pullback" || projectile || activeAction === "move" || activeAction === "attack") return;
+    const character = activeCharacter();
+    if (!character || character.eliminated || character.ragdoll) return;
+    event.preventDefault();
+    pullbackPointer = event.pointerId;
+    canvas.setPointerCapture(event.pointerId);
+    updatePullbackAim(event);
+  });
+  canvas.addEventListener("pointermove", event => {
+    if (pullbackPointer !== event.pointerId) return;
+    event.preventDefault();
+    updatePullbackAim(event);
+  });
+  const finishPullback = event => {
+    if (pullbackPointer !== event.pointerId) return;
+    event.preventDefault();
+    updatePullbackAim(event);
+    pullbackPointer = null;
+    fire();
+  };
+  canvas.addEventListener("pointerup", finishPullback);
+  canvas.addEventListener("pointercancel", event => {
+    if (pullbackPointer === event.pointerId) pullbackPointer = null;
+  });
   angleInput.addEventListener("input", () => {
     setAimLabels();
     saveActiveAim();
@@ -836,6 +895,7 @@
 
   resize();
   setAimLabels();
+  updateAimModeLabel();
   seed = randomSeed();
   createWorld();
   requestAnimationFrame(frame);
