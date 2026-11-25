@@ -402,17 +402,24 @@
     const rightUpperLeg = addPart("right-upper-leg", 0.105, -0.455, 0.075, 0.205, 1.15);
     const rightLowerLeg = addPart("right-lower-leg", 0.105, -0.83, 0.06, 0.17, 1.1);
 
-    const hinge = (bodyA, bodyB, anchorA, anchorB, lower, upper) => world.createJoint(
-      new P.RevoluteJoint({
+    const hinge = (bodyA, bodyB, anchorA, anchorB, lower, upper) => {
+      const sharedWorldAnchor = bodyA.getWorldPoint(V(anchorA[0], anchorA[1]));
+      const otherAnchor = bodyB.getWorldPoint(V(anchorB[0], anchorB[1]));
+      const mismatch = Math.hypot(
+        sharedWorldAnchor.x - otherAnchor.x,
+        sharedWorldAnchor.y - otherAnchor.y
+      );
+      // Catch bad segment placement immediately instead of creating a joint
+      // whose two ends begin at different coordinates.
+      if (mismatch > 0.002) throw new Error("Ragdoll joint anchors do not line up: " + mismatch);
+      return world.createJoint(new P.RevoluteJoint({
         enableLimit: true,
         lowerAngle: lower,
         upperAngle: upper,
         referenceAngle: 0,
-        collideConnected: false,
-        localAnchorA: V(anchorA[0], anchorA[1]),
-        localAnchorB: V(anchorB[0], anchorB[1])
-      }, bodyA, bodyB)
-    );
+        collideConnected: false
+      }, bodyA, bodyB, sharedWorldAnchor));
+    };
 
     const jointMap = {
       neck: hinge(torso, head, [0, 0.29], [0, -0.18], -0.8, 0.8),
