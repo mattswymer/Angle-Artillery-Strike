@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101820">
+  <meta name="description" content="A physics-first artillery game prototype.">
+  <title>Angle Artillery Strike — Physics Lab</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/planck@1.5.1/dist/planck.min.js"></script>
+  <script src="src/main.js" defer></script>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">ANGLE ARTILLERY STRIKE</p>
+        <h1>Physics Lab</h1>
+      </div>
+      <div class="top-actions">
+        <span id="status" class="status" role="status">Initializing physics…</span>
+        <button id="new-map" class="button button-secondary">New battlefield</button>
+      </div>
+    </header>
+
+    <section class="game-frame" aria-label="Game battlefield">
+      <canvas id="game" aria-label="Physics sandbox battlefield"></canvas>
+      <div class="hud">
+        <div class="turn-card">
+          <span class="eyebrow">ACTIVE COMBATANT</span>
+          <strong id="active-name">Blue 1</strong>
+          <span id="seed-label" class="muted">Seed —</span>
+        </div>
+        <div class="hud-help">A / D or ← / → to walk · W / ↑ / Space to jump</div>
+      </div>
+    </section>
+
+    <section class="control-panel" aria-label="Prototype controls">
+      <div class="control-group aim-group">
+        <div class="control-heading"><label for="angle">Aim angle</label><output id="angle-value">45°</output></div>
+        <input id="angle" type="range" min="5" max="85" value="45">
+      </div>
+      <div class="control-group">
+        <div class="control-heading"><label for="power">Power</label><output id="power-value">100</output></div>
+        <input id="power" type="range" min="10" max="100" value="100">
+      </div>
+      <div class="action-buttons">
+        <button id="fire" class="button button-primary">Fire</button>
+        <button id="end-turn" class="button button-secondary">End move</button>
+      </div>
+      <div class="movement-buttons" aria-label="Touch movement controls">
+        <button id="move-left" class="button button-secondary hold-button" aria-label="Walk left">←</button>
+        <button id="jump" class="button button-secondary hold-button" aria-label="Jump">Jump</button>
+        <button id="move-right" class="button button-secondary hold-button" aria-label="Walk right">→</button>
+      </div>
+    </section>
+    <footer class="footnote">Prototype only. Damage, turn rules, ragdoll joints, wind, and final terrain geometry are not implemented yet.</footer>
+  </main>
+</body>
+</html>
