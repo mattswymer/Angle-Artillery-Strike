@@ -255,7 +255,7 @@
 
   function moveActive() {
     const character = activeCharacter();
-    if (!character || character.eliminated || projectile || activeAction === "attack") return;
+    if (!character || character.eliminated || character.ragdoll || projectile || activeAction === "attack") return;
     const velocity = character.body.getLinearVelocity();
     const heldDirection = (held.right ? 1 : 0) - (held.left ? 1 : 0);
     let direction = heldDirection || (tapMoveRemaining > 0 ? tapMoveDirection : 0);
@@ -340,6 +340,77 @@
     fireButton.disabled = true;
   }
 
+  function createRagdoll(character, impact) {
+    if (character.ragdoll) return;
+    const origin = character.body.getPosition();
+    const oldBody = character.body;
+    oldBody.setActive(false);
+    const pieces = [];
+    const makePiece = (name, x, y, shape, density) => {
+      const body = world.createBody({ type: "dynamic", position: V(origin.x + x, origin.y + y),
+        linearDamping: 0.12, angularDamping: 1.1, allowSleep: false,
+        userData: { kind: "character", team: character.team, number: character.number, ragdoll: true, part: name } });
+      body.createFixture({ shape, density, friction: 0.65, restitution: 0.02 });
+      pieces.push({ name, body });
+      return body;
+    };
+    const torso = makePiece("chest", 0, 0.04, new P.Box(0.17, 0.29), 1.5);
+    const head = makePiece("head", 0, 0.49, new P.Circle(0.14), 0.75);
+    const leftArm = makePiece("arm", -0.25, 0.08, new P.Box(0.08, 0.23), 0.35);
+    const rightArm = makePiece("arm", 0.25, 0.08, new P.Box(0.08, 0.23), 0.35);
+    const leftLeg = makePiece("leg", -0.1, -0.53, new P.Box(0.075, 0.28), 0.55);
+    const rightLeg = makePiece("leg", 0.1, -0.53, new P.Box(0.075, 0.28), 0.55);
+    const joint = (a, b, x, y, lower, upper) => world.createJoint(new P.RevoluteJoint({
+      enableLimit: true, lowerAngle: lower, upperAngle: upper, collideConnected: false
+    }, a, b, V(origin.x + x, origin.y + y)));
+    [
+      joint(torso, head, 0, 0.34, -0.7, 0.7),
+      joint(torso, leftArm, -0.17, 0.2, -1.8, 1.8),
+      joint(torso, rightArm, 0.17, 0.2, -1.8, 1.8),
+      joint(torso, leftLeg, -0.1, -0.25, -1.1, 1.1),
+      joint(torso, rightLeg, 0.1, -0.25, -1.1, 1.1)
+    ];
+    world.destroyBody(oldBody);
+    character.body = torso;
+    character.ragdoll = { pieces, startedAt: performance.now(), torso };
+    const dx = origin.x - impact.x, dy = origin.y - impact.y;
+    const length = Math.max(0.05, Math.hypot(dx, dy));
+    torso.applyLinearImpulse(V(dx / length * 2.8, dy / length * 2.8 + 1.8), torso.getWorldCenter(), true);
+    torso.applyAngularImpulse((character.team === 0 ? -1 : 1) * 0.8, true);
+  }
+
+  function recoverRagdolls() {
+    for (const character of characters) {
+      const ragdoll = character.ragdoll;
+      if (!ragdoll || character.eliminated || performance.now() - ragdoll.startedAt < 1800) continue;
+      const speed = ragdoll.pieces.reduce((sum, piece) => sum + piece.body.getLinearVelocity().length(), 0) / ragdoll.pieces.length;
+      const spin = ragdoll.pieces.reduce((sum, piece) => sum + Math.abs(piece.body.getAngularVelocity()), 0) / ragdoll.pieces.length;
+      if (speed > 0.8 || spin > 1.8) continue;
+      const p = ragdoll.torso.getPosition();
+      let grounded = false;
+      world.rayCast(V(p.x, p.y - 0.35), V(p.x, p.y - 1.25), (fixture, point, normal, fraction) => {
+        if (fixture.getBody().getUserData()?.kind === "terrain") { grounded = true; return fraction; }
+        return -1;
+      });
+      if (!grounded) continue;
+      const newBody = world.createBody({ type: "dynamic", position: V(p.x, p.y + 0.12),
+        fixedRotation: true, linearDamping: 0.7, allowSleep: false,
+        userData: { kind: "character", team: character.team, number: character.number } });
+      const hitboxes = [
+        { location: "head", shape: new P.Circle(V(0, 0.49), 0.14), density: 0.75 },
+        { location: "chest", shape: new P.Box(0.17, 0.29, V(0, 0.04)), density: 1.5 },
+        { location: "legs", shape: new P.Box(0.13, 0.28, V(0, -0.53)), density: 1.1 }
+      ];
+      for (const hitbox of hitboxes) {
+        const fixture = newBody.createFixture({ shape: hitbox.shape, density: hitbox.density, friction: 0.82, restitution: 0.02 });
+        fixture.setUserData({ kind: "character", location: hitbox.location });
+      }
+      for (const piece of ragdoll.pieces) world.destroyBody(piece.body);
+      character.body = newBody;
+      character.ragdoll = null;
+    }
+  }
+
   function explode() {
     if (!projectile) return;
     const currentPosition = projectile.getPosition();
@@ -363,6 +434,7 @@
       const dy = p.y - point.y;
       const distance = Math.hypot(dx, dy);
       const isDirectTarget = directHit?.character === character;
+      if (isDirectTarget) createRagdoll(character, point);
       let damage = 0;
       if (isDirectTarget) {
         damage = { head: 40, chest: 30, legs: 20 }[directHit.location];
@@ -479,9 +551,28 @@
     if (character.eliminated) return;
     const p = character.body.getPosition();
     const screen = worldToScreen(p.x, p.y, scale, offsetX);
+    const unit = scale;
+    if (character.ragdoll) {
+      for (const piece of character.ragdoll.pieces) {
+        const body = piece.body, pos = body.getPosition();
+        const point = worldToScreen(pos.x, pos.y, scale, offsetX);
+        ctx.save(); ctx.translate(point.x, point.y); ctx.rotate(-body.getAngle());
+        ctx.fillStyle = character.color; ctx.strokeStyle = "#17232b";
+        ctx.lineWidth = Math.max(2.2, unit * 0.07);
+        if (piece.name === "head") {
+          ctx.beginPath(); ctx.arc(0, 0, unit * 0.14, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        } else {
+          const w = piece.name === "chest" ? 0.17 : 0.08;
+          const h = piece.name === "chest" ? 0.29 : piece.name === "leg" ? 0.28 : 0.23;
+          ctx.fillRect(-w * unit, -h * unit, w * 2 * unit, h * 2 * unit);
+          ctx.strokeRect(-w * unit, -h * unit, w * 2 * unit, h * 2 * unit);
+        }
+        ctx.restore();
+      }
+      return;
+    }
     const velocity = character.body.getLinearVelocity();
     const tilt = Math.max(-0.55, Math.min(0.55, velocity.x * 0.08));
-    const unit = scale;
     ctx.save();
     ctx.translate(screen.x, screen.y);
     ctx.rotate(tilt);
@@ -636,6 +727,7 @@
         explode();
       }
       checkBoundaries();
+      recoverRagdolls();
       accumulator -= FIXED_STEP;
     }
     render();
