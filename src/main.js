@@ -166,7 +166,10 @@
     if (!character || character.eliminated || projectile || activeAction === "attack") return;
     const velocity = character.body.getLinearVelocity();
     const direction = (held.right ? 1 : 0) - (held.left ? 1 : 0);
-    if (direction || held.jump || jumpQueued) activeAction = "move";
+    if ((direction || held.jump || jumpQueued) && activeAction !== "move") {
+      activeAction = "move";
+      updateHud();
+    }
     if (direction) character.body.setLinearVelocity(V(direction * 3.0, velocity.y));
     else character.body.setLinearVelocity(V(velocity.x * 0.78, velocity.y));
     if ((held.jump || jumpQueued) && isGrounded(character)) {
