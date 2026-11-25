@@ -18,6 +18,7 @@ h1 { margin: 0; font-size: clamp(20px, 3vw, 28px); letter-spacing: -.035em; }
 .status::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: #63c69a; }
 .game-frame { position: relative; overflow: hidden; width: 100%; aspect-ratio: 16 / 9; min-height: 280px; max-height: min(68vh, 760px); border: 1px solid #344754; border-radius: 14px; background: #b9d4dd; box-shadow: 0 16px 48px #0005; }
 canvas { display: block; width: 100%; height: 100%; }
+.orientation-lock { display: none; }
 .hud { position: absolute; inset: 12px 12px auto; display: flex; justify-content: space-between; align-items: flex-start; pointer-events: none; }
 .turn-card { display: grid; gap: 3px; min-width: 120px; padding: 10px 12px; border: 1px solid #ffffff26; border-radius: 9px; background: #101820d9; box-shadow: 0 4px 16px #0002; }
 .turn-card strong { font-size: 15px; }
@@ -37,6 +38,11 @@ input[type="range"] { width: 100%; accent-color: #f2b84b; cursor: pointer; }
 .button-secondary:hover { background: #2d4553; }
 .movement-buttons .button { min-width: 46px; }
 .footnote { color: #81939e; font-size: 11px; line-height: 1.5; }
+@media (orientation: portrait) and (max-width: 900px) {
+  .orientation-lock { position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: #edf2f5; background: #101820ed; text-align: center; }
+  .orientation-lock strong { font-size: 20px; }
+  .orientation-lock span { color: #a9bac4; font-size: 13px; }
+}
 @media (max-width: 760px) {
   .app-shell { gap: 10px; padding: 10px; }
   .topbar { align-items: flex-start; }
