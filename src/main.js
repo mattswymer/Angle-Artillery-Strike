@@ -33,6 +33,7 @@
   let terrainSystem;
   let terrainHeights = [];
   let characters = [];
+  let damagePopups = [];
   let activeIndex = 0;
   let projectile = null;
   let projectilePrevious = null;
@@ -186,6 +187,7 @@
     const firstOrder = shuffle(firstTeam === 0 ? blueTeam : redTeam, random);
     const secondOrder = shuffle(firstTeam === 0 ? redTeam : blueTeam, random);
     characters = firstOrder.map((character, index) => [character, secondOrder[index]]).flat();
+    damagePopups = [];
     activeIndex = 0;
     activeAction = null;
     projectile = null;
@@ -369,6 +371,10 @@
       if (damage > 0) {
         character.health = Math.max(0, character.health - damage);
         damageEvents.push({ character, damage, direct: isDirectTarget, location: isDirectTarget ? directHit.location : "splash" });
+        damagePopups.push({
+          x: p.x, y: p.y + 0.9, damage, direct: isDirectTarget,
+          expires: performance.now() + 1100
+        });
         if (character.health <= 0) {
           character.eliminated = true;
           character.body.setActive(false);
@@ -550,6 +556,26 @@
     ctx.restore();
   }
 
+  function drawDamagePopups(scale, offsetX) {
+    const now = performance.now();
+    damagePopups = damagePopups.filter(popup => popup.expires > now);
+    for (const popup of damagePopups) {
+      const progress = 1 - (popup.expires - now) / 1100;
+      const screen = worldToScreen(popup.x, popup.y + progress * 0.42, scale, offsetX);
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, 1 - progress);
+      ctx.textAlign = "center";
+      ctx.font = "800 15px system-ui";
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "#17232b";
+      ctx.fillStyle = popup.direct ? "#ffe08a" : "#ffffff";
+      const label = "-" + popup.damage;
+      ctx.strokeText(label, screen.x, screen.y);
+      ctx.fillText(label, screen.x, screen.y);
+      ctx.restore();
+    }
+  }
+
   function drawProjectile(scale, offsetX) {
     if (!projectile) return;
     const p = projectile.getPosition();
@@ -584,6 +610,7 @@
     drawAim(scale, offsetX);
     characters.forEach(character => drawCharacter(character, scale, offsetX));
     drawProjectile(scale, offsetX);
+    drawDamagePopups(scale, offsetX);
 
     if (characters.some(c => c.eliminated)) {
       ctx.fillStyle = "#101820b9";
