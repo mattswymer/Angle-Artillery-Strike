@@ -417,9 +417,9 @@
     const jointMap = {
       neck: hinge(torso, head, [0, 0.29], [0, -0.18], -0.8, 0.8),
       leftShoulder: hinge(torso, leftUpperArm, [-0.17, 0.22], [0, 0.19], -2.35, 1.5),
-      leftElbow: hinge(leftUpperArm, leftLowerArm, [0, -0.19], [0, 0.17], -2.45, 0.35),
+      leftElbow: hinge(leftUpperArm, leftLowerArm, [0, -0.19], [0, 0.17], -2.45, 2.45),
       rightShoulder: hinge(torso, rightUpperArm, [0.17, 0.22], [0, 0.19], -1.5, 2.35),
-      rightElbow: hinge(rightUpperArm, rightLowerArm, [0, -0.19], [0, 0.17], -0.35, 2.45),
+      rightElbow: hinge(rightUpperArm, rightLowerArm, [0, -0.19], [0, 0.17], -2.45, 2.45),
       leftHip: hinge(torso, leftUpperLeg, [-0.105, -0.25], [0, 0.205], -1.25, 1.25),
       leftKnee: hinge(leftUpperLeg, leftLowerLeg, [0, -0.205], [0, 0.17], -0.25, 2.2),
       rightHip: hinge(torso, rightUpperLeg, [0.105, -0.25], [0, 0.205], -1.25, 1.25),
@@ -568,7 +568,7 @@
         ragdoll.elapsedTime = 0;
         for (const joint of ragdoll.joints) {
           joint.setMotorSpeed(0);
-          joint.setMaxMotorTorque(0.12);
+          joint.setMaxMotorTorque(0.38);
         }
         character.grounded = true;
       }
