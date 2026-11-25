@@ -564,8 +564,7 @@
         });
         if (character.health <= 0) {
           character.eliminated = true;
-          character.body.setActive(false);
-          character.ragdoll?.pieces.forEach(piece => piece.body.setActive(false));
+          if (!character.ragdoll) character.body.setActive(false);
         }
       }
       if (distance < 3.3) {
@@ -665,7 +664,7 @@
   }
 
   function drawCharacter(character, scale, offsetX) {
-    if (character.eliminated) return;
+    if (character.eliminated && !character.ragdoll) return;
     const p = character.body.getPosition();
     const screen = worldToScreen(p.x, p.y, scale, offsetX);
     const unit = scale;
@@ -850,7 +849,10 @@
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
     const scale = Math.min(canvasWidth / WORLD_WIDTH, canvasHeight / WORLD_HEIGHT);
     const offsetX = (canvasWidth - WORLD_WIDTH * scale) / 2;
-    const highest = Math.max(0, ...characters.filter(c => !c.eliminated).map(c => c.body.getPosition().y), projectile ? projectile.getPosition().y : 0);
+    const livingHighest = characters.filter(c => !c.eliminated).reduce((max, c) => Math.max(max, c.body.getPosition().y), 0);
+    const ragdollHighest = characters.filter(c => c.ragdoll).reduce((max, c) =>
+      Math.max(max, ...c.ragdoll.pieces.map(piece => piece.body.getPosition().y)), 0);
+    const highest = Math.max(0, livingHighest, ragdollHighest, projectile ? projectile.getPosition().y : 0);
     cameraY = Math.max(0, highest - 10.4);
     const sky = ctx.createLinearGradient(0, 0, 0, canvasHeight);
     sky.addColorStop(0, "#9fc7d6");
