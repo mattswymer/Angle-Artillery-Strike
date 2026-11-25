@@ -33,7 +33,7 @@
           <strong id="active-name">Blue 1</strong>
           <span id="seed-label" class="muted">Seed —</span>
         </div>
-        <div class="hud-help">Tap movement arrows to step or hold to keep walking · W / ↑ / Space to jump</div>
+        <div class="hud-help">Move with the left controls · Jump with the right control</div>
       </div>
     </section>
 
@@ -50,10 +50,12 @@
         <button id="fire" class="button button-primary">Fire</button>
         <button id="end-turn" class="button button-secondary">End turn</button>
       </div>
-      <div class="movement-buttons" aria-label="Touch movement controls">
-        <button id="move-left" class="button button-secondary hold-button" aria-label="Walk left">←</button>
-        <button id="jump" class="button button-secondary hold-button" aria-label="Jump">Jump</button>
-        <button id="move-right" class="button button-secondary hold-button" aria-label="Walk right">→</button>
+      <div class="touch-controls" aria-label="Touch movement controls">
+        <div class="movement-buttons" aria-label="Movement">
+          <button id="move-left" class="button button-secondary hold-button touch-control" aria-label="Walk left"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5 7.5 12l7 7M8 12h12"/></svg></button>
+          <button id="move-right" class="button button-secondary hold-button touch-control" aria-label="Walk right"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 5 7 7-7 7M16 12H4"/></svg></button>
+        </div>
+        <button id="jump" class="button button-secondary hold-button touch-control jump-button" aria-label="Jump"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6M5 19h14"/></svg></button>
       </div>
     </section>
     <footer class="footnote">Prototype only. Health, damage, ragdoll joints, wind, and final match flow are not implemented yet.</footer>
