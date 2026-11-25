@@ -33,7 +33,7 @@
           <strong id="active-name">Blue 1</strong>
           <span id="seed-label" class="muted">Seed —</span>
         </div>
-        <div class="hud-help">Move with the left controls · Jump with the right control</div>
+        <div class="hud-help">Drag back from your combatant to aim and fire</div>
       </div>
     </section>
 
@@ -43,8 +43,8 @@
         <button id="move-right" class="button button-secondary hold-button touch-control" aria-label="Walk right"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 5 7 7-7 7M16 12H4"/></svg></button>
       </div>
       <div class="control-group aim-group">
-        <div class="control-heading"><label for="angle">Aim angle</label><output id="angle-value">45°</output></div>
-        <input id="angle" type="range" min="5" max="85" value="45">
+        <div class="control-heading"><label for="angle">Aim angle</label><output id="angle-value">0°</output><button id="aim-mode" class="aim-mode-button" type="button">Aim: Pullback</button></div>
+        <input id="angle" type="range" min="0" max="360" step="1" value="0">
       </div>
       <div class="control-group">
         <div class="control-heading"><label for="power">Power</label><output id="power-value">100</output></div>
