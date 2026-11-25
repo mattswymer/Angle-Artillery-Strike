@@ -29,6 +29,13 @@ canvas { display: block; width: 100%; height: 100%; }
 output { color: #f5c66b; font-variant-numeric: tabular-nums; font-weight: 700; }
 input[type="range"] { width: 100%; accent-color: #f2b84b; cursor: pointer; }
 .action-buttons, .movement-buttons { display: flex; gap: 7px; }
+.touch-controls { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-width: 150px; }
+.touch-control { display: grid; place-items: center; width: 52px; min-width: 52px; min-height: 48px; padding: 0; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; -webkit-user-drag: none; }
+.touch-control svg { display: block; width: 25px; height: 25px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; user-select: none; -webkit-user-drag: none; }
+.jump-button { width: 62px; min-width: 62px; min-height: 62px; border-color: #8a6a37; background: #4a3b28; }
+.jump-button svg { width: 30px; height: 30px; }
+.touch-control:active { background: #405a68; border-color: #7893a2; }
+.jump-button:active { background: #66502f; }
 .button { min-height: 42px; padding: 0 15px; border: 1px solid transparent; border-radius: 8px; font-size: 12px; font-weight: 750; cursor: pointer; transition: transform .12s ease, background .12s ease, border-color .12s ease; }
 .button:active { transform: translateY(1px); }
 .button:disabled { opacity: .4; cursor: not-allowed; }
@@ -36,14 +43,9 @@ input[type="range"] { width: 100%; accent-color: #f2b84b; cursor: pointer; }
 .button-primary:hover { background: #ffd17b; }
 .button-secondary { color: #e1e9ee; border-color: #425663; background: #243743; }
 .button-secondary:hover { background: #2d4553; }
-.movement-buttons .button { min-width: 46px; }
-.hold-button {
-  -webkit-user-select: none;
-  user-select: none;
-  -webkit-touch-callout: none;
-  -webkit-tap-highlight-color: transparent;
-}
-.hold-button::selection { background: transparent; }
+.movement-buttons .button { min-width: 52px; }
+.touch-control, .touch-control * { -webkit-user-select: none !important; user-select: none !important; -webkit-touch-callout: none !important; }
+.touch-control::selection, .touch-control *::selection { background: transparent !important; }
 .footnote { color: #81939e; font-size: 11px; line-height: 1.5; }
 @media (orientation: portrait) and (max-width: 900px) {
   .orientation-lock { position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: #edf2f5; background: #101820ed; text-align: center; }
@@ -61,11 +63,14 @@ input[type="range"] { width: 100%; accent-color: #f2b84b; cursor: pointer; }
   .hud-help { max-width: 52%; font-size: 9px; text-align: right; }
   .control-panel { grid-template-columns: 1fr 1fr; gap: 12px; padding: 11px; }
   .action-buttons { grid-column: 1 / 2; }
-  .movement-buttons { grid-column: 2 / 3; justify-content: flex-end; }
+  .touch-controls { grid-column: 2 / 3; justify-content: space-between; }
+  .movement-buttons { justify-content: flex-start; }
   .button { min-height: 40px; padding: 0 11px; }
 }
 @media (max-width: 420px) {
   .control-panel { grid-template-columns: 1fr 1fr; }
-  .action-buttons, .movement-buttons { grid-column: 1 / -1; justify-content: stretch; }
-  .action-buttons .button, .movement-buttons .button { flex: 1; }
+  .action-buttons { grid-column: 1 / -1; }
+  .touch-controls { grid-column: 1 / -1; justify-content: space-between; padding: 0 2px; }
+  .movement-buttons { justify-content: flex-start; }
+  .action-buttons .button { flex: 1; }
 }
