@@ -165,7 +165,7 @@
     return {
       body, team, number, color: COLORS[team], grounded: false, eliminated: false,
       health: 100, maxHealth: 100, aimAngle: team === 0 ? 0 : 180, aimPower: 100,
-      ragdoll: null
+      grounded: true, ragdoll: null
     };
   }
 
@@ -288,6 +288,7 @@
 
     let verticalVelocity = velocity.y;
     const grounded = isGrounded(character);
+    character.grounded = grounded;
     if (grounded) coyoteTime = 0.12;
     else coyoteTime = Math.max(0, coyoteTime - FIXED_STEP);
     if (held.jump || jumpQueued) jumpBufferTime = 0.16;
@@ -342,106 +343,185 @@
     fireButton.disabled = true;
   }
 
-  function createRagdoll(character, impact) {
+  function createRagdoll(character, impact, hitLocation = "chest") {
     if (character.ragdoll) return;
-    const origin = character.body.getPosition();
     const oldBody = character.body;
+    const origin = oldBody.getPosition();
+    const inheritedVelocity = oldBody.getLinearVelocity();
+    const inheritedSpin = oldBody.getAngularVelocity();
     const pieces = [];
-    const makePiece = (name, x, y, halfWidth, halfHeight, density, circle = false) => {
+    const byName = {};
+    const addPart = (name, x, y, halfWidth, halfHeight, density, circle = false) => {
       const body = world.createBody({
         type: "dynamic",
         position: V(origin.x + x, origin.y + y),
-        linearDamping: 0.06,
-        angularDamping: 0.18,
+        linearDamping: 0.02,
+        angularDamping: 0.08,
         allowSleep: false,
         userData: { kind: "character", team: character.team, number: character.number, ragdoll: true, part: name }
       });
-      const shape = circle ? new P.Circle(halfWidth) : new P.Box(halfWidth, halfHeight);
-      const fixture = body.createFixture({ shape, density, friction: 0.82, restitution: 0.015 });
-      fixture.setUserData({ kind: "character", location: name.includes("leg") ? "legs" : name === "head" ? "head" : "chest" });
+      const fixture = body.createFixture({
+        shape: circle ? new P.Circle(halfWidth) : new P.Box(halfWidth, halfHeight),
+        density, friction: 0.92, restitution: 0.015
+      });
+      fixture.setUserData({
+        kind: "character",
+        location: name === "head" ? "head" : name.includes("leg") ? "legs" : "chest",
+        ragdollPart: name
+      });
       const piece = { name, body, halfWidth, halfHeight, circle };
       pieces.push(piece);
+      byName[name] = piece;
+      // Preserve momentum at each segment's center, including the tangential part
+      // of any angular velocity inherited from the original character body.
+      body.setLinearVelocity(V(
+        inheritedVelocity.x - inheritedSpin * y,
+        inheritedVelocity.y + inheritedSpin * x
+      ));
+      body.setAngularVelocity(inheritedSpin);
       return body;
     };
 
-    const torso = makePiece("torso", 0, 0.04, 0.17, 0.29, 1.5);
-    const head = makePiece("head", 0, 0.49, 0.14, 0.14, 0.75, true);
-    const leftUpperArm = makePiece("upper-arm", -0.25, 0.13, 0.075, 0.19, 0.35);
-    const leftLowerArm = makePiece("lower-arm", -0.34, -0.12, 0.065, 0.17, 0.28);
-    const rightUpperArm = makePiece("upper-arm", 0.25, 0.13, 0.075, 0.19, 0.35);
-    const rightLowerArm = makePiece("lower-arm", 0.34, -0.12, 0.065, 0.17, 0.28);
-    const leftUpperLeg = makePiece("upper-leg", -0.1, -0.34, 0.075, 0.2, 0.45);
-    const leftLowerLeg = makePiece("lower-leg", -0.1, -0.68, 0.065, 0.17, 0.35);
-    const rightUpperLeg = makePiece("upper-leg", 0.1, -0.34, 0.075, 0.2, 0.45);
-    const rightLowerLeg = makePiece("lower-leg", 0.1, -0.68, 0.065, 0.17, 0.35);
+    // Segment centers and local hinge anchors are aligned exactly at creation.
+    const torso = addPart("torso", 0, 0, 0.17, 0.29, 1.8);
+    const head = addPart("head", 0, 0.47, 0.135, 0.135, 0.65, true);
+    const leftUpperArm = addPart("left-upper-arm", -0.17, 0.03, 0.065, 0.19, 0.28);
+    const leftLowerArm = addPart("left-lower-arm", -0.17, -0.33, 0.055, 0.17, 0.22);
+    const rightUpperArm = addPart("right-upper-arm", 0.17, 0.03, 0.065, 0.19, 0.28);
+    const rightLowerArm = addPart("right-lower-arm", 0.17, -0.33, 0.055, 0.17, 0.22);
+    const leftUpperLeg = addPart("left-upper-leg", -0.105, -0.455, 0.075, 0.205, 0.48);
+    const leftLowerLeg = addPart("left-lower-leg", -0.105, -0.83, 0.06, 0.17, 0.34);
+    const rightUpperLeg = addPart("right-upper-leg", 0.105, -0.455, 0.075, 0.205, 0.48);
+    const rightLowerLeg = addPart("right-lower-leg", 0.105, -0.83, 0.06, 0.17, 0.34);
 
-    const joint = (a, b, x, y, lower = -2.7, upper = 2.7) =>
-      world.createJoint(new P.RevoluteJoint({
-        enableLimit: true, lowerAngle: lower, upperAngle: upper, collideConnected: false
-      }, a, b, V(origin.x + x, origin.y + y)));
+    const hinge = (bodyA, bodyB, anchorA, anchorB, lower, upper) => world.createJoint(
+      new P.RevoluteJoint({
+        enableLimit: true,
+        lowerAngle: lower,
+        upperAngle: upper,
+        referenceAngle: 0,
+        collideConnected: false,
+        localAnchorA: V(anchorA[0], anchorA[1]),
+        localAnchorB: V(anchorB[0], anchorB[1])
+      }, bodyA, bodyB)
+    );
 
     const joints = [
-      joint(torso, head, 0, 0.34, -1.2, 1.2),
-      joint(torso, leftUpperArm, -0.17, 0.22),
-      joint(leftUpperArm, leftLowerArm, -0.31, -0.04),
-      joint(torso, rightUpperArm, 0.17, 0.22),
-      joint(rightUpperArm, rightLowerArm, 0.31, -0.04),
-      joint(torso, leftUpperLeg, -0.1, -0.25, -1.8, 1.8),
-      joint(leftUpperLeg, leftLowerLeg, -0.1, -0.53, -1.8, 1.8),
-      joint(torso, rightUpperLeg, 0.1, -0.25, -1.8, 1.8),
-      joint(rightUpperLeg, rightLowerLeg, 0.1, -0.53, -1.8, 1.8)
+      hinge(torso, head, [0, 0.29], [0, -0.18], -0.8, 0.8),
+      hinge(torso, leftUpperArm, [-0.17, 0.22], [0, 0.19], -2.35, 1.5),
+      hinge(leftUpperArm, leftLowerArm, [0, -0.19], [0, 0.17], -2.45, 0.35),
+      hinge(torso, rightUpperArm, [0.17, 0.22], [0, 0.19], -1.5, 2.35),
+      hinge(rightUpperArm, rightLowerArm, [0, -0.19], [0, 0.17], -0.35, 2.45),
+      hinge(torso, leftUpperLeg, [-0.105, -0.25], [0, 0.205], -1.25, 1.25),
+      hinge(leftUpperLeg, leftLowerLeg, [0, -0.205], [0, 0.17], -0.25, 2.2),
+      hinge(torso, rightUpperLeg, [0.105, -0.25], [0, 0.205], -1.25, 1.25),
+      hinge(rightUpperLeg, rightLowerLeg, [0, -0.205], [0, 0.17], -2.2, 0.25)
     ];
 
-    world.destroyBody(oldBody);
     character.body = torso;
-    character.ragdoll = { pieces, joints, startedAt: performance.now(), torso };
+    character.ragdoll = {
+      pieces, byName, joints, torso, startedAt: performance.now(),
+      settledTime: 0, hitLocation
+    };
+    world.destroyBody(oldBody);
 
-    const dx = origin.x - impact.x;
-    const dy = origin.y - impact.y;
+    const target = byName[hitLocation === "head" ? "head" :
+      hitLocation === "legs" ? "left-upper-leg" : "torso"];
+    const targetPosition = target.body.getPosition();
+    const dx = targetPosition.x - impact.x;
+    const dy = targetPosition.y - impact.y;
     const length = Math.max(0.05, Math.hypot(dx, dy));
-    const nx = dx / length;
-    const ny = dy / length;
-    for (let index = 0; index < pieces.length; index++) {
-      const piece = pieces[index];
-      const spread = (index % 2 === 0 ? 1 : -1) * (0.35 + (index % 3) * 0.18);
+    const impulse = V(dx / length * 5.2, dy / length * 5.2 + 1.1);
+    target.body.applyLinearImpulse(impulse, target.body.getWorldCenter(), true);
+    target.body.applyAngularImpulse((character.team === 0 ? 1 : -1) * 1.35, true);
+
+    for (const piece of pieces) {
+      if (piece === target) continue;
+      const p = piece.body.getPosition();
+      const falloff = Math.max(0.18, 1 - Math.hypot(p.x - targetPosition.x, p.y - targetPosition.y) / 1.25);
       piece.body.applyLinearImpulse(
-        V(nx * (1.8 + Math.random() * 1.1) + spread, ny * (1.8 + Math.random() * 1.1) + 1.1),
-        piece.body.getWorldCenter(),
-        true
+        V(impulse.x * 0.18 * falloff, impulse.y * 0.18 * falloff),
+        piece.body.getWorldCenter(), true
       );
-      piece.body.applyAngularImpulse((Math.random() - 0.5) * 1.8 + spread * 0.45, true);
     }
+  }
+
+  function ragdollHasGroundContact(ragdoll) {
+    return ragdoll.pieces.some(piece => {
+      if (!piece.name.includes("lower-leg") && piece.name !== "torso") return false;
+      const body = piece.body;
+      const position = body.getPosition();
+      const angle = body.getAngle();
+      const verticalExtent = piece.circle ? piece.halfWidth :
+        Math.abs(Math.cos(angle)) * piece.halfHeight + Math.abs(Math.sin(angle)) * piece.halfWidth;
+      let grounded = false;
+      world.rayCast(
+        V(position.x, position.y - verticalExtent - 0.025),
+        V(position.x, position.y - verticalExtent - 0.22),
+        (fixture, point, normal, fraction) => {
+          if (fixture.getBody().getUserData()?.kind === "terrain") {
+            grounded = true;
+            return fraction;
+          }
+          return -1;
+        }
+      );
+      return grounded;
+    });
   }
 
   function recoverRagdolls() {
     for (const character of characters) {
       const ragdoll = character.ragdoll;
-      if (!ragdoll || character.eliminated || performance.now() - ragdoll.startedAt < 2800) continue;
-      const speed = ragdoll.pieces.reduce((sum, piece) => sum + piece.body.getLinearVelocity().length(), 0) / ragdoll.pieces.length;
-      const spin = ragdoll.pieces.reduce((sum, piece) => sum + Math.abs(piece.body.getAngularVelocity()), 0) / ragdoll.pieces.length;
-      if (speed > 0.95 || spin > 2.2) continue;
+      if (!ragdoll || character.eliminated) continue;
+      const averageSpeed = ragdoll.pieces.reduce(
+        (sum, piece) => sum + piece.body.getLinearVelocity().length(), 0
+      ) / ragdoll.pieces.length;
+      const averageSpin = ragdoll.pieces.reduce(
+        (sum, piece) => sum + Math.abs(piece.body.getAngularVelocity()), 0
+      ) / ragdoll.pieces.length;
+      if (performance.now() - ragdoll.startedAt > 2200 &&
+          ragdollHasGroundContact(ragdoll) && averageSpeed < 0.32 && averageSpin < 1.15) {
+        ragdoll.settledTime += FIXED_STEP;
+      } else {
+        ragdoll.settledTime = 0;
+      }
+      if (ragdoll.settledTime < 0.65) continue;
+
       const p = ragdoll.torso.getPosition();
       let surfaceY = null;
-      world.rayCast(V(p.x, p.y + 0.6), V(p.x, p.y - 1.3), (fixture, point, normal, fraction) => {
-        if (fixture.getBody().getUserData()?.kind === "terrain") { surfaceY = point.y; return fraction; }
+      world.rayCast(V(p.x, p.y + 0.75), V(p.x, p.y - 2.2), (fixture, point, normal, fraction) => {
+        if (fixture.getBody().getUserData()?.kind === "terrain") {
+          surfaceY = point.y;
+          return fraction;
+        }
         return -1;
       });
       if (surfaceY === null) continue;
-      const newBody = world.createBody({ type: "dynamic", position: V(p.x, surfaceY + 0.82),
-        fixedRotation: true, linearDamping: 0.7, allowSleep: false,
-        userData: { kind: "character", team: character.team, number: character.number } });
+
+      const newBody = world.createBody({
+        type: "dynamic",
+        position: V(p.x, surfaceY + 0.82),
+        fixedRotation: true,
+        linearDamping: 0.7,
+        allowSleep: false,
+        userData: { kind: "character", team: character.team, number: character.number }
+      });
       const hitboxes = [
         { location: "head", shape: new P.Circle(V(0, 0.49), 0.14), density: 0.75 },
         { location: "chest", shape: new P.Box(0.17, 0.29, V(0, 0.04)), density: 1.5 },
         { location: "legs", shape: new P.Box(0.13, 0.28, V(0, -0.53)), density: 1.1 }
       ];
       for (const hitbox of hitboxes) {
-        const fixture = newBody.createFixture({ shape: hitbox.shape, density: hitbox.density, friction: 0.82, restitution: 0.02 });
+        const fixture = newBody.createFixture({
+          shape: hitbox.shape, density: hitbox.density, friction: 0.82, restitution: 0.02
+        });
         fixture.setUserData({ kind: "character", location: hitbox.location });
       }
       for (const piece of ragdoll.pieces) world.destroyBody(piece.body);
       character.body = newBody;
       character.ragdoll = null;
+      character.grounded = true;
     }
   }
 
@@ -468,7 +548,7 @@
       const dy = p.y - point.y;
       const distance = Math.hypot(dx, dy);
       const isDirectTarget = directHit?.character === character;
-      if (isDirectTarget) createRagdoll(character, point);
+      if (isDirectTarget) createRagdoll(character, point, directHit.location);
       let damage = 0;
       if (isDirectTarget) {
         damage = { head: 40, chest: 30, legs: 20 }[directHit.location];
@@ -599,7 +679,7 @@
         ctx.rotate(-body.getAngle());
         ctx.fillStyle = character.color;
         ctx.strokeStyle = "#17232b";
-        ctx.lineWidth = Math.max(2.4, unit * 0.075);
+        ctx.lineWidth = Math.max(2.4, unit * 0.065);
         if (piece.circle) {
           ctx.beginPath();
           ctx.arc(0, 0, piece.halfWidth * unit, 0, Math.PI * 2);
@@ -610,11 +690,9 @@
           ctx.lineJoin = "round";
           ctx.beginPath();
           ctx.roundRect(
-            -piece.halfWidth * unit,
-            -piece.halfHeight * unit,
-            piece.halfWidth * 2 * unit,
-            piece.halfHeight * 2 * unit,
-            Math.min(piece.halfWidth, piece.halfHeight) * unit * 0.8
+            -piece.halfWidth * unit, -piece.halfHeight * unit,
+            piece.halfWidth * 2 * unit, piece.halfHeight * 2 * unit,
+            Math.min(piece.halfWidth, piece.halfHeight) * unit * 0.9
           );
           ctx.fill();
           ctx.stroke();
@@ -623,32 +701,68 @@
       }
       return;
     }
+
     const velocity = character.body.getLinearVelocity();
-    const tilt = Math.max(-0.55, Math.min(0.55, velocity.x * 0.08));
+    const moving = character.grounded && Math.abs(velocity.x) > 0.35;
+    const jumping = !character.grounded;
+    const phase = performance.now() * 0.012 * (velocity.x < 0 ? -1 : 1);
+    const stride = moving ? Math.min(1, Math.abs(velocity.x) / 3.4) : 0;
+    const legSwing = jumping ? 0.23 : Math.sin(phase) * 0.28 * stride;
+    const armSwing = jumping ? -0.38 : -Math.sin(phase) * 0.22 * stride;
+    const kneeBend = moving ? Math.max(0, Math.sin(phase + 0.9)) * 0.12 * stride : 0;
+    const torsoLean = Math.max(-0.16, Math.min(0.16, velocity.x * 0.035));
+
     ctx.save();
     ctx.translate(screen.x, screen.y);
-    ctx.rotate(tilt);
+    ctx.rotate(torsoLean);
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.strokeStyle = "#17232b";
-    ctx.lineWidth = Math.max(2.4, unit * 0.075);
+    ctx.lineWidth = Math.max(2.6, unit * 0.072);
     ctx.fillStyle = character.color;
     ctx.beginPath();
     ctx.arc(0, -unit * 0.49, unit * 0.14, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
     ctx.beginPath();
-    ctx.moveTo(0, -unit * 0.35);
+    ctx.moveTo(0, -unit * 0.34);
     ctx.lineTo(0, unit * 0.25);
-    ctx.moveTo(0, -unit * 0.23);
-    ctx.lineTo(-unit * 0.29, unit * 0.04);
-    ctx.moveTo(0, -unit * 0.23);
-    ctx.lineTo(unit * 0.29, unit * 0.04);
-    ctx.moveTo(0, unit * 0.25);
-    ctx.lineTo(-unit * 0.23, unit * 0.78);
-    ctx.moveTo(0, unit * 0.25);
-    ctx.lineTo(unit * 0.23, unit * 0.78);
     ctx.stroke();
+
+    const shoulderY = -unit * 0.22;
+    const leftElbowX = -unit * (0.24 + armSwing * 0.55);
+    const rightElbowX = unit * (0.24 + armSwing * 0.55);
+    const elbowY = jumping ? -unit * 0.48 : unit * 0.05;
+    const leftHandX = -unit * (0.30 + armSwing);
+    const rightHandX = unit * (0.30 + armSwing);
+    const handY = jumping ? -unit * 0.68 : unit * (0.02 + armSwing * 0.6);
+    ctx.beginPath();
+    ctx.moveTo(0, shoulderY);
+    ctx.lineTo(leftElbowX, elbowY);
+    ctx.lineTo(leftHandX, handY);
+    ctx.moveTo(0, shoulderY);
+    ctx.lineTo(rightElbowX, elbowY);
+    ctx.lineTo(rightHandX, handY);
+    ctx.stroke();
+
+    const hipY = unit * 0.25;
+    const leftKneeX = -unit * (0.14 + legSwing * 0.62);
+    const rightKneeX = unit * (0.14 - legSwing * 0.62);
+    const leftFootX = -unit * (0.23 + legSwing);
+    const rightFootX = unit * (0.23 - legSwing);
+    const leftKneeY = jumping ? unit * 0.46 : unit * (0.50 + kneeBend);
+    const rightKneeY = jumping ? unit * 0.43 : unit * (0.50 - kneeBend);
+    const leftFootY = jumping ? unit * 0.69 : unit * (0.78 - Math.max(0, Math.sin(phase)) * 0.12 * stride);
+    const rightFootY = jumping ? unit * 0.66 : unit * (0.78 + Math.max(0, Math.sin(phase)) * 0.12 * stride);
+    ctx.beginPath();
+    ctx.moveTo(0, hipY);
+    ctx.lineTo(leftKneeX, leftKneeY);
+    ctx.lineTo(leftFootX, leftFootY);
+    ctx.moveTo(0, hipY);
+    ctx.lineTo(rightKneeX, rightKneeY);
+    ctx.lineTo(rightFootX, rightFootY);
+    ctx.stroke();
+
     const barWidth = unit * 0.64;
     const barY = -unit * 0.96;
     ctx.fillStyle = "#17232b";
@@ -779,6 +893,9 @@
         explode();
       }
       checkBoundaries();
+      for (const character of characters) {
+        if (!character.eliminated && !character.ragdoll) character.grounded = isGrounded(character);
+      }
       recoverRagdolls();
       accumulator -= FIXED_STEP;
     }
@@ -788,6 +905,7 @@
 
   function updateAimModeLabel() {
     aimModeButton.textContent = aimMode === "pullback" ? "Aim: Pullback" : "Aim: Precision";
+    document.body.classList.toggle("aim-precision", aimMode === "precision");
   }
 
   function updatePullbackAim(event) {
