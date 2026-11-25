@@ -12,6 +12,7 @@
   const powerValue = document.getElementById("power-value");
   const fireButton = document.getElementById("fire");
   const endTurnButton = document.getElementById("end-turn");
+  const aimModeButton = document.getElementById("aim-mode");
 
   if (!window.planck) {
     statusEl.textContent = "Physics library failed to load";
@@ -388,13 +389,13 @@
       const spin = ragdoll.pieces.reduce((sum, piece) => sum + Math.abs(piece.body.getAngularVelocity()), 0) / ragdoll.pieces.length;
       if (speed > 0.8 || spin > 1.8) continue;
       const p = ragdoll.torso.getPosition();
-      let grounded = false;
-      world.rayCast(V(p.x, p.y - 0.35), V(p.x, p.y - 1.25), (fixture, point, normal, fraction) => {
-        if (fixture.getBody().getUserData()?.kind === "terrain") { grounded = true; return fraction; }
+      let surfaceY = null;
+      world.rayCast(V(p.x, p.y + 0.6), V(p.x, p.y - 1.3), (fixture, point, normal, fraction) => {
+        if (fixture.getBody().getUserData()?.kind === "terrain") { surfaceY = point.y; return fraction; }
         return -1;
       });
-      if (!grounded) continue;
-      const newBody = world.createBody({ type: "dynamic", position: V(p.x, p.y + 0.12),
+      if (surfaceY === null) continue;
+      const newBody = world.createBody({ type: "dynamic", position: V(p.x, surfaceY + 0.82),
         fixedRotation: true, linearDamping: 0.7, allowSleep: false,
         userData: { kind: "character", team: character.team, number: character.number } });
       const hitboxes = [
