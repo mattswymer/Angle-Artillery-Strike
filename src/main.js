@@ -104,6 +104,32 @@
     terrainBody = terrainSystem.body;
   }
 
+  function shuffle(values, random) {
+    const result = values.slice();
+    for (let i = result.length - 1; i > 0; i--) {
+      const j = Math.floor(random() * (i + 1));
+      [result[i], result[j]] = [result[j], result[i]];
+    }
+    return result;
+  }
+
+  function randomTeamPositions(random, minX, maxX, count) {
+    const positions = [];
+    let attempts = 0;
+    while (positions.length < count && attempts++ < 500) {
+      const candidate = minX + random() * (maxX - minX);
+      if (positions.every(x => Math.abs(x - candidate) >= 1.35)) positions.push(candidate);
+    }
+    if (positions.length < count) {
+      positions.length = 0;
+      const spacing = (maxX - minX) / count;
+      for (let i = 0; i < count; i++) {
+        positions.push(minX + spacing * (i + 0.5));
+      }
+    }
+    return shuffle(positions, random);
+  }
+
   function makeCharacter(team, number, x) {
     const y = heightAt(x) + 0.48;
     const body = world.createBody({
@@ -134,9 +160,14 @@
     terrainSystem = new window.TerrainSystem(P, world, WORLD_WIDTH, WORLD_HEIGHT + 3, 0.05, -3, terrainHeights);
     rebuildTerrain();
 
-    const blueX = 2.5 + random() * 6.5;
-    const redX = 15 + random() * 6.5;
-    characters = [makeCharacter(0, 1, blueX), makeCharacter(1, 1, redX)];
+    const bluePositions = randomTeamPositions(random, 0.9, 11.1, 4);
+    const redPositions = randomTeamPositions(random, 12.9, 23.1, 4);
+    const blueTeam = bluePositions.map((x, index) => makeCharacter(0, index + 1, x));
+    const redTeam = redPositions.map((x, index) => makeCharacter(1, index + 1, x));
+    const firstTeam = random() < 0.5 ? 0 : 1;
+    const firstOrder = shuffle(firstTeam === 0 ? blueTeam : redTeam, random);
+    const secondOrder = shuffle(firstTeam === 0 ? redTeam : blueTeam, random);
+    characters = firstOrder.map((character, index) => [character, secondOrder[index]]).flat();
     activeIndex = 0;
     activeAction = null;
     projectile = null;
@@ -503,7 +534,13 @@
     tapMoveRemaining = 0;
     jumpQueued = false;
     activeAction = null;
-    activeIndex = (activeIndex + 1) % characters.length;
+    for (let offset = 1; offset <= characters.length; offset++) {
+      const nextIndex = (activeIndex + offset) % characters.length;
+      if (!characters[nextIndex].eliminated) {
+        activeIndex = nextIndex;
+        break;
+      }
+    }
     updateHud();
   }
 
@@ -525,6 +562,8 @@
         tapMoveRemaining = 0.28;
       }
     };
+    button.addEventListener("selectstart", event => event.preventDefault());
+    button.addEventListener("contextmenu", event => event.preventDefault());
     button.addEventListener("pointerdown", start);
     button.addEventListener("pointerup", stop);
     button.addEventListener("pointercancel", stop);
