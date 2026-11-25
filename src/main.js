@@ -37,6 +37,7 @@
   let projectile = null;
   let projectilePrevious = null;
   let impactPoint = null;
+  let projectileHit = null;
   let pendingImpact = false;
   let seed = 1;
   let held = { left: false, right: false, jump: false };
@@ -175,6 +176,7 @@
     projectile = null;
     projectilePrevious = null;
     impactPoint = null;
+    projectileHit = null;
     pendingImpact = false;
     cameraY = 0;
     restoreActiveAim();
@@ -238,24 +240,26 @@
     const velocity = character.body.getLinearVelocity();
     const heldDirection = (held.right ? 1 : 0) - (held.left ? 1 : 0);
     let direction = heldDirection || (tapMoveRemaining > 0 ? tapMoveDirection : 0);
+    const requestedDirection = direction;
     if (tapMoveRemaining > 0) {
       tapMoveRemaining = Math.max(0, tapMoveRemaining - FIXED_STEP);
       if (tapMoveRemaining === 0) tapMoveDirection = 0;
     }
 
     // Other combatants are solid obstacles, but ordinary walking cannot shove them.
+    let blockedByCharacter = false;
     if (direction) {
       const position = character.body.getPosition();
-      const blocked = characters.some(other => {
+      blockedByCharacter = characters.some(other => {
         if (other === character || other.eliminated) return false;
         const otherPosition = other.body.getPosition();
         const dx = otherPosition.x - position.x;
         const dy = Math.abs(otherPosition.y - position.y);
         return dx * direction > 0 && Math.abs(dx) < 0.79 && dy < 0.66;
       });
-      if (blocked) direction = 0;
+      if (blockedByCharacter) direction = 0;
     }
-    if ((direction || held.jump || jumpQueued) && activeAction !== "move") {
+    if ((requestedDirection || held.jump || jumpQueued) && activeAction !== "move") {
       activeAction = "move";
       statusEl.textContent = "Movement action — firing is locked until the next turn";
       updateHud();
@@ -275,7 +279,8 @@
     }
 
     if (direction) character.body.setLinearVelocity(V(direction * 3.4, verticalVelocity));
-    else character.body.setLinearVelocity(V(0, verticalVelocity));
+    else if (blockedByCharacter) character.body.setLinearVelocity(V(0, verticalVelocity));
+    else character.body.setLinearVelocity(V(velocity.x * 0.78, verticalVelocity));
 
     if (jumpBufferTime > 0 && coyoteTime > 0) {
       character.body.setLinearVelocity(V(character.body.getLinearVelocity().x, 3.9));
@@ -324,6 +329,8 @@
     projectile = null;
     projectilePrevious = null;
     impactPoint = null;
+    const directHit = projectileHit;
+    projectileHit = null;
     const radius = 1.7;
     const removedCells = terrainSystem.carveCircle(point.x, point.y, radius);
     rebuildTerrain();
@@ -340,8 +347,15 @@
         character.body.applyLinearImpulse(V(dx / length * strength, dy / length * strength + 0.55), character.body.getWorldCenter(), true);
       }
     }
-    statusEl.textContent = "Impact · crater radius " + radius.toFixed(2) + " · " + removedCells + " terrain cells removed";
+    statusEl.textContent = directHit ? "Direct " + directHit.location + " hit on " + (directHit.character.team === 0 ? "Blue " : "Red ") + directHit.character.number + " · crater radius " + radius.toFixed(2) : "Impact · crater radius " + radius.toFixed(2) + " · " + removedCells + " terrain cells removed";
     updateHud();
+  }
+
+  function classifyHitLocation(character, point) {
+    const relativeHeight = point.y - character.body.getPosition().y;
+    if (relativeHeight > 0.14) return "head";
+    if (relativeHeight > -0.12) return "chest";
+    return "legs";
   }
 
   function detectProjectileImpact() {
@@ -354,6 +368,10 @@
       const bodyKind = fixture.getBody().getUserData()?.kind;
       if (bodyKind === "terrain" || bodyKind === "character") {
         impactPoint = V(point.x, point.y);
+        if (bodyKind === "character") {
+          const target = characters.find(character => character.body === fixture.getBody());
+          if (target) projectileHit = { character: target, location: classifyHitLocation(target, point) };
+        }
         hit = true;
         return fraction;
       }
