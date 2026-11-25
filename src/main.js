@@ -30,6 +30,7 @@
   const COLORS = ["#287bd1", "#d64d4d"];
   let world;
   let terrainBody;
+  let terrainSystem;
   let terrainHeights = [];
   let characters = [];
   let activeIndex = 0;
@@ -80,11 +81,8 @@
   }
 
   function rebuildTerrain() {
-    if (terrainBody) world.destroyBody(terrainBody);
-    terrainBody = world.createBody({ type: "static", userData: { kind: "terrain" } });
-    const vertices = terrainHeights.map((height, index) => V(index / (TERRAIN_SAMPLES - 1) * WORLD_WIDTH, height));
-    terrainBody.createFixture({ shape: new P.Chain(vertices), friction: 0.95 });
-    terrainBody.getFixtureList().setUserData({ kind: "terrain" });
+    terrainSystem.rebuildPhysics();
+    terrainBody = terrainSystem.body;
   }
 
   function makeCharacter(team, number, x) {
@@ -114,6 +112,7 @@
     });
     const random = mulberry32(seed);
     generateTerrain(random);
+    terrainSystem = new window.TerrainSystem(P, world, WORLD_WIDTH, WORLD_HEIGHT + 3, 0.05, -3, terrainHeights);
     rebuildTerrain();
 
     const blueX = 2.5 + random() * 6.5;
@@ -213,16 +212,7 @@
     world.destroyBody(projectile);
     projectile = null;
     const radius = 1.7;
-    const radiusSquared = radius * radius;
-
-    for (let i = 0; i < terrainHeights.length; i++) {
-      const x = i / (TERRAIN_SAMPLES - 1) * WORLD_WIDTH;
-      const dx = x - point.x;
-      if (Math.abs(dx) > radius) continue;
-      const depth = Math.sqrt(Math.max(0, radiusSquared - dx * dx));
-      const craterFloor = point.y - depth * 1.28;
-      terrainHeights[i] = Math.min(terrainHeights[i], craterFloor);
-    }
+    const removedCells = terrainSystem.carveCircle(point.x, point.y, radius);
     rebuildTerrain();
 
     for (const character of characters) {
@@ -237,7 +227,7 @@
         character.body.applyLinearImpulse(V(dx / length * strength, dy / length * strength + 1.2), character.body.getWorldCenter(), true);
       }
     }
-    statusEl.textContent = "Explosion · crater radius " + radius.toFixed(2);
+    statusEl.textContent = "Explosion · crater radius " + radius.toFixed(2) + " · " + removedCells + " terrain cells removed";
     updateHud();
   }
 
@@ -268,26 +258,7 @@
   }
 
   function drawTerrain(scale, offsetX) {
-    ctx.beginPath();
-    const first = worldToScreen(0, terrainHeights[0], scale, offsetX);
-    ctx.moveTo(first.x, first.y);
-    for (let i = 1; i < terrainHeights.length; i++) {
-      const point = worldToScreen(i / (TERRAIN_SAMPLES - 1) * WORLD_WIDTH, terrainHeights[i], scale, offsetX);
-      ctx.lineTo(point.x, point.y);
-    }
-    const bottomRight = worldToScreen(WORLD_WIDTH, 0, scale, offsetX);
-    const bottomLeft = worldToScreen(0, 0, scale, offsetX);
-    ctx.lineTo(bottomRight.x, bottomRight.y);
-    ctx.lineTo(bottomLeft.x, bottomLeft.y);
-    ctx.closePath();
-    const gradient = ctx.createLinearGradient(0, canvasHeight * 0.42, 0, canvasHeight);
-    gradient.addColorStop(0, "#6e986a");
-    gradient.addColorStop(1, "#344e3d");
-    ctx.fillStyle = gradient;
-    ctx.fill();
-    ctx.strokeStyle = "#31533e";
-    ctx.lineWidth = 3;
-    ctx.stroke();
+    terrainSystem.draw(ctx, (x, y) => worldToScreen(x, y, scale, offsetX));
   }
 
   function drawCharacter(character, scale, offsetX) {
