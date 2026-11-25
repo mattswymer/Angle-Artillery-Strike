@@ -316,6 +316,7 @@
     projectile = body;
     projectilePrevious = V(start.x, start.y);
     impactPoint = null;
+    projectileHit = null;
     pendingImpact = false;
     statusEl.textContent = "Projectile in flight — wait for impact, then end turn";
     fireButton.disabled = true;
