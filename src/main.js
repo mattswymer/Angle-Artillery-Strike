@@ -145,9 +145,9 @@
       userData: { kind: "character", team, number }
     });
     const hitboxes = [
-      { location: "head", shape: new P.Circle(V(0, 0.49), 0.14), density: 0.45 },
-      { location: "chest", shape: new P.Box(0.17, 0.29, V(0, 0.04)), density: 0.9 },
-      { location: "legs", shape: new P.Box(0.13, 0.28, V(0, -0.53)), density: 0.65 }
+      { location: "head", shape: new P.Circle(V(0, 0.49), 0.14), density: 0.75 },
+      { location: "chest", shape: new P.Box(0.17, 0.29, V(0, 0.04)), density: 1.5 },
+      { location: "legs", shape: new P.Box(0.13, 0.28, V(0, -0.53)), density: 1.1 }
     ];
     for (const hitbox of hitboxes) {
       const fixture = body.createFixture({
