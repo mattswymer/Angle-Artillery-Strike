@@ -133,8 +133,11 @@ function createRig(world, degrees, x = 0) {
     filterGroupIndex: -1
   });
 
-  const revolute = (bodyA, bodyB, anchor, lower, upper, torque) => world.createJoint(
-    planck.RevoluteJoint({
+  const revolute = (bodyA, bodyB, anchor, lower, upper, torque) => {
+    // Planck joint angles are measured relative to this construction-time pose.
+    // Preserve that reference so world-space IK targets can be converted correctly.
+    const referenceAngle = bodyB.getAngle() - bodyA.getAngle();
+    const joint = world.createJoint(planck.RevoluteJoint({
       enableLimit: true,
       lowerAngle: lower,
       upperAngle: upper,
@@ -142,9 +145,10 @@ function createRig(world, degrees, x = 0) {
       motorSpeed: 0,
       maxMotorTorque: torque,
       collideConnected: false
-    }, bodyA, bodyB, anchor)
-  );
-  const neck = revolute(torso, head, V(x, torsoY + 0.27), -0.65, 0.65, 1);
+    }, bodyA, bodyB, anchor));
+    return { joint, referenceAngle };
+  };
+  const neckHinge = revolute(torso, head, V(x, torsoY + 0.27), -0.65, 0.65, 1);
 
   const legs = footXs.map((footX, index) => {
     const surfaceY = surfaceAt(footX);
@@ -206,9 +210,9 @@ function createRig(world, degrees, x = 0) {
       filterGroupIndex: -1
     });
 
-    const hipJoint = revolute(torso, thigh, hip, -1.5, 1.5, 4);
-    const kneeJoint = revolute(thigh, shin, ik.knee, -2.4, 2.4, 4);
-    const ankleJoint = revolute(shin, foot, ankle, -0.7, 0.7, 1.5);
+    const hipHinge = revolute(torso, thigh, hip, -1.5, 1.5, 4);
+    const kneeHinge = revolute(thigh, shin, ik.knee, -2.4, 2.4, 4);
+    const ankleHinge = revolute(shin, foot, ankle, -0.7, 0.7, 1.5);
     return {
       side: index === 0 ? -1 : 1,
       footX,
@@ -216,16 +220,19 @@ function createRig(world, degrees, x = 0) {
       foot,
       thigh,
       shin,
-      hipJoint,
-      kneeJoint,
-      ankleJoint,
+      hipJoint: hipHinge.joint,
+      kneeJoint: kneeHinge.joint,
+      ankleJoint: ankleHinge.joint,
+      hipReference: hipHinge.referenceAngle,
+      kneeReference: kneeHinge.referenceAngle,
+      ankleReference: ankleHinge.referenceAngle,
       initialIK: ik,
       step: null
     };
   });
 
   return {
-    torso, head, neck, legs,
+    torso, head, neck: neckHinge.joint, neckReference: neckHinge.referenceAngle, legs,
     mode: "active",
     stiffness: 1,
     stableFor: 0,
@@ -342,15 +349,15 @@ function stepRig(world, rig, slopeRadians, dt = STEP) {
       pelvisTargetY
     );
     const ik = solveLegIK(hip, ankle, SEGMENT.thigh, SEGMENT.shin, -leg.side);
-    const hipTarget = ik.thighAngle - rig.torso.getAngle();
-    const kneeTarget = ik.kneeRelative;
-    const ankleTarget = slopeRadians - ik.shinAngle;
+    const hipTarget = ik.thighAngle - rig.torso.getAngle() - leg.hipReference;
+    const kneeTarget = ik.kneeRelative - leg.kneeReference;
+    const ankleTarget = slopeRadians - ik.shinAngle - leg.ankleReference;
     driveJoint(leg.hipJoint, hipTarget, 13, 8, 4, rig.stiffness);
     driveJoint(leg.kneeJoint, kneeTarget, 13, 8, 4, rig.stiffness);
     driveJoint(leg.ankleJoint, ankleTarget, 12, 6, 1.5, rig.stiffness);
   });
 
-  driveJoint(rig.neck, -rig.torso.getAngle(), 10, 5, 1, rig.stiffness);
+  driveJoint(rig.neck, -rig.torso.getAngle() - rig.neckReference, 10, 5, 1, rig.stiffness);
 
   if (rig.stiffness > 0.8 && supported && torsoTilt < 35 * Math.PI / 180) {
     rig.stableFor += dt;
