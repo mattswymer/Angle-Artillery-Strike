@@ -23,14 +23,15 @@ GitHub Actions runs the same command on Node 24.
 
 ## Current result
 
-The current controller is still not ready to integrate:
+The latest CI run executes seven tests: four pass and three fail.
 
-- 0°: fails sustained stability.
-- 20°: fails; the rig loses support and slides/falls.
-- 35°: fails; the rig loses support and slides/falls.
+- 0°: fails sustained stability. The rig initially stands, then its COM leaves the planted-foot support interval; the protective step does not recover balance before the 0.25-second fall threshold.
+- 20°: fails; downhill momentum and torso rotation overwhelm the current step controller.
+- 35°: fails; the rig loses support and falls.
 - 50°: passes the expected loss-of-stance assertion.
+- Seeded RNG, IK finite-value, and supporting harness checks pass.
 
-The RNG and IK finite-value checks pass. The slope failures are genuine Planck simulation results, not dependency-installation failures. The tests intentionally remain red; do not weaken the assertions to make CI green.
+These are genuine Planck simulation results, not dependency-installation failures. The tests intentionally remain red; do not weaken the assertions to make CI green.
 
 ## Important findings so far
 
