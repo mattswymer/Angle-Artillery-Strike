@@ -323,23 +323,6 @@
     return character.rig.legs.some(leg => CharacterRig.isGroundContact(leg.foot));
   }
 
-  function stepHeightAhead(character, direction) {
-    const position = character.body.getPosition();
-    const footY = position.y - 0.81;
-    const probeX = position.x + direction * 0.32;
-    let surfaceY = null;
-
-    world.rayCast(V(probeX, position.y + 0.55), V(probeX, position.y - 0.5),
-      (fixture, point, normal, fraction) => {
-        if (fixture.getBody().getUserData()?.kind !== "terrain") return -1;
-        surfaceY = point.y;
-        return fraction;
-      });
-
-    if (surfaceY === null) return 0;
-    return surfaceY - footY;
-  }
-
   function moveActive() {
     const character = activeCharacter();
     if (!canAct(character) || projectile || activeAction === "attack") return;
