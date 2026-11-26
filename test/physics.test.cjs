@@ -323,6 +323,32 @@ test("common-bend upright stance sweeps corrective step reach", () => {
   assert.equal(results.length, 16);
 });
 
+test("upright common-bend stance sweeps predictive COM lookahead for balance steps", () => {
+  const results = [];
+  for (const degrees of [20, 35]) {
+    for (const stanceHalfWidth of [0.05, 0.15]) {
+      for (const stepLookahead of [0, 0.1, 0.2, 0.3, 0.4]) {
+        const r = runStanceCase(
+          degrees, 1, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25,
+          stanceHalfWidth, 0.95, 0, 0, 0.6, 1.5, "same-positive", 0.18, stepLookahead
+        );
+        results.push({
+          degrees, stanceHalfWidth, stepLookahead,
+          support: r.supportedTime, bothFeet: r.bothFeetContactTime,
+          tilt: r.maxAbsoluteTiltDegrees, air: r.maxAirTime, speed: r.maxSpeed,
+          trace: r.trace.slice(0, 6).map(point => ({
+            t: point.t, x: point.x, angle: point.angle,
+            contacts: point.contacts, center: point.centerOfMassX,
+            swing: point.swingIndex
+          }))
+        });
+      }
+    }
+  }
+  console.log("upright predictive COM lookahead sweep", JSON.stringify(results));
+  assert.equal(results.length, 20);
+});
+
 test("common-bend upright stance sweeps torso balance gains on 20 degree terrain", () => {
   const results = [];
   for (const balanceKp of [0, 1.5, 3.5, 6]) {
