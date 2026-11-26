@@ -564,12 +564,16 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
 
     function requestJump(walker) {
       if (walker.mode !== "active" || walker.jumpPhase !== "idle") return false;
-      if (!walker.legs.some(leg => isGroundContact(leg.foot))) return false;
+      if (walker.swingIndex !== undefined && walker.swingIndex !== null) return false;
+      if (!walker.legs.every(leg => isGroundContact(leg.foot))) return false;
       walker.jumpPhase = "crouch";
       walker.jumpElapsed = 0;
       walker.jumpAirborne = false;
       walker.jumping = true;
       walker.walkDirection = 0;
+      walker.swingIndex = null;
+      walker.swingTime = 0;
+      walker.swingAirborne = false;
       return true;
     }
 
@@ -637,8 +641,8 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
         const tangent = terrainAngleAt(hull.getPosition().x);
         const velocity = hull.getLinearVelocity();
         const tangentSpeed = Math.abs(velocity.x * Math.cos(tangent) + velocity.y * Math.sin(tangent));
-        const speedRatio = Math.max(0.25, Math.min(1, tangentSpeed / (walker.walkSpeed || 3.4)));
-        const stride = stepReach * (0.35 + 0.65 * speedRatio);
+        const speedRatio = Math.max(0, Math.min(1, tangentSpeed / (walker.walkSpeed || 3.4)));
+        const stride = stepReach * speedRatio;
         walker.swingIndex = swingIndex;
         walker.swingTime = 0;
         walker.swingAirborne = false;
@@ -729,7 +733,7 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
     let kneeTarget = wrapAngle(lowerBodyAngle - upperBodyAngle);
     let kneeTorque = kneeTorqueMax;
     if (walker.jumpPhase === "crouch") {
-      kneeTarget = wrapAngle(kneeTarget + leg.bend * 0.3);
+      kneeTarget = wrapAngle(kneeTarget + leg.bend * 0.5);
     } else if (walker.jumpPhase === "extend") {
       kneeTarget = leg.bend * 0.02;
       kneeTorque = kneeTorqueMax * 2;
