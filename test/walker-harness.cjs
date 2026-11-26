@@ -39,13 +39,13 @@ function makeTerrainFunctions(degrees, roughness, phaseA, phaseB) {
   return { slope, heightAt, terrainAngleAt };
 }
 
-function makeWorld(degrees, roughness = 0, phaseA = 0, phaseB = 0) {
+function makeWorld(degrees, roughness = 0, phaseA = 0, phaseB = 0, chainStep = 0.25) {
   const world = new planck.World({ gravity: Vec2(0, -GRAVITY) });
   world.setAllowSleeping(false);
   const terrain = makeTerrainFunctions(degrees, roughness, phaseA, phaseB);
   const ground = world.createBody();
   const points = [];
-  for (let x = -30; x <= 30.0001; x += 0.25) {
+  for (let x = -30; x <= 30.0001; x += chainStep) {
     points.push(Vec2(x, terrain.heightAt(x)));
   }
   ground.createFixture({
@@ -786,7 +786,7 @@ function runRigSymmetryCase(continuousGround = false, runController = true) {
   };
 }
 
-function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmupSteps = 0, groundStyle = "chain", controllerEnabled = true, balanceKp = 3.5, balanceKd = 0.02) {
+function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmupSteps = 0, groundStyle = "chain", controllerEnabled = true, balanceKp = 3.5, balanceKd = 0.02, chainStep = 0.25) {
   const random = seededRandom(seed);
   const phaseA = random() * Math.PI * 2;
   const phaseB = random() * Math.PI * 2;
@@ -794,7 +794,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
     ? makeContinuousWorld(degrees)
     : groundStyle === "segmented"
       ? makeSegmentedWorld(degrees, roughness, phaseA, phaseB)
-      : makeWorld(degrees, roughness, phaseA, phaseB);
+      : makeWorld(degrees, roughness, phaseA, phaseB, chainStep);
   const startX = (random() - 0.5) * 0.2;
   const walker = createStanceRig(world, startX, heightAt, terrainAngleAt);
   if (!controllerEnabled) {
@@ -842,6 +842,13 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
         knee: walker.legs.map(leg => Number(leg.knee.getJointAngle().toFixed(2))),
         ankle: walker.legs.map(leg => Number(leg.ankle.getJointAngle().toFixed(2))),
         contacts: walker.legs.map(leg => isGroundContact(leg.foot)),
+        contactCounts: walker.legs.map(leg => {
+          let count = 0;
+          for (let edge = leg.foot.getContactList(); edge; edge = edge.next) {
+            if (edge.contact.isTouching()) count++;
+          }
+          return count;
+        }),
         centerOfMassX: Number(getRigCenterOfMassX(walker).toFixed(3)),
         velocity: {
           x: Number(walker.hull.getLinearVelocity().x.toFixed(3)),
@@ -901,6 +908,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
     controllerEnabled,
     balanceKp,
     balanceKd,
+    chainStep,
     supportedTime: Number(supportedTime.toFixed(3)),
     maxRelativeTiltDegrees: Number((maxRelativeTilt * 180 / Math.PI).toFixed(2)),
     maxSpeed: Number(maxSpeed.toFixed(3)),
