@@ -68,48 +68,57 @@ function makeSlopeWorld(degrees) {
   return { world, radians, tangent, normal };
 }
 
+function solveLegIK(hip, ankle, upperLength, lowerLength, bend = 1) {
+  const dx = ankle.x - hip.x;
+  const dy = ankle.y - hip.y;
+  const rawDistance = Math.hypot(dx, dy);
+  const minDistance = Math.abs(upperLength - lowerLength) + 0.002;
+  const maxDistance = upperLength + lowerLength - 0.002;
+  const distance = Math.max(minDistance, Math.min(maxDistance, rawDistance));
+  const direction = Math.atan2(dy, dx);
+  const hipOffset = Math.acos(Math.max(-1, Math.min(1,
+    (upperLength ** 2 + distance ** 2 - lowerLength ** 2) /
+    (2 * upperLength * distance)
+  )));
+  const thighDirection = direction + bend * hipOffset;
+  const knee = V(
+    hip.x + Math.cos(thighDirection) * upperLength,
+    hip.y + Math.sin(thighDirection) * upperLength
+  );
+  const thighAngle = Math.atan2(knee.y - hip.y, knee.x - hip.x) + Math.PI / 2;
+  const shinAngle = Math.atan2(ankle.y - knee.y, ankle.x - knee.x) + Math.PI / 2;
+  return {
+    knee,
+    thighAngle,
+    shinAngle,
+    kneeRelative: wrapAngle(shinAngle - thighAngle),
+    distance: rawDistance,
+    reachable: rawDistance <= maxDistance && rawDistance >= minDistance
+  };
+}
+
 function createRig(world, degrees, x = 0) {
   const slope = degrees * Math.PI / 180;
-  const sine = Math.sin(slope);
-  const cosine = Math.cos(slope);
+  const tangent = V(Math.cos(slope), Math.sin(slope));
+  const normal = V(-Math.sin(slope), Math.cos(slope));
   const surfaceAt = px => Math.tan(slope) * px;
-  const parts = { torso: null, head: null, legs: [] };
-
-  const makeBox = (name, position, angle, hx, hy, density = 1) => {
-    const body = world.createDynamicBody({
-      position,
-      angle,
-      linearDamping: 0.04,
-      angularDamping: 0.08,
-      allowSleep: false,
-      userData: { kind: "rig-part", name }
-    });
-    body.createFixture({
-      shape: new planck.Box(hx, hy),
-      density,
-      friction: 0.9,
-      filterGroupIndex: -1
-    });
-    return body;
-  };
-
-  const legGeometry = [-1, 1].map(side => {
-    const footX = x + side * 0.19;
-    const surfaceY = surfaceAt(footX);
-    const footPosition = V(footX, surfaceY + 0.035);
-    const ankle = V(footX - sine * 0.035, surfaceY + 0.035 + cosine * 0.035);
-    const knee = V(ankle.x, ankle.y + SEGMENT.shin);
-    const hipX = x + side * 0.105;
-    const horizontal = knee.x - hipX;
-    const vertical = Math.sqrt(Math.max(0.001, SEGMENT.thigh ** 2 - horizontal ** 2));
-    const hip = V(hipX, knee.y + vertical);
-    return { side, footX, footPosition, ankle, knee, hip };
+  const footXs = [x - 0.19, x + 0.19];
+  const pelvisY = Math.min(...footXs.map(px => surfaceAt(px))) +
+    0.035 + 0.95 * (SEGMENT.thigh + SEGMENT.shin);
+  const torsoY = pelvisY + 0.22;
+  const torso = world.createDynamicBody({
+    position: V(x, torsoY),
+    linearDamping: 0.04,
+    angularDamping: 0.08,
+    allowSleep: false,
+    userData: { kind: "rig-part", name: "torso" }
   });
-
-  const torsoY = legGeometry.reduce((sum, leg) => sum + leg.hip.y, 0) /
-    legGeometry.length + 0.22;
-  const torso = makeBox("torso", V(x, torsoY), 0, 0.15, 0.27, 1.5);
-  parts.torso = torso;
+  torso.createFixture({
+    shape: new planck.Box(0.15, 0.27),
+    density: 1.5,
+    friction: 0.8,
+    filterGroupIndex: -1
+  });
 
   const head = world.createDynamicBody({
     position: V(x, torsoY + 0.40),
@@ -122,7 +131,6 @@ function createRig(world, degrees, x = 0) {
     friction: 0.5,
     filterGroupIndex: -1
   });
-  parts.head = head;
 
   const revolute = (bodyA, bodyB, anchor, lower, upper, torque) => world.createJoint(
     planck.RevoluteJoint({
@@ -135,27 +143,95 @@ function createRig(world, degrees, x = 0) {
       collideConnected: false
     }, bodyA, bodyB, anchor)
   );
-  revolute(torso, head, V(x, torsoY + 0.27), -0.65, 0.65, 1);
+  const neck = revolute(torso, head, V(x, torsoY + 0.27), -0.65, 0.65, 1);
 
-  for (const geometry of legGeometry) {
-    const { side, footX, footPosition, ankle, knee, hip } = geometry;
-    const foot = makeBox("foot", footPosition, slope, 0.11, 0.035, 0.25);
-    const shinCenter = V((ankle.x + knee.x) / 2, (ankle.y + knee.y) / 2);
-    const shinAngle = Math.atan2(ankle.y - knee.y, ankle.x - knee.x) + Math.PI / 2;
-    const shin = makeBox("shin", shinCenter, shinAngle, 0.055, SEGMENT.shin / 2, 0.75);
-    const thighCenter = V((hip.x + knee.x) / 2, (hip.y + knee.y) / 2);
-    const thighAngle = Math.atan2(knee.y - hip.y, knee.x - hip.x) + Math.PI / 2;
-    const thigh = makeBox("thigh", thighCenter, thighAngle, 0.07, SEGMENT.thigh / 2, 0.85);
+  const legs = footXs.map((footX, index) => {
+    const surfaceY = surfaceAt(footX);
+    const footCenter = V(
+      footX + normal.x * 0.035,
+      surfaceY + normal.y * 0.035
+    );
+    const ankle = V(
+      footCenter.x + normal.x * 0.035,
+      footCenter.y + normal.y * 0.035
+    );
+    const foot = world.createDynamicBody({
+      position: footCenter,
+      angle: slope,
+      linearDamping: 0.04,
+      angularDamping: 0.08,
+      allowSleep: false,
+      userData: { kind: "rig-part", name: "foot" }
+    });
+    foot.createFixture({
+      shape: new planck.Box(0.11, 0.035),
+      density: 0.25,
+      friction: 1.0,
+      filterGroupIndex: -1
+    });
+
+    const hip = V(x + (index === 0 ? -0.105 : 0.105), pelvisY);
+    const ik = solveLegIK(hip, ankle, SEGMENT.thigh, SEGMENT.shin, 1);
+    const thighCenter = V((hip.x + ik.knee.x) / 2, (hip.y + ik.knee.y) / 2);
+    const shinCenter = V((ik.knee.x + ankle.x) / 2, (ik.knee.y + ankle.y) / 2);
+
+    const thigh = world.createDynamicBody({
+      position: thighCenter,
+      angle: ik.thighAngle,
+      linearDamping: 0.04,
+      angularDamping: 0.08,
+      allowSleep: false,
+      userData: { kind: "rig-part", name: "thigh" }
+    });
+    thigh.createFixture({
+      shape: new planck.Box(0.07, SEGMENT.thigh / 2),
+      density: 0.85,
+      friction: 0.9,
+      filterGroupIndex: -1
+    });
+
+    const shin = world.createDynamicBody({
+      position: shinCenter,
+      angle: ik.shinAngle,
+      linearDamping: 0.04,
+      angularDamping: 0.08,
+      allowSleep: false,
+      userData: { kind: "rig-part", name: "shin" }
+    });
+    shin.createFixture({
+      shape: new planck.Box(0.055, SEGMENT.shin / 2),
+      density: 0.75,
+      friction: 0.9,
+      filterGroupIndex: -1
+    });
 
     const hipJoint = revolute(torso, thigh, hip, -1.5, 1.5, 4);
-    const kneeJoint = revolute(thigh, shin, knee, -2.4, 2.4, 4);
+    const kneeJoint = revolute(thigh, shin, ik.knee, -2.4, 2.4, 4);
     const ankleJoint = revolute(shin, foot, ankle, -0.7, 0.7, 1.5);
-    parts.legs.push({
-      side, footX, targetX: footX, step: null, thigh, shin, foot,
-      hipJoint, kneeJoint, ankleJoint
-    });
-  }
-  return { ...parts, mode: "active", stiffness: 1, stableFor: 0, elapsed: 0, outsideTime: 0 };
+    return {
+      side: index === 0 ? -1 : 1,
+      footX,
+      targetX: footX,
+      foot,
+      thigh,
+      shin,
+      hipJoint,
+      kneeJoint,
+      ankleJoint,
+      initialIK: ik,
+      step: null
+    };
+  });
+
+  return {
+    torso, head, neck, legs,
+    mode: "active",
+    stiffness: 1,
+    stableFor: 0,
+    elapsed: 0,
+    outsideTime: 0,
+    pelvisTargetY: pelvisY
+  };
 }
 
 function footContact(foot) {
@@ -171,6 +247,7 @@ function footContact(foot) {
 function stepRig(world, rig, slopeRadians, dt = STEP) {
   rig.elapsed += dt;
   const torsoPosition = rig.torso.getPosition();
+  const slopeNormal = V(-Math.sin(slopeRadians), Math.cos(slopeRadians));
   let contacts = 0;
   let worstNormalAngle = 0;
   let minFootX = Infinity;
@@ -180,53 +257,49 @@ function stepRig(world, rig, slopeRadians, dt = STEP) {
     const contact = footContact(leg.foot);
     if (contact) {
       contacts++;
-      const fixtureAIsFoot = contact.contact.getFixtureA().getBody() === leg.foot;
-      const upwardNormal = fixtureAIsFoot
+      const footIsFixtureA = contact.contact.getFixtureA().getBody() === leg.foot;
+      const upwardNormal = footIsFixtureA
         ? V(-contact.normal.x, -contact.normal.y)
         : contact.normal;
-      const slopeNormal = V(-Math.sin(slopeRadians), Math.cos(slopeRadians));
       const alignment = Math.max(-1, Math.min(1,
         upwardNormal.x * slopeNormal.x + upwardNormal.y * slopeNormal.y));
       worstNormalAngle = Math.max(worstNormalAngle, Math.acos(alignment));
     }
-    const footX = leg.foot.getPosition().x;
-    minFootX = Math.min(minFootX, footX);
-    maxFootX = Math.max(maxFootX, footX);
+    const px = leg.foot.getPosition().x;
+    minFootX = Math.min(minFootX, px);
+    maxFootX = Math.max(maxFootX, px);
   }
 
   const outsideSupport = torsoPosition.x < minFootX - 0.04 ||
     torsoPosition.x > maxFootX + 0.04;
-  rig.outsideTime = outsideSupport ? (rig.outsideTime || 0) + dt : 0;
+  rig.outsideTime = outsideSupport ? rig.outsideTime + dt : 0;
 
-  // A foot only steps when the COM leaves the support interval.
+  // Step only when the torso COM leaves the current foot support span.
   if (outsideSupport && !rig.legs.some(leg => leg.step)) {
-    const leftOfSupport = torsoPosition.x < minFootX - 0.04;
-    const steppingLeg = rig.legs.reduce((chosen, leg) => {
-      const x = leg.foot.getPosition().x;
-      if (!chosen) return leg;
-      const chosenX = chosen.foot.getPosition().x;
-      return leftOfSupport ? (x < chosenX ? leg : chosen) : (x > chosenX ? leg : chosen);
+    const left = torsoPosition.x < minFootX;
+    const leg = rig.legs.reduce((chosen, candidate) => {
+      if (!chosen) return candidate;
+      const a = candidate.foot.getPosition().x;
+      const b = chosen.foot.getPosition().x;
+      return left ? (a < b ? candidate : chosen) : (a > b ? candidate : chosen);
     }, null);
-    const destination = torsoPosition.x + (leftOfSupport ? -0.22 : 0.22);
-    if (Math.abs(destination - steppingLeg.foot.getPosition().x) > 0.12) {
-      steppingLeg.step = {
-        fromX: steppingLeg.foot.getPosition().x,
-        toX: destination,
-        elapsed: 0,
-        duration: 0.24
-      };
+    const fromX = leg.foot.getPosition().x;
+    const toX = torsoPosition.x + (left ? -0.22 : 0.22);
+    if (Math.abs(toX - fromX) > 0.12) {
+      leg.step = { fromX, toX, elapsed: 0, duration: 0.24 };
     }
   }
 
   for (const leg of rig.legs) {
-    if (!leg.step) continue;
-    leg.step.elapsed = Math.min(leg.step.duration, leg.step.elapsed + dt);
-    const progress = leg.step.elapsed / leg.step.duration;
-    const smooth = progress * progress * (3 - 2 * progress);
-    leg.targetX = leg.step.fromX + (leg.step.toX - leg.step.fromX) * smooth;
-    if (progress >= 1) {
-      leg.targetX = leg.step.toX;
-      leg.step = null;
+    if (leg.step) {
+      leg.step.elapsed = Math.min(leg.step.duration, leg.step.elapsed + dt);
+      const t = leg.step.elapsed / leg.step.duration;
+      const smooth = t * t * (3 - 2 * t);
+      leg.targetX = leg.step.fromX + (leg.step.toX - leg.step.fromX) * smooth;
+      if (t >= 1) {
+        leg.targetX = leg.step.toX;
+        leg.step = null;
+      }
     }
   }
 
@@ -236,37 +309,50 @@ function stepRig(world, rig, slopeRadians, dt = STEP) {
     rig.outsideTime > 0.25 ||
     (!supported && rig.elapsed > 0.3) ||
     torsoTilt > 60 * Math.PI / 180;
+  rig.stiffness = badSupport
+    ? Math.max(0, rig.stiffness - dt / 0.1)
+    : Math.min(1, rig.stiffness + dt / 0.5);
+  rig.mode = rig.stiffness <= 0.001 ? "limp" : "active";
 
-  if (badSupport) rig.stiffness = Math.max(0, rig.stiffness - dt / 0.1);
-  else rig.stiffness = Math.min(1, rig.stiffness + dt / 0.5);
-
-  const torsoAngle = rig.torso.getAngle();
-  const slope = Math.tan(slopeRadians);
+  const terrainSlope = Math.tan(slopeRadians);
   const pelvisTargetY = Math.min(...rig.legs.map(leg =>
-    slope * leg.targetX + 0.035 + 0.95 * (SEGMENT.thigh + SEGMENT.shin)
+    terrainSlope * leg.targetX + 0.035 + 0.95 * (SEGMENT.thigh + SEGMENT.shin)
   ));
-  const footTargets = rig.legs.map(leg => {
-    const x = leg.targetX;
+  rig.pelvisTargetY = pelvisTargetY;
+
+  rig.legs.forEach(leg => {
+    const footX = leg.targetX;
     const lift = leg.step
       ? Math.sin(Math.PI * leg.step.elapsed / leg.step.duration) * 0.12
       : 0;
-    return V(
-      x - Math.sin(slopeRadians) * 0.035,
-      slope * x + 0.035 + Math.cos(slopeRadians) * 0.035 + lift
+    const footCenter = V(
+      footX - Math.sin(slopeRadians) * (0.035 - lift),
+      terrainSlope * footX + Math.cos(slopeRadians) * (0.035 - lift)
     );
+    const ankle = V(
+      footCenter.x - Math.sin(slopeRadians) * 0.035,
+      footCenter.y + Math.cos(slopeRadians) * 0.035
+    );
+    const hip = V(
+      torsoPosition.x + leg.side * 0.105,
+      pelvisTargetY
+    );
+    const ik = solveLegIK(hip, ankle, SEGMENT.thigh, SEGMENT.shin, 1);
+    const hipTarget = ik.thighAngle - rig.torso.getAngle();
+    const kneeTarget = ik.kneeRelative;
+    const ankleTarget = slopeRadians - ik.shinAngle;
+    driveJoint(leg.hipJoint, hipTarget, 13, 8, 4, rig.stiffness);
+    driveJoint(leg.kneeJoint, kneeTarget, 13, 8, 4, rig.stiffness);
+    driveJoint(leg.ankleJoint, ankleTarget, 12, 6, 1.5, rig.stiffness);
   });
 
-  rig.legs.forEach((leg, index) => {
-    const desiredHip = V(torsoPosition.x + leg.side * 0.105, pelvisTargetY);
-    const ik = legIK(desiredHip, footTargets[index], SEGMENT.thigh, SEGMENT.shin, leg.side);
-    const thighTarget = ik.thighDirection + Math.PI / 2 - torsoAngle;
-    driveJoint(leg.hipJoint, thighTarget, 13, 8, 4, rig.stiffness);
-    driveJoint(leg.kneeJoint, ik.kneeRelative, 13, 8, 4, rig.stiffness);
-    driveJoint(leg.ankleJoint, slopeRadians - leg.shin.getAngle(), 12, 6, 1.5, rig.stiffness);
-  });
+  driveJoint(rig.neck, -rig.torso.getAngle(), 10, 5, 1, rig.stiffness);
 
-  if (rig.stiffness > 0.8 && supported && torsoTilt < 35 * Math.PI / 180) rig.stableFor += dt;
-  else rig.stableFor = 0;
+  if (rig.stiffness > 0.8 && supported && torsoTilt < 35 * Math.PI / 180) {
+    rig.stableFor += dt;
+  } else {
+    rig.stableFor = 0;
+  }
 }
 
 function runSlopeCase(degrees, seed = 12345) {
@@ -304,4 +390,4 @@ function runSlopeCase(degrees, seed = 12345) {
   };
 }
 
-module.exports = { runSlopeCase, seededRandom, driveJoint, legIK };
+module.exports = { runSlopeCase, seededRandom, driveJoint, solveLegIK };
