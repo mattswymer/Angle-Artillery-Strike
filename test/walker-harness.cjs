@@ -138,6 +138,9 @@ function createWalker(world, slope, startX) {
     },
     everFallen: false,
     stableTime: 0,
+    airTime: 0,
+    maxAirTime: 0,
+    contactTime: 0,
     maxTilt: 0,
     maxSpeed: 0,
     trace: []
@@ -252,13 +255,20 @@ function runSlopeCase(degrees, seed = 12345, duration = 3) {
     world.step(FIXED_DT, 180, 60);
 
     const angle = Math.abs(walker.hull.getAngle());
+    const relativeTilt = Math.abs(walker.hull.getAngle() - slope);
     walker.maxTilt = Math.max(walker.maxTilt, angle);
     walker.maxSpeed = Math.max(walker.maxSpeed, Math.abs(walker.hull.getLinearVelocity().x));
     const grounded = contacts.some(Boolean);
-    if (grounded && angle < 0.9) walker.stableTime += FIXED_DT;
-    else walker.stableTime = 0;
+    if (grounded) {
+      walker.contactTime += FIXED_DT;
+      walker.airTime = 0;
+    } else {
+      walker.airTime += FIXED_DT;
+      walker.maxAirTime = Math.max(walker.maxAirTime, walker.airTime);
+    }
+    if (grounded && relativeTilt < Math.PI / 4) walker.stableTime += FIXED_DT;
     const relativeHeight = walker.hull.getPosition().y - Math.tan(slope) * walker.hull.getPosition().x;
-    if (angle > Math.PI * 0.65 || relativeHeight < -2) {
+    if (angle > Math.PI * 0.61 || relativeHeight < -0.5) {
       walker.everFallen = true;
     }
 
@@ -283,7 +293,10 @@ function runSlopeCase(degrees, seed = 12345, duration = 3) {
   return {
     degrees,
     stable: !walker.everFallen && walker.stableTime >= duration * 0.5,
+    lostControl: walker.maxSpeed > 7.5 || walker.maxAirTime > 0.5,
     stableTime: Number(walker.stableTime.toFixed(3)),
+    contactTime: Number(walker.contactTime.toFixed(3)),
+    maxAirTime: Number(walker.maxAirTime.toFixed(3)),
     everFallen: walker.everFallen,
     maxTiltDegrees: Number((walker.maxTilt * 180 / Math.PI).toFixed(2)),
     maxSpeed: Number(walker.maxSpeed.toFixed(3)),
