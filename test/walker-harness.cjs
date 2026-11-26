@@ -219,10 +219,13 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
   joint.setMaxMotorTorque(tauMax * stiffness);
 }
 
-function applyMotor(joint, action, speed) {
+function applyMotor(joint, action, speed, kp) {
   const amount = Math.max(-1, Math.min(1, action));
-  joint.setMotorSpeed(speed * Math.sign(amount));
-  joint.setMaxMotorTorque(MAX_TORQUE * Math.abs(amount));
+  // Convert the reference controller's normalized motor command into a
+  // bounded target-angle error. All six joints now pass through driveJoint;
+  // preserving this mapping keeps the proven hip/knee gait behavior intact.
+  const target = joint.getJointAngle() + (amount * speed) / kp;
+  driveJoint(joint, target, kp, speed, MAX_TORQUE, Math.abs(amount));
 }
 
 function walkerController(walker, terrainAngleAt = () => 0) {
@@ -288,8 +291,8 @@ function walkerController(walker, terrainAngleAt = () => 0) {
 
   // Match the reference controller's conservative output scaling.
   for (let i = 0; i < 2; i++) {
-    applyMotor(legs[i].hip, actions[i * 2] * 0.5, HIP_SPEED);
-    applyMotor(legs[i].knee, actions[i * 2 + 1] * 0.5, KNEE_SPEED);
+    applyMotor(legs[i].hip, actions[i * 2] * 0.5, HIP_SPEED, 1);
+    applyMotor(legs[i].knee, actions[i * 2 + 1] * 0.5, KNEE_SPEED, 1);
     const targetFootAngle = terrainAngleAt(legs[i].foot.getPosition().x);
     const targetAnkleAngle = targetFootAngle - legs[i].lower.getAngle();
     driveJoint(legs[i].ankle, targetAnkleAngle, 12, 4, 1.5, 1);
