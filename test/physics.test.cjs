@@ -208,6 +208,31 @@ test("stance contact-load trace captures the first second of flat-ground behavio
   }
 });
 
+test("stance translation is compared across segmented, continuous, and passive ground contact", () => {
+  const segmented = runStanceCase(0, 1, 1);
+  const continuous = runStanceCase(0, 1, 1, 0, 0, "continuous", true);
+  const passive = runStanceCase(0, 1, 1, 0, 0, "continuous", false);
+  const compact = result => ({
+    x: result.finalPosition.x,
+    tilt: result.maxRelativeTiltDegrees,
+    speed: result.maxSpeed,
+    support: result.supportedTime,
+    trace: result.trace.map(point => ({
+      t: point.t, x: point.x, angle: point.angle,
+      vx: point.velocity.x, angular: point.velocity.angular,
+      contacts: point.contacts
+    }))
+  });
+  console.log("ground/contact comparison", JSON.stringify({
+    segmented: compact(segmented),
+    continuous: compact(continuous),
+    passive: compact(passive)
+  }));
+  for (const result of [segmented, continuous, passive]) {
+    assert.ok(Number.isFinite(result.maxSpeed));
+  }
+});
+
 test("shared joint driver moves a revolute joint toward a positive target angle", () => {
   const world = new planck.World({ gravity: planck.Vec2(0, 0) });
   const base = world.createBody();
