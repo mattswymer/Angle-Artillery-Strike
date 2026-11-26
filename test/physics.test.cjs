@@ -253,6 +253,28 @@ test("joint-based torso feedback reduces flat-ground translation and rotation", 
   }
 });
 
+test("joint-only torso feedback gain sweep identifies a stable flat-ground region", () => {
+  const gains = [];
+  for (const kp of [1, 1.5, 2, 3, 4]) {
+    for (const kd of [0.06, 0.25, 0.5]) {
+      const runs = SEEDS.slice(0, 4).map(seed =>
+        runStanceCase(0, seed, 3, 0, 0, "segmented", true, kp, kd)
+      );
+      gains.push({
+        kp,
+        kd,
+        meanTilt: Number((runs.reduce((sum, r) => sum + r.maxRelativeTiltDegrees, 0) / runs.length).toFixed(1)),
+        meanSupport: Number((runs.reduce((sum, r) => sum + r.supportedTime, 0) / runs.length).toFixed(2)),
+        meanSpeed: Number((runs.reduce((sum, r) => sum + r.maxSpeed, 0) / runs.length).toFixed(2)),
+        meanAbsX: Number((runs.reduce((sum, r) => sum + Math.abs(r.finalPosition.x), 0) / runs.length).toFixed(2)),
+        falls: runs.filter(r => r.maxRelativeTiltDegrees > 60 || r.maxAirTime > 0.5).length
+      });
+    }
+  }
+  console.log("torso feedback gain sweep", JSON.stringify(gains));
+  assert.equal(gains.length, 15);
+});
+
 test("shared joint driver moves a revolute joint toward a positive target angle", () => {
   const world = new planck.World({ gravity: planck.Vec2(0, 0) });
   const base = world.createBody();
