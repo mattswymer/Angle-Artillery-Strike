@@ -407,6 +407,60 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1) {
   };
 }
 
+
+function postureController(walker, terrainAngleAt, stiffness = 1) {
+  const terrainAngle = terrainAngleAt(walker.hull.getPosition().x);
+  for (const leg of walker.legs) {
+    // Keep the upper segments aligned to the local ground normal and use a
+    // modest knee flexion to avoid a locked, straight-legged singularity.
+    const hipTarget = wrapAngle(terrainAngle - walker.hull.getAngle());
+    driveJoint(leg.hip, hipTarget, 8, 4, 18, stiffness);
+    driveJoint(leg.knee, -0.42, 8, 4, 18, stiffness);
+    const ankleTarget = wrapAngle(terrainAngle - leg.lower.getAngle());
+    driveJoint(leg.ankle, ankleTarget, 10, 4, 4, stiffness);
+  }
+}
+
+function runPostureCase(degrees, seed = 12345, duration = 3, roughness = 0) {
+  const random = seededRandom(seed);
+  const phaseA = random() * Math.PI * 2;
+  const phaseB = random() * Math.PI * 2;
+  const { world, slope, heightAt, terrainAngleAt } = makeWorld(degrees, roughness, phaseA, phaseB);
+  const startX = (random() - 0.5) * 0.2;
+  const walker = createWalker(world, slope, startX, random, heightAt, terrainAngleAt, { alignToTerrain: true });
+  const steps = Math.ceil(duration / FIXED_DT);
+  let supportedTime = 0;
+  let maxRelativeTilt = 0;
+  let maxSpeed = 0;
+  let maxAirTime = 0;
+  let airTime = 0;
+  for (let i = 0; i < steps; i++) {
+    postureController(walker, terrainAngleAt);
+    world.step(FIXED_DT, 180, 60);
+    const contacts = walker.legs.map(leg => isGroundContact(leg.foot));
+    if (contacts.some(Boolean)) {
+      supportedTime += FIXED_DT;
+      airTime = 0;
+    } else {
+      airTime += FIXED_DT;
+      maxAirTime = Math.max(maxAirTime, airTime);
+    }
+    maxRelativeTilt = Math.max(maxRelativeTilt, Math.abs(wrapAngle(walker.hull.getAngle() - slope)));
+    maxSpeed = Math.max(maxSpeed, walker.hull.getLinearVelocity().length());
+  }
+  return {
+    degrees,
+    supportedTime: Number(supportedTime.toFixed(3)),
+    maxRelativeTiltDegrees: Number((maxRelativeTilt * 180 / Math.PI).toFixed(2)),
+    maxSpeed: Number(maxSpeed.toFixed(3)),
+    maxAirTime: Number(maxAirTime.toFixed(3)),
+    finalPosition: {
+      x: Number(walker.hull.getPosition().x.toFixed(4)),
+      y: Number(walker.hull.getPosition().y.toFixed(4))
+    }
+  };
+}
+
 function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0) {
   const random = seededRandom(seed);
   const phaseA = random() * Math.PI * 2;
@@ -538,4 +592,4 @@ function runSlopeCase(degrees, seed = 12345, duration = 3, roughness = 0) {
   };
 }
 
-module.exports = { runSlopeCase, runStanceCase, seededRandom, walkerController, stanceController, createWalker, legIK, driveJoint };
+module.exports = { runSlopeCase, runStanceCase, runPostureCase, seededRandom, walkerController, stanceController, postureController, createWalker, legIK, driveJoint };
