@@ -519,8 +519,14 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1) {
   // not by planned foot locations. A swing target is assigned once and held
   // until that foot lands, so it cannot chase the torso every physics step.
   const contacts = legs.map(leg => isGroundContact(leg.foot));
-  if (walker.swingIndex !== undefined && walker.swingIndex !== null && contacts[walker.swingIndex]) {
-    walker.swingIndex = null;
+  if (walker.swingIndex !== undefined && walker.swingIndex !== null) {
+    walker.swingTime = (walker.swingTime || 0) + FIXED_DT;
+    if (!contacts[walker.swingIndex]) walker.swingAirborne = true;
+    if (walker.swingAirborne && contacts[walker.swingIndex] && walker.swingTime > 0.1) {
+      walker.swingIndex = null;
+      walker.swingTime = 0;
+      walker.swingAirborne = false;
+    }
   }
   if (walker.swingIndex === undefined || walker.swingIndex === null) {
     const planted = walker.stanceTargets
@@ -531,15 +537,24 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1) {
       const maxFootX = Math.max(...planted);
       if (centerX < minFootX - 0.04) {
         walker.swingIndex = 0;
+        walker.swingTime = 0;
+        walker.swingAirborne = false;
         walker.stanceTargets[0] = centerX - halfStance;
       } else if (centerX > maxFootX + 0.04) {
         walker.swingIndex = 1;
+        walker.swingTime = 0;
+        walker.swingAirborne = false;
         walker.stanceTargets[1] = centerX + halfStance;
       }
     }
   }
-  const footTargets = walker.stanceTargets.map(x => ({ x, y: heightAt(x) + FOOT_HALF_HEIGHT * 2 }));
-  const pelvisTargetY = Math.min(footTargets[0].y, footTargets[1].y) +
+  const footTargets = walker.stanceTargets.map((x, i) => {
+    const swing = walker.swingIndex === i;
+    const progress = swing ? Math.min(1, (walker.swingTime || 0) / 0.2) : 0;
+    const lift = swing ? Math.sin(progress * Math.PI) * 0.12 : 0;
+    return { x, y: heightAt(x) + FOOT_HALF_HEIGHT * 2 + lift };
+  });
+  const pelvisTargetY = Math.min(footTargets[0].y, footTargets[1].y) - 0.12 +
     0.95 * (UPPER_LENGTH + LOWER_LENGTH);
 
   for (let i = 0; i < legs.length; i++) {
