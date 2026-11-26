@@ -104,8 +104,9 @@ function createWalker(world, slope, startX, random = () => 0.5, heightAt = x => 
     }, hull, upper));
 
     const kneeWorld = upper.getWorldPoint(Vec2(0, -LEG_H / 2));
+    const lowerOffset = rotateLocal(Vec2(0, LEG_H / 2), initialAngle);
     const lower = world.createDynamicBody({
-      position: Vec2(kneeWorld.x, kneeWorld.y) - rotateLocal(Vec2(0, LEG_H / 2), initialAngle),
+      position: Vec2(kneeWorld.x - lowerOffset.x, kneeWorld.y - lowerOffset.y),
       angle: initialAngle + side * 0.05,
       linearDamping: 0.05,
       angularDamping: 0.05,
