@@ -772,10 +772,15 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
     // Joint-only torso stabilization: positive torso angle/velocity biases
     // both hip targets so their motor reaction applies counter-torque to hull.
     const torsoTilt = wrapAngle(hull.getAngle() - terrainReferenceAngle);
+    // Keep balance feedback corrective but bounded. Large torso angles
+    // during a jump landing must not rotate the thighs sideways and prevent
+    // the feet from reaching the ground.
+    const balanceCorrection = Math.max(
+      -0.35,
+      Math.min(0.35, balanceKp * torsoTilt + balanceKd * hull.getAngularVelocity())
+    );
     const hipTarget = wrapAngle(
-      upperBodyAngle - hull.getAngle() +
-      balanceKp * torsoTilt +
-      balanceKd * hull.getAngularVelocity()
+      upperBodyAngle - hull.getAngle() + balanceCorrection
     );
     let kneeTarget = wrapAngle(lowerBodyAngle - upperBodyAngle);
     let kneeTorque = kneeTorqueMax;
