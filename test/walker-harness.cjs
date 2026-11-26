@@ -700,7 +700,7 @@ function runPostureCase(degrees, seed = 12345, duration = 3, roughness = 0) {
   const phaseB = random() * Math.PI * 2;
   const { world, slope, heightAt, terrainAngleAt } = makeWorld(degrees, roughness, phaseA, phaseB);
   const startX = (random() - 0.5) * 0.2;
-  const walker = createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidth);
+  const walker = createStanceRig(world, startX, heightAt, terrainAngleAt);
   const steps = Math.ceil(duration / FIXED_DT);
   let supportedTime = 0;
   let maxRelativeTilt = 0;
@@ -820,7 +820,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
       ? makeSegmentedWorld(degrees, roughness, phaseA, phaseB)
       : makeWorld(degrees, roughness, phaseA, phaseB, chainStep);
   const startX = (random() - 0.5) * 0.2;
-  const walker = createStanceRig(world, startX, heightAt, terrainAngleAt);
+  const walker = createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidth);
   if (!controllerEnabled) {
     for (const leg of walker.legs) {
       leg.hip.enableMotor(false);
