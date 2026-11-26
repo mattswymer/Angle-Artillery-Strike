@@ -574,6 +574,7 @@ test("production walking uses alternating physical steps and capped tangent forc
         world.step(1 / 50, 180, 60);
       }
       const startX = rig.hull.getPosition().x;
+      const trace = [];
       let previousSwing = rig.nextSwingIndex;
       let alternations = 0;
       rig.walkDirection = 1;
@@ -585,8 +586,19 @@ test("production walking uses alternating physical steps and capped tangent forc
           previousSwing = rig.nextSwingIndex;
         }
         world.step(1 / 50, 180, 60);
+        if (walkSpeed === 1.2 && stepReach === 0.18 && i % 5 === 0) {
+          trace.push({
+            t: +(i / 50).toFixed(2), x: +rig.hull.getPosition().x.toFixed(2),
+            y: +rig.hull.getPosition().y.toFixed(2), tilt: +rig.hull.getAngle().toFixed(2),
+            vx: +rig.hull.getLinearVelocity().x.toFixed(2),
+            contacts: rig.legs.map(leg => productionRig.isGroundContact(leg.foot)),
+            swing: rig.swingIndex, airborne: rig.swingAirborne,
+            reason: rig.fallReason
+          });
+        }
         if (rig.mode === "limp") break;
       }
+      if (walkSpeed === 1.2 && stepReach === 0.18) console.log("walking trace", JSON.stringify(trace));
       results.push({
         walkSpeed, stepReach,
         displacement: rig.hull.getPosition().x - startX,
