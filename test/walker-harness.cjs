@@ -161,7 +161,7 @@ function createWalker(world, slope, startX, random = () => 0.5, heightAt = x => 
       upperAngle: 0.6,
       maxMotorTorque: 1.5,
       motorSpeed: 0,
-      referenceAngle: footAngle - lower.getAngle(),
+      referenceAngle: 0,
       collideConnected: false
     }, lower, foot));
 
