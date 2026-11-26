@@ -591,7 +591,7 @@ test("production walking uses alternating physical steps and capped tangent forc
 
 test("production articulated walking maintains support while climbing a 20 degree slope", () => {
   const results = [];
-  for (const walkingPelvisRatio of [0.65, 0.7, 0.75]) {
+  for (const walkingPelvisRatio of [0.85, 0.9, 0.95]) {
     const world = new planck.World({ gravity: planck.Vec2(0, -10) });
     const slope = Math.tan(20 * Math.PI / 180);
     const heightAt = x => slope * x;
