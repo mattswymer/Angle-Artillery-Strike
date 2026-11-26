@@ -302,8 +302,7 @@ function createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidt
     heightAt(stanceCenterX + stanceHalfWidth) + FOOT_HALF_HEIGHT * 2
   );
   const pelvisTargetY = initialFootY +
-    pelvisRatio * (UPPER_LENGTH + LOWER_LENGTH) +
-    Math.abs(HIP_X * Math.sin(initialTerrainAngle));
+    pelvisRatio * (UPPER_LENGTH + LOWER_LENGTH);
   const hull = world.createDynamicBody({
     position: Vec2(startX, pelvisTargetY - HIP_Y * Math.cos(initialTerrainAngle)),
     angle: initialTerrainAngle,
@@ -639,8 +638,7 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1, balan
   const pelvisTargetY = Math.min(
     heightAt(walker.stanceTargets[0]) + FOOT_HALF_HEIGHT * 2,
     heightAt(walker.stanceTargets[1]) + FOOT_HALF_HEIGHT * 2
-  ) + (walker.pelvisRatio ?? 0.95) * (UPPER_LENGTH + LOWER_LENGTH) +
-    Math.abs(HIP_X * Math.sin(terrainReferenceAngle));
+  ) + (walker.pelvisRatio ?? 0.95) * (UPPER_LENGTH + LOWER_LENGTH);
 
   const hipTargets = [];
   const kneeTargets = [];
