@@ -295,8 +295,8 @@ function stepRig(world, rig, slopeRadians, dt = STEP) {
       worstNormalAngle = Math.max(worstNormalAngle, angleFromVertical);
     }
     const px = leg.foot.getPosition().x;
-    minFootX = Math.min(minFootX, px - 0.11);
-    maxFootX = Math.max(maxFootX, px + 0.11);
+    minFootX = Math.min(minFootX, px);
+    maxFootX = Math.max(maxFootX, px);
   }
 
   const outsideSupport = centerOfMass.x < minFootX - 0.04 ||
@@ -411,6 +411,8 @@ function runSlopeCase(degrees, seed = 12345) {
         knees: rig.legs.map(leg => Number(leg.kneeJoint.getJointAngle().toFixed(2))),
         ankles: rig.legs.map(leg => Number(leg.ankleJoint.getJointAngle().toFixed(2))),
         badReasons: rig.badReasons,
+        comX: Number(getRigCenterOfMass(rig).x.toFixed(3)),
+        steps: rig.legs.map(leg => leg.step ? Number((leg.step.elapsed / leg.step.duration).toFixed(2)) : 0),
         feet: rig.legs.map(leg => ({
           x: Number(leg.foot.getPosition().x.toFixed(3)),
           y: Number(leg.foot.getPosition().y.toFixed(3)),
