@@ -46,10 +46,11 @@ function makeWorld(degrees, roughness = 0, phaseA = 0, phaseB = 0) {
       restitution: 0
     });
   }
-  return { world, slope, heightAt };
+  const terrainAngleAt = x => Math.atan2(heightAt(x + 0.01) - heightAt(x - 0.01), 0.02);
+  return { world, slope, heightAt, terrainAngleAt };
 }
 
-function createWalker(world, slope, startX, random = () => 0.5, heightAt = x => Math.tan(slope) * x) {
+function createWalker(world, slope, startX, random = () => 0.5, heightAt = x => Math.tan(slope) * x, terrainAngleAt = () => -slope) {
   const surfaceY = heightAt(startX);
   const initY = surfaceY + 2 * LEG_H;
   const hull = world.createDynamicBody({
@@ -128,8 +129,44 @@ function createWalker(world, slope, startX, random = () => 0.5, heightAt = x => 
       collideConnected: false
     }, upper, lower));
 
-    legs.push({ side, upper, lower, hip, knee });
-    joints.push(hip, knee);
+    // A separate short, high-friction foot gives the rig a real ankle and
+    // a contact surface that can conform to terrain instead of using the shin.
+    const FOOT_HALF_HEIGHT = 0.03;
+    const footAngle = terrainAngleAt(startX);
+    const ankleAnchor = lower.getWorldPoint(Vec2(0, -LEG_H / 2));
+    const foot = world.createDynamicBody({
+      position: Vec2(
+        ankleAnchor.x + Math.sin(footAngle) * FOOT_HALF_HEIGHT,
+        ankleAnchor.y - Math.cos(footAngle) * FOOT_HALF_HEIGHT
+      ),
+      angle: footAngle,
+      linearDamping: 0.05,
+      angularDamping: 0.05,
+      allowSleep: false,
+      userData: { part: side < 0 ? "left-foot" : "right-foot" }
+    });
+    foot.createFixture({
+      shape: new planck.Box(0.09, FOOT_HALF_HEIGHT),
+      density: 1,
+      friction: 0.9,
+      restitution: 0,
+      filterGroupIndex: -1
+    });
+    const ankle = world.createJoint(planck.RevoluteJoint({
+      localAnchorA: Vec2(0, -LEG_H / 2),
+      localAnchorB: Vec2(0, FOOT_HALF_HEIGHT),
+      enableMotor: true,
+      enableLimit: true,
+      lowerAngle: -0.6,
+      upperAngle: 0.6,
+      maxMotorTorque: 1.5,
+      motorSpeed: 0,
+      referenceAngle: footAngle - lower.getAngle(),
+      collideConnected: false
+    }, lower, foot));
+
+    legs.push({ side, upper, lower, foot, hip, knee, ankle });
+    joints.push(hip, knee, ankle);
   }
 
   return {
@@ -168,18 +205,30 @@ function jointPD(joint, target, kp, speedScale) {
   return kp * (target - joint.getJointAngle()) - 0.25 * (joint.getJointSpeed() / speedScale);
 }
 
+function wrapAngle(angle) {
+  while (angle > Math.PI) angle -= Math.PI * 2;
+  while (angle < -Math.PI) angle += Math.PI * 2;
+  return angle;
+}
+
+function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
+  const error = wrapAngle(target - joint.getJointAngle());
+  joint.setMotorSpeed(Math.max(-wMax, Math.min(wMax, kp * error)));
+  joint.setMaxMotorTorque(tauMax * stiffness);
+}
+
 function applyMotor(joint, action, speed) {
   const amount = Math.max(-1, Math.min(1, action));
   joint.setMotorSpeed(speed * Math.sign(amount));
   joint.setMaxMotorTorque(MAX_TORQUE * Math.abs(amount));
 }
 
-function walkerController(walker) {
+function walkerController(walker, terrainAngleAt = () => 0) {
   const { hull, legs, gait } = walker;
   const moving = legs[gait.movingLeg];
   const supporting = legs[gait.supportingLeg];
-  const movingContact = isGroundContact(moving.lower);
-  const supportingContact = isGroundContact(supporting.lower);
+  const movingContact = isGroundContact(moving.foot);
+  const supportingContact = isGroundContact(supporting.foot);
   const hullAngle = hull.getAngle();
   const hullAngularVelocity = hull.getAngularVelocity();
   const hullVelocity = hull.getLinearVelocity();
@@ -239,6 +288,9 @@ function walkerController(walker) {
   for (let i = 0; i < 2; i++) {
     applyMotor(legs[i].hip, actions[i * 2] * 0.5, HIP_SPEED);
     applyMotor(legs[i].knee, actions[i * 2 + 1] * 0.5, KNEE_SPEED);
+    const targetFootAngle = terrainAngleAt(legs[i].foot.getPosition().x);
+    const targetAnkleAngle = targetFootAngle - legs[i].lower.getAngle();
+    driveJoint(legs[i].ankle, targetAnkleAngle, 12, 4, 1.5, 1);
   }
 
   gait.elapsed += FIXED_DT;
@@ -249,16 +301,16 @@ function runSlopeCase(degrees, seed = 12345, duration = 3, roughness = 0) {
   const random = seededRandom(seed);
   const phaseA = random() * Math.PI * 2;
   const phaseB = random() * Math.PI * 2;
-  const { world, slope, heightAt } = makeWorld(degrees, roughness, phaseA, phaseB);
+  const { world, slope, heightAt, terrainAngleAt } = makeWorld(degrees, roughness, phaseA, phaseB);
   const startX = (random() - 0.5) * 0.5;
-  const walker = createWalker(world, slope, startX, random, heightAt);
+  const walker = createWalker(world, slope, startX, random, heightAt, terrainAngleAt);
   const warmup = 45;
   const steps = Math.ceil(duration / FIXED_DT);
   const trace = [];
 
   for (let i = 0; i < warmup + steps; i++) {
-    const contacts = walker.legs.map(leg => isGroundContact(leg.lower));
-    const control = walkerController(walker);
+    const contacts = walker.legs.map(leg => isGroundContact(leg.foot));
+    const control = walkerController(walker, terrainAngleAt);
     world.step(FIXED_DT, 180, 60);
 
     const angle = Math.abs(walker.hull.getAngle());
@@ -286,7 +338,7 @@ function runSlopeCase(degrees, seed = 12345, duration = 3, roughness = 0) {
         y: Number(walker.hull.getPosition().y.toFixed(3)),
         angle: Number((walker.hull.getAngle() * 180 / Math.PI).toFixed(1)),
         vx: Number(walker.hull.getLinearVelocity().x.toFixed(3)),
-        contacts: walker.legs.map(leg => isGroundContact(leg.lower)),
+        contacts: walker.legs.map(leg => isGroundContact(leg.foot)),
         gait: walker.gait.phase,
         movingLeg: walker.gait.movingLeg,
         knees: walker.legs.map(leg => Number(leg.knee.getJointAngle().toFixed(2))),
