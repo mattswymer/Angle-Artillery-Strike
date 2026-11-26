@@ -152,6 +152,7 @@ function createWalker(world, slope, startX, random = () => 0.5, heightAt = x => 
       restitution: 0,
       filterGroupIndex: -1
     });
+    const ankleReferenceAngle = footAngle - lower.getAngle();
     const ankle = world.createJoint(planck.RevoluteJoint({
       localAnchorA: Vec2(0, -LEG_H / 2),
       localAnchorB: Vec2(0, FOOT_HALF_HEIGHT),
@@ -161,11 +162,11 @@ function createWalker(world, slope, startX, random = () => 0.5, heightAt = x => 
       upperAngle: 0.6,
       maxMotorTorque: 1.5,
       motorSpeed: 0,
-      referenceAngle: 0,
+      referenceAngle: ankleReferenceAngle,
       collideConnected: false
     }, lower, foot));
 
-    legs.push({ side, upper, lower, foot, hip, knee, ankle });
+    legs.push({ side, upper, lower, foot, hip, knee, ankle, ankleReferenceAngle });
     joints.push(hip, knee, ankle);
   }
 
@@ -290,7 +291,7 @@ function walkerController(walker, terrainAngleAt = () => 0) {
     applyMotor(legs[i].hip, actions[i * 2] * 0.5, HIP_SPEED);
     applyMotor(legs[i].knee, actions[i * 2 + 1] * 0.5, KNEE_SPEED);
     const targetFootAngle = terrainAngleAt(legs[i].foot.getPosition().x);
-    const targetAnkleAngle = targetFootAngle - legs[i].lower.getAngle();
+    const targetAnkleAngle = targetFootAngle - legs[i].lower.getAngle() - legs[i].ankleReferenceAngle;
     driveJoint(legs[i].ankle, targetAnkleAngle, 8, 2, 1.5, 1);
   }
 
