@@ -99,7 +99,7 @@
         swingDuration: 0.2, upperBodyTorqueScale: 0.1
       };
     }
-    if (slope > 3) {
+    if (slope > 1.5) {
       return {
         stanceHalfWidth: 0.1, pelvisRatio: 0.85,
         bendMode: "slope-adaptive",
