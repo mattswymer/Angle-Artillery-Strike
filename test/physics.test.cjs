@@ -2,7 +2,8 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { runSlopeCase, runStanceCase, seededRandom, legIK } = require("./walker-harness.cjs");
+const planck = require("planck");
+const { runSlopeCase, runStanceCase, seededRandom, legIK, driveJoint } = require("./walker-harness.cjs");
 
 const SEEDS = [1, 7, 42, 99, 314, 1337, 481516, 8675309];
 
@@ -155,3 +156,20 @@ for (const degrees of [0, 20, 35]) {
     }
   });
 }
+
+test("shared joint driver moves a revolute joint toward a positive target angle", () => {
+  const world = new planck.World({ gravity: planck.Vec2(0, 0) });
+  const base = world.createBody();
+  const limb = world.createDynamicBody();
+  limb.createFixture({ shape: new planck.Box(0.1, 0.5), density: 1 });
+  const joint = world.createJoint(planck.RevoluteJoint({
+    localAnchorA: planck.Vec2(0, 0),
+    localAnchorB: planck.Vec2(0, 0),
+    enableMotor: true,
+    maxMotorTorque: 10
+  }, base, limb));
+  driveJoint(joint, 0.5, 10, 5, 10, 1);
+  for (let i = 0; i < 30; i++) world.step(1 / 50, 12, 8);
+  assert.ok(joint.getJointAngle() > 0.1,
+    `positive target should produce positive joint angle, got ${joint.getJointAngle()}`);
+});
