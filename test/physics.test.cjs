@@ -64,3 +64,19 @@ test("50 degree terrain exceeds the controlled gait envelope across randomized s
   assert.deepEqual(missed, [],
     `50 degree slope should exceed the controlled locomotion envelope for all seeds: ${JSON.stringify(missed)}`);
 });
+
+for (const degrees of [0, 20, 35]) {
+  test(`reference biped maintains locomotion on gently uneven ${degrees} degree terrain`, () => {
+    const failures = [];
+    for (const seed of SEEDS) {
+      const result = runSlopeCase(degrees, seed, 3, 0.035);
+      if (result.everFallen || result.stableTime < 1.5 ||
+          !Number.isFinite(result.finalPosition.x) ||
+          !Number.isFinite(result.finalPosition.y)) {
+        failures.push({ seed, result });
+      }
+    }
+    assert.deepEqual(failures, [],
+      `walker should remain upright on uneven terrain for all seeds: ${JSON.stringify(failures)}`);
+  });
+}
