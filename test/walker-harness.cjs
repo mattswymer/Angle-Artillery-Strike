@@ -372,6 +372,11 @@ function runSlopeCase(degrees, seed = 12345, duration = 3, roughness = 0) {
     ankleJointCount: walker.legs.filter(leg => Boolean(leg.ankle)).length,
     ankleLowerLimit: walker.legs[0].ankle.getLowerLimit(),
     ankleUpperLimit: walker.legs[0].ankle.getUpperLimit(),
+    jointCount: walker.joints.length,
+    motorJointCount: walker.joints.filter(joint =>
+      Number.isFinite(joint.getMotorSpeed()) &&
+      Number.isFinite(joint.getMaxMotorTorque())
+    ).length,
     finalPosition: {
       x: Number(walker.hull.getPosition().x.toFixed(4)),
       y: Number(finalY.toFixed(4))
