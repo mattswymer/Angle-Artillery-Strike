@@ -558,13 +558,15 @@ test("browser entry point creates eight articulated combatants before its first 
 
 test("production walking uses alternating physical steps and capped tangent force", () => {
   const results = [];
-  for (const walkSpeed of [1.2, 2, 2.8]) {
-    for (const stepReach of [0.06, 0.12, 0.18, 0.24]) {
+  for (const walkSpeed of [1.2, 2]) {
+    for (const stepReach of [0.12, 0.24]) {
+      for (const walkingPelvisRatio of [0.72, 0.78, 0.84]) {
       const world = new planck.World({ gravity: planck.Vec2(0, -10) });
       const ground = world.createBody();
       ground.createFixture({ shape: new planck.Edge(planck.Vec2(-8, 0), planck.Vec2(8, 0)), friction: 2.5 });
       const rig = productionRig.createStanceRig(world, 0, () => 0, () => 0);
       rig.walkSpeed = walkSpeed;
+      rig.walkingPelvisRatio = walkingPelvisRatio;
       const control = () => productionRig.stanceController(
         rig, () => 0, () => 0, rig.stiffness,
         3.5, 0.06, 1.5, stepReach, 0.25, 6, 6, 0.12, 0.2, 1, 1, 1
@@ -574,7 +576,6 @@ test("production walking uses alternating physical steps and capped tangent forc
         world.step(1 / 50, 180, 60);
       }
       const startX = rig.hull.getPosition().x;
-      const trace = [];
       let previousSwing = rig.nextSwingIndex;
       let alternations = 0;
       rig.walkDirection = 1;
@@ -586,24 +587,14 @@ test("production walking uses alternating physical steps and capped tangent forc
           previousSwing = rig.nextSwingIndex;
         }
         world.step(1 / 50, 180, 60);
-        if (walkSpeed === 1.2 && stepReach === 0.18 && i % 5 === 0) {
-          trace.push({
-            t: +(i / 50).toFixed(2), x: +rig.hull.getPosition().x.toFixed(2),
-            y: +rig.hull.getPosition().y.toFixed(2), tilt: +rig.hull.getAngle().toFixed(2),
-            vx: +rig.hull.getLinearVelocity().x.toFixed(2),
-            contacts: rig.legs.map(leg => productionRig.isGroundContact(leg.foot)),
-            swing: rig.swingIndex, airborne: rig.swingAirborne,
-            reason: rig.fallReason
-          });
-        }
         if (rig.mode === "limp") break;
       }
-      if (walkSpeed === 1.2 && stepReach === 0.18) console.log("walking trace", JSON.stringify(trace));
       results.push({
-        walkSpeed, stepReach,
+        walkSpeed, stepReach, walkingPelvisRatio,
         displacement: rig.hull.getPosition().x - startX,
         alternations, mode: rig.mode, fallReason: rig.fallReason
       });
+      }
     }
   }
   console.log("walking gait parameter sweep", JSON.stringify(results));
@@ -638,14 +629,6 @@ test("production jump crouches, extends, leaves the ground, tucks, and lands sof
     maxY = Math.max(maxY, rig.hull.getPosition().y);
     if (rig.jumpPhase === "idle" && i > 20) break;
   }
-  console.log("jump diagnostic", JSON.stringify({
-    phases: [...phases], startY, maxY, endY: rig.hull.getPosition().y,
-    velocity: rig.hull.getLinearVelocity(),
-    mode: rig.mode, fallReason: rig.fallReason,
-    jumpPhase: rig.jumpPhase, airborne: rig.jumpAirborne,
-    contacts: rig.legs.map(leg => productionRig.isGroundContact(leg.foot)),
-    knees: rig.legs.map(leg => ({ target: leg.knee.getJointAngle(), bend: leg.bend }))
-  }));
   assert.ok(phases.has("crouch"));
   assert.ok(phases.has("extend"));
   assert.ok(phases.has("air"));
