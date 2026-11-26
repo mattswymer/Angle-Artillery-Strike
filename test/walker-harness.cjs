@@ -536,7 +536,7 @@ function getRigCenterOfMassX(walker) {
   return totalMass > 0 ? weightedX / totalMass : walker.hull.getPosition().x;
 }
 
-function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1) {
+function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1, balanceKp = 1.5, balanceKd = 0.06) {
   const { hull, legs } = walker;
   const centerX = getRigCenterOfMassX(walker);
   const halfStance = 0.12;
@@ -606,7 +606,13 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1) {
     // mathematical +X segment direction into Planck body/joint angles.
     const upperBodyAngle = solution.thighDir + Math.PI / 2;
     const lowerBodyAngle = solution.thighDir - solution.kneeRel + Math.PI / 2;
-    const hipTarget = wrapAngle(upperBodyAngle - hull.getAngle());
+    // Joint-only torso stabilization: positive torso angle/velocity biases
+    // both hip targets so their motor reaction applies counter-torque to hull.
+    const hipTarget = wrapAngle(
+      upperBodyAngle - hull.getAngle() +
+      balanceKp * hull.getAngle() +
+      balanceKd * hull.getAngularVelocity()
+    );
     const kneeTarget = wrapAngle(lowerBodyAngle - upperBodyAngle);
     hipTargets.push(hipTarget);
     kneeTargets.push(kneeTarget);
@@ -759,7 +765,7 @@ function runRigSymmetryCase(continuousGround = false, runController = true) {
   };
 }
 
-function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmupSteps = 0, groundStyle = "segmented", controllerEnabled = true) {
+function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmupSteps = 0, groundStyle = "segmented", controllerEnabled = true, balanceKp = 1.5, balanceKd = 0.06) {
   const random = seededRandom(seed);
   const phaseA = random() * Math.PI * 2;
   const phaseB = random() * Math.PI * 2;
@@ -776,7 +782,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
     }
   }
   for (let i = 0; i < warmupSteps; i++) {
-    if (controllerEnabled) stanceController(walker, heightAt, terrainAngleAt);
+    if (controllerEnabled) stanceController(walker, heightAt, terrainAngleAt, 1, balanceKp, balanceKd);
     world.step(FIXED_DT, 180, 60);
   }
   const steps = Math.ceil(duration / FIXED_DT);
@@ -790,7 +796,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
 
   for (let i = 0; i < steps; i++) {
     const control = controllerEnabled
-      ? stanceController(walker, heightAt, terrainAngleAt)
+      ? stanceController(walker, heightAt, terrainAngleAt, 1, balanceKp, balanceKd)
       : { targets: walker.stanceTargets.map(x => Vec2(x, heightAt(x) + FOOT_HALF_HEIGHT * 2)) };
     world.step(FIXED_DT, 180, 60);
     const contacts = walker.legs.map(leg => isGroundContact(leg.foot));
@@ -870,6 +876,8 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
     warmupSteps,
     groundStyle,
     controllerEnabled,
+    balanceKp,
+    balanceKd,
     supportedTime: Number(supportedTime.toFixed(3)),
     maxRelativeTiltDegrees: Number((maxRelativeTilt * 180 / Math.PI).toFixed(2)),
     maxSpeed: Number(maxSpeed.toFixed(3)),
