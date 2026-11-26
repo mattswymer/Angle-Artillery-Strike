@@ -359,9 +359,14 @@ function stepRig(world, rig, slopeRadians, dt = STEP, allowSteps = true) {
     ));
     const fromX = steppingLeg.foot.getPosition().x;
     const toX = centerOfMass.x + (left ? -stepDistance : stepDistance);
-    if (Math.abs(toX - fromX) > 0.12) {
-      steppingLeg.step = { fromX, toX, elapsed: 0, duration: 0.18 };
-    }
+    // Even a nearly-under-COM airborne foot must complete a swing/plant cycle.
+    // Skipping short horizontal steps left the foot suspended indefinitely.
+    steppingLeg.step = {
+      fromX,
+      toX: Math.abs(toX - fromX) < 0.12 ? fromX : toX,
+      elapsed: 0,
+      duration: 0.18
+    };
   }
 
   for (const leg of rig.legs) {
