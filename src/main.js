@@ -227,18 +227,18 @@
     powerValue.value = powerInput.value;
   }
 
-  function isGrounded(character) {
-    const p = character.body.getPosition();
-    let found = false;
-    world.rayCast(V(p.x, p.y - 0.77), V(p.x, p.y - 0.91), (fixture, point, normal, fraction) => {
-      if (fixture.getBody() === character.body) return -1;
-      if (fixture.getBody().getUserData()?.kind === "terrain") {
-        found = true;
-        return fraction;
-      }
-      return -1;
+  function probeTerrain(x, startY, endY) {
+    let hit = null;
+    world.rayCast(V(x, startY), V(x, endY), (fixture, point, normal, fraction) => {
+      if (fixture.getBody().getUserData()?.kind !== "terrain") return -1;
+      hit = {
+        point: { x: point.x, y: point.y },
+        normal: { x: normal.x, y: normal.y },
+        fraction
+      };
+      return fraction;
     });
-    return found;
+    return hit;
   }
 
   function stepHeightAhead(character, direction) {
@@ -290,7 +290,7 @@
     }
 
     let verticalVelocity = velocity.y;
-    const grounded = isGrounded(character);
+    const grounded = character.rig.getFootContacts().some(Boolean);
     character.grounded = grounded;
     if (grounded) coyoteTime = 0.12;
     else coyoteTime = Math.max(0, coyoteTime - FIXED_STEP);
@@ -705,6 +705,9 @@
     lastFrame = timestamp;
     accumulator += elapsed;
     while (accumulator >= FIXED_STEP) {
+      for (const character of characters) {
+        if (!character.eliminated) character.rig.driveStance(FIXED_STEP, probeTerrain);
+      }
       moveActive();
       // Two smaller substeps improve revolute-joint anchor stability.
       world.step(FIXED_STEP / 2, 10, 6);
@@ -716,7 +719,10 @@
       }
       checkBoundaries();
       for (const character of characters) {
-        if (!character.eliminated) character.grounded = isGrounded(character);
+        if (!character.eliminated) {
+          character.rig.updateFallState(FIXED_STEP);
+          character.grounded = character.rig.getFootContacts().some(Boolean);
+        }
       }
       accumulator -= FIXED_STEP;
     }
