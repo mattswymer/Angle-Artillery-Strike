@@ -779,6 +779,11 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
         ankle: walker.legs.map(leg => Number(leg.ankle.getJointAngle().toFixed(2))),
         contacts: walker.legs.map(leg => isGroundContact(leg.foot)),
         centerOfMassX: Number(getRigCenterOfMassX(walker).toFixed(3)),
+        velocity: {
+          x: Number(walker.hull.getLinearVelocity().x.toFixed(3)),
+          y: Number(walker.hull.getLinearVelocity().y.toFixed(3)),
+          angular: Number(walker.hull.getAngularVelocity().toFixed(3))
+        },
         targets: control.targets.map(point => [Number(point.x.toFixed(3)), Number(point.y.toFixed(3))]),
         swingIndex: walker.swingIndex ?? null,
         legs: walker.legs.map(leg => ({
@@ -790,6 +795,17 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
           ankleTorque: Number(leg.ankle.getReactionTorque(50).toFixed(3)),
           hipTorque: Number(leg.hip.getReactionTorque(50).toFixed(3)),
           kneeTorque: Number(leg.knee.getReactionTorque(50).toFixed(3)),
+          motorTorque: {
+            hip: Number(leg.hip.getMotorTorque(50).toFixed(3)),
+            knee: Number(leg.knee.getMotorTorque(50).toFixed(3)),
+            ankle: Number(leg.ankle.getMotorTorque(50).toFixed(3))
+          },
+          ankleAnchorError: Number(Math.hypot(
+            leg.lower.getWorldPoint(Vec2(0, -leg.lowerLength / 2)).x -
+              leg.foot.getWorldPoint(Vec2(0, FOOT_HALF_HEIGHT)).x,
+            leg.lower.getWorldPoint(Vec2(0, -leg.lowerLength / 2)).y -
+              leg.foot.getWorldPoint(Vec2(0, FOOT_HALF_HEIGHT)).y
+          ).toFixed(6)),
           motorTorqueLimit: {
             hip: Number(leg.hip.getMaxMotorTorque().toFixed(2)),
             knee: Number(leg.knee.getMaxMotorTorque().toFixed(2)),
