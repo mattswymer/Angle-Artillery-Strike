@@ -344,7 +344,6 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1) {
     const target = footTargets[i];
     const surfaceY = heightAt(target.x);
     const terrainAngle = terrainAngleAt(target.x);
-    const normal = Vec2(-Math.sin(terrainAngle), Math.cos(terrainAngle));
     target.y = surfaceY + 0.06;
     const hipWorld = hull.getWorldPoint(Vec2(0, LEG_DOWN));
     const ankleTarget = Vec2(target.x, target.y);
@@ -367,7 +366,7 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1) {
   return {
     targets: footTargets,
     contacts: legs.map(leg => isGroundContact(leg.foot)),
-    hipAngles: legs.map(leg => legs.indexOf(leg) >= 0 ? leg.hip.getJointAngle() : 0)
+    hipAngles: legs.map(leg => leg.hip.getJointAngle())
   };
 }
 
