@@ -125,8 +125,9 @@ function createRig(world, degrees, x = 0) {
   const normal = V(-Math.sin(slope), Math.cos(slope));
   const surfaceAt = px => Math.tan(slope) * px;
   const footXs = [x - 0.105, x + 0.105];
-  const pelvisY = Math.min(...footXs.map(px => surfaceAt(px))) +
-    0.035 + 0.95 * (SEGMENT.thigh + SEGMENT.shin);
+  const pelvisY = Math.min(...footXs.map(px =>
+    surfaceAt(px) + Math.cos(slope) * 0.067
+  )) + 0.95 * (SEGMENT.thigh + SEGMENT.shin);
   const torsoY = pelvisY + 0.25;
 
   const addBox = (name, position, angle, hx, hy, density, options = {}) => {
@@ -394,7 +395,8 @@ function stepRig(world, rig, slopeRadians, dt = STEP, allowSteps = true) {
 
   const terrainSlope = Math.tan(slopeRadians);
   const pelvisTargetY = Math.min(...rig.legs.map(leg =>
-    terrainSlope * leg.targetX + 0.035 + 0.95 * (SEGMENT.thigh + SEGMENT.shin)
+    terrainSlope * leg.targetX + Math.cos(slopeRadians) * 0.067 +
+    0.95 * (SEGMENT.thigh + SEGMENT.shin)
   ));
   rig.pelvisTargetY = pelvisTargetY;
 
