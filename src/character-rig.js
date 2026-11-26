@@ -686,8 +686,7 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
         // in the air forever. Re-target once directly beneath its hip, then
         // lower it without another lift so the leg can regain support.
         const leg = legs[walker.swingIndex];
-        walker.stanceTargets[walker.swingIndex] =
-          hull.getWorldPoint(Vec2(leg.side * HIP_X, HIP_Y)).x;
+        walker.stanceTargets[walker.swingIndex] = leg.foot.getPosition().x;
         walker.swingTime = swingDuration;
         walker.swingRetargeted = true;
       } else if (!walker.swingAirborne && contacts[walker.swingIndex]) {
