@@ -14,6 +14,9 @@ const LEG_DOWN = -8 / 30;
 const HIP_SPEED = 4;
 const KNEE_SPEED = 6;
 const MAX_TORQUE = 80;
+const FPS = 50;
+const VERTICAL_VELOCITY_SCALE = 0.3 * (400 / 30) / FPS;
+const HULL_VERTICES = [Vec2(-1, 0.3), Vec2(0.2, 0.3), Vec2(34 / 30, 1 / 30), Vec2(34 / 30, -8 / 30), Vec2(-1, -8 / 30)];
 const SUPPORT_KNEE_ANGLE = 0.1;
 const WALK_SPEED = 0.29;
 
@@ -43,7 +46,7 @@ function makeWorld(degrees) {
 
 function createWalker(world, slope, startX) {
   const surfaceY = Math.tan(slope) * startX;
-  const initY = surfaceY + 2.406;
+  const initY = surfaceY + 2 * LEG_H;
   const hull = world.createDynamicBody({
     position: Vec2(startX, initY),
     linearDamping: 0.05,
@@ -52,7 +55,7 @@ function createWalker(world, slope, startX) {
     userData: { part: "torso" }
   });
   hull.createFixture({
-    shape: new planck.Box(0.42, 0.14),
+    shape: new planck.Polygon(HULL_VERTICES),
     density: 5,
     friction: 0.1,
     restitution: 0,
@@ -63,7 +66,7 @@ function createWalker(world, slope, startX) {
   const joints = [];
   for (const side of [-1, 1]) {
     const upper = world.createDynamicBody({
-      position: Vec2(startX + Math.sin(side * 0.05) * LEG_H / 2, initY - 0.14 - Math.cos(side * 0.05) * LEG_H / 2),
+      position: Vec2(startX, initY - LEG_H / 2 - LEG_DOWN),
       angle: side * 0.05,
       linearDamping: 0.05,
       angularDamping: 0.05,
@@ -78,8 +81,9 @@ function createWalker(world, slope, startX) {
       filterGroupIndex: -1
     });
 
-    const hipAnchor = Vec2(startX, initY - 0.14);
     const hip = world.createJoint(planck.RevoluteJoint({
+      localAnchorA: Vec2(0, LEG_DOWN),
+      localAnchorB: Vec2(0, LEG_H / 2),
       enableMotor: true,
       enableLimit: true,
       lowerAngle: -0.8,
@@ -88,10 +92,10 @@ function createWalker(world, slope, startX) {
       motorSpeed: side,
       referenceAngle: 0,
       collideConnected: false
-    }, hull, upper, hipAnchor));
+    }, hull, upper));
 
     const lower = world.createDynamicBody({
-      position: Vec2(startX + Math.sin(side * 0.05 - 0.2) * LEG_H / 2, initY - 0.14 - LEG_H - Math.cos(side * 0.05 - 0.2) * LEG_H / 2),
+      position: Vec2(startX, initY - LEG_H * 1.5 - LEG_DOWN),
       angle: side * 0.05 - 0.2,
       linearDamping: 0.05,
       angularDamping: 0.05,
@@ -106,8 +110,9 @@ function createWalker(world, slope, startX) {
       filterGroupIndex: -1
     });
 
-    const kneeAnchor = Vec2(startX + Math.sin(side * 0.05) * LEG_H, initY - 0.14 - Math.cos(side * 0.05) * LEG_H);
     const knee = world.createJoint(planck.RevoluteJoint({
+      localAnchorA: Vec2(0, -LEG_H / 2),
+      localAnchorB: Vec2(0, LEG_H / 2),
       enableMotor: true,
       enableLimit: true,
       lowerAngle: -1.6,
@@ -116,7 +121,7 @@ function createWalker(world, slope, startX) {
       motorSpeed: 1,
       referenceAngle: 0,
       collideConnected: false
-    }, upper, lower, kneeAnchor));
+    }, upper, lower));
 
     legs.push({ side, upper, lower, hip, knee });
     joints.push(hip, knee);
@@ -150,10 +155,9 @@ function isGroundContact(body) {
   return false;
 }
 
-function jointPD(joint, target, kp, kd, scale = 1) {
-  // Same feedback shape as the reference heuristic: position error plus
-  // angular-velocity damping. The result becomes a bounded motor torque.
-  return scale * (kp * (target - joint.getJointAngle()) - kd * joint.getJointSpeed());
+function jointPD(joint, target, kp, speedScale) {
+  // Preserve the reference controller's normalized joint-speed feedback.
+  return kp * (target - joint.getJointAngle()) - 0.25 * (joint.getJointSpeed() / speedScale);
 }
 
 function applyMotor(joint, action, speed) {
@@ -180,7 +184,7 @@ function walkerController(walker) {
     kneeTargets[gait.movingLeg] = -0.6;
     gait.supportingKneeAngle = Math.min(
       SUPPORT_KNEE_ANGLE,
-      gait.supportingKneeAngle + 0.03 + (hullVelocity.x > WALK_SPEED ? 0.03 : 0)
+      gait.supportingKneeAngle + 0.03 + (0.12 * hullVelocity.x > WALK_SPEED ? 0.03 : 0)
     );
     kneeTargets[gait.supportingLeg] = gait.supportingKneeAngle;
     if (supporting.hip.getJointAngle() < 0.1) gait.phase = "PUT_OTHER_DOWN";
@@ -202,7 +206,7 @@ function walkerController(walker) {
   if (gait.phase === "PUSH_OFF") {
     kneeTargets[gait.movingLeg] = gait.supportingKneeAngle;
     kneeTargets[gait.supportingLeg] = 1.0;
-    if (supporting.knee.getJointAngle() + 1 > 0.88 || hullVelocity.x > WALK_SPEED * 1.2) {
+    if (supporting.knee.getJointAngle() + 1 > 0.88 || 0.12 * hullVelocity.x > WALK_SPEED * 1.2) {
       gait.phase = "STAY_ON_ONE_LEG";
       gait.movingLeg = 1 - gait.movingLeg;
       gait.supportingLeg = 1 - gait.movingLeg;
@@ -213,14 +217,14 @@ function walkerController(walker) {
   for (let i = 0; i < 2; i++) {
     const leg = legs[i];
     if (hipTargets[i] !== null) {
-      actions[i * 2] = jointPD(leg.hip, hipTargets[i], 0.9, 0.25);
+      actions[i * 2] = jointPD(leg.hip, hipTargets[i], 0.9, HIP_SPEED);
     }
     if (kneeTargets[i] !== null) {
-      actions[i * 2 + 1] = jointPD(leg.knee, kneeTargets[i] - 1, 4, 0.25);
+      actions[i * 2 + 1] = jointPD(leg.knee, kneeTargets[i] - 1, 4, KNEE_SPEED);
     }
     // Both hips share torso upright feedback. Both knees damp vertical bounce.
-    actions[i * 2] -= 0.9 * (0 - hullAngle) - 1.5 * hullAngularVelocity;
-    actions[i * 2 + 1] -= 15 * hullVelocity.y;
+    actions[i * 2] -= 0.9 * (0 - hullAngle) - 1.5 * (2 * hullAngularVelocity / FPS);
+    actions[i * 2 + 1] -= 15 * (VERTICAL_VELOCITY_SCALE * hullVelocity.y);
   }
 
   // Match the reference controller's conservative output scaling.
