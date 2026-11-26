@@ -236,6 +236,26 @@ test("one slope-adaptive knee-bend policy works at 20 and 35 degrees", () => {
   assert.equal(results.length, 3);
 });
 
+test("full articulated 35 degree rig tunes swing arc with low upper-body torque", () => {
+  const results = [];
+  for (const swingHeight of [0.04, 0.06, 0.08, 0.1]) {
+    for (const swingDuration of [0.16, 0.18, 0.2, 0.22, 0.24]) {
+      const r = runStanceCase(
+        35, 1, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25,
+        0.1, 0.95, 0, 0, 0.6, 1.5, "same-positive", 0.34, 0.36,
+        6, 6, swingHeight, swingDuration, 1, 0.8, 0.4, 1, 0.25
+      );
+      results.push({
+        swingHeight, swingDuration,
+        support: r.supportedTime, bothFeet: r.bothFeetContactTime,
+        tilt: r.maxAbsoluteTiltDegrees, air: r.maxAirTime, speed: r.maxSpeed
+      });
+    }
+  }
+  console.log("full articulated 35 degree swing arc sweep", JSON.stringify(results));
+  assert.equal(results.length, 20);
+});
+
 test("full articulated rig fine-tunes upper-body motor torque on 35 degree terrain", () => {
   const results = [];
   for (const upperBodyTorqueScale of [0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4]) {
