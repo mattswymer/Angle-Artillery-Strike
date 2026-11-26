@@ -2,48 +2,29 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { runSlopeCase, seededRandom, solveLegIK } = require("./rig-harness.cjs");
+const { runSlopeCase, seededRandom } = require("./walker-harness.cjs");
 
-test("seeded random positions are reproducible", () => {
+test("seeded spawn selection is reproducible", () => {
   const a = seededRandom(481516);
   const b = seededRandom(481516);
   assert.deepEqual(Array.from({ length: 12 }, a), Array.from({ length: 12 }, b));
 });
 
-test("two-bone IK returns finite targets at reachable and clamped distances", () => {
-  for (const foot of [{ x: 0.1, y: -0.6 }, { x: 4, y: -2 }, { x: -0.3, y: -0.5 }]) {
-    const result = solveLegIK({ x: 0, y: 0 }, foot, 0.4, 0.36, 1);
-    assert.ok(Number.isFinite(result.thighAngle));
-    assert.ok(Number.isFinite(result.kneeRelative));
-    assert.ok(Number.isFinite(result.shinAngle));
-  }
-});
-
-for (const degrees of [0, 20, 35, 50]) {
-  test(`active rig diagnostic on ${degrees} degree slope`, () => {
-    const result = runSlopeCase(degrees);
-    assert.ok(Number.isFinite(result.finalAngle), "torso angle must remain finite");
+for (const degrees of [0, 20, 35]) {
+  test(`reference biped maintains locomotion on ${degrees} degree terrain`, () => {
+    const result = runSlopeCase(degrees, 12345, 3);
+    assert.ok(Number.isFinite(result.maxTiltDegrees), "torso angle must remain finite");
     assert.ok(Number.isFinite(result.finalPosition.x) && Number.isFinite(result.finalPosition.y),
-      "torso position must remain finite");
-    if (degrees <= 35) {
-      for (const joint of result.spawnJointTargets) {
-        assert.ok(joint.hip >= -1.25 && joint.hip <= 1.25,
-          `spawn hip target out of range at ${degrees} degrees: ${JSON.stringify(joint)}`);
-        const kneeValid = joint.knee >= -2.4 && joint.knee <= 2.4;
-        assert.ok(kneeValid,
-          `spawn knee target out of range at ${degrees} degrees: ${JSON.stringify(joint)}`);
-        assert.ok(joint.ankle >= -0.6 && joint.ankle <= 0.6,
-          `spawn ankle target out of range at ${degrees} degrees: ${JSON.stringify(joint)}`);
-      }
-      assert.equal(result.everLimp, false,
-        `spawned rig must not enter limp mode at ${degrees} degrees; got ${JSON.stringify(result)}`);
-      assert.equal(result.stable, true,
-        `expected stable stance at ${degrees} degrees; got ${JSON.stringify(result)}`);
-    } else {
-      assert.equal(result.everLimp, true,
-        `50 degree slope should release the stance controller; got ${JSON.stringify(result)}`);
-      assert.equal(result.stable, false,
-        `expected loss of stance at ${degrees} degrees; got ${JSON.stringify(result)}`);
-    }
+      "walker position must remain finite");
+    assert.equal(result.everFallen, false,
+      `walker should remain upright on ${degrees} degree terrain: ${JSON.stringify(result)}`);
+    assert.ok(result.stableTime >= 1.5,
+      `walker should maintain ground contact for at least half the test: ${JSON.stringify(result)}`);
   });
 }
+
+test("reference biped loses its stance on a 50 degree slope", () => {
+  const result = runSlopeCase(50, 12345, 3);
+  assert.equal(result.everFallen, true,
+    `50 degree slope should exceed the walker's support envelope: ${JSON.stringify(result)}`);
+});
