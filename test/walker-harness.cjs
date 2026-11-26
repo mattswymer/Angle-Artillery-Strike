@@ -673,7 +673,7 @@ function runSwingTargetCase() {
   };
 }
 
-function runRigSymmetryCase(continuousGround = false) {
+function runRigSymmetryCase(continuousGround = false, runController = true) {
   let world, heightAt, terrainAngleAt;
   if (continuousGround) {
     world = new planck.World({ gravity: Vec2(0, -GRAVITY) });
@@ -717,7 +717,7 @@ function runRigSymmetryCase(continuousGround = false) {
     return { error, details };
   };
   const initial = measure();
-  stanceController(walker, heightAt, terrainAngleAt);
+  if (runController) stanceController(walker, heightAt, terrainAngleAt);
   world.step(FIXED_DT, 180, 60);
   const afterStep = measure();
   return {
@@ -727,6 +727,7 @@ function runRigSymmetryCase(continuousGround = false) {
     afterStep: afterStep.details,
     contacts: walker.legs.map(leg => isGroundContact(leg.foot)),
     continuousGround,
+    runController,
     torsoAngle: walker.hull.getAngle(),
     torsoVelocity: walker.hull.getLinearVelocity()
   };
