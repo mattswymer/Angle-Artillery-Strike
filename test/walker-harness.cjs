@@ -236,8 +236,13 @@ const FOOT_HALF_HEIGHT = 0.03;
 
 function createStanceRig(world, startX, heightAt, terrainAngleAt) {
   const initialTerrainAngle = terrainAngleAt(startX);
+  const initialFootY = Math.min(
+    heightAt(startX - 0.12) + FOOT_HALF_HEIGHT * 2,
+    heightAt(startX + 0.12) + FOOT_HALF_HEIGHT * 2
+  );
+  const pelvisTargetY = initialFootY + 0.95 * (UPPER_LENGTH + LOWER_LENGTH);
   const hull = world.createDynamicBody({
-    position: Vec2(startX, heightAt(startX) + 1.0),
+    position: Vec2(startX, pelvisTargetY - HIP_Y),
     angle: initialTerrainAngle,
     linearDamping: 0.08,
     angularDamping: 0.08,
@@ -256,7 +261,8 @@ function createStanceRig(world, startX, heightAt, terrainAngleAt) {
   for (const side of [-1, 1]) {
     const targetX = startX + side * 0.12;
     const ankleTarget = Vec2(targetX, heightAt(targetX) + FOOT_HALF_HEIGHT * 2);
-    const hipWorld = hull.getWorldPoint(Vec2(side * HIP_X, HIP_Y));
+    const actualHip = hull.getWorldPoint(Vec2(side * HIP_X, HIP_Y));
+    const hipWorld = Vec2(actualHip.x, pelvisTargetY);
     const solution = legIK(hipWorld, ankleTarget, UPPER_LENGTH, LOWER_LENGTH, side);
 
     const upperAngle = solution.thighDir + Math.PI / 2;
@@ -517,7 +523,9 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1) {
   } else if (centerX > walker.stanceTargets[1] + 0.04) {
     walker.stanceTargets[1] = centerX + halfStance;
   }
-  const footTargets = walker.stanceTargets.map(x => ({ x, y: 0 }));
+  const footTargets = walker.stanceTargets.map(x => ({ x, y: heightAt(x) + FOOT_HALF_HEIGHT * 2 }));
+  const pelvisTargetY = Math.min(footTargets[0].y, footTargets[1].y) +
+    0.95 * (UPPER_LENGTH + LOWER_LENGTH);
 
   for (let i = 0; i < legs.length; i++) {
     const leg = legs[i];
@@ -525,7 +533,8 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1) {
     const surfaceY = heightAt(target.x);
     const terrainAngle = terrainAngleAt(target.x);
     target.y = surfaceY + FOOT_HALF_HEIGHT * 2;
-    const hipWorld = hull.getWorldPoint(Vec2(leg.side * HIP_X, HIP_Y));
+    const actualHip = hull.getWorldPoint(Vec2(leg.side * HIP_X, HIP_Y));
+    const hipWorld = Vec2(actualHip.x, pelvisTargetY);
     const ankleTarget = Vec2(target.x, target.y);
     const solution = legIK(hipWorld, ankleTarget, leg.upperLength, leg.lowerLength, leg.side);
 
