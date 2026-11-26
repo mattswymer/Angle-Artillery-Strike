@@ -50,6 +50,21 @@ function makeWorld(degrees, roughness = 0, phaseA = 0, phaseB = 0) {
   return { world, slope, heightAt, terrainAngleAt };
 }
 
+function makeContinuousWorld(degrees = 0) {
+  const world = new planck.World({ gravity: Vec2(0, -GRAVITY) });
+  world.setAllowSleeping(false);
+  const slope = -degrees * Math.PI / 180;
+  const heightAt = x => Math.tan(slope) * x;
+  const ground = world.createBody();
+  ground.createFixture({
+    shape: new planck.Edge(Vec2(-30, heightAt(-30)), Vec2(30, heightAt(30))),
+    friction: 2.5,
+    restitution: 0
+  });
+  const terrainAngleAt = () => Math.atan(Math.tan(slope));
+  return { world, slope, heightAt, terrainAngleAt };
+}
+
 function createWalker(world, slope, startX, random = () => 0.5, heightAt = x => Math.tan(slope) * x, terrainAngleAt = () => -slope, options = {}) {
   const surfaceY = heightAt(startX);
   const initY = surfaceY + 2 * LEG_H - (options.alignToTerrain ? LEG_DOWN : 0);
@@ -623,9 +638,18 @@ function runPostureCase(degrees, seed = 12345, duration = 3, roughness = 0) {
   const random = seededRandom(seed);
   const phaseA = random() * Math.PI * 2;
   const phaseB = random() * Math.PI * 2;
-  const { world, slope, heightAt, terrainAngleAt } = makeWorld(degrees, roughness, phaseA, phaseB);
+  const { world, slope, heightAt, terrainAngleAt } = groundStyle === "continuous"
+    ? makeContinuousWorld(degrees)
+    : makeWorld(degrees, roughness, phaseA, phaseB);
   const startX = (random() - 0.5) * 0.2;
   const walker = createStanceRig(world, startX, heightAt, terrainAngleAt);
+  if (!controllerEnabled) {
+    for (const leg of walker.legs) {
+      leg.hip.enableMotor(false);
+      leg.knee.enableMotor(false);
+      leg.ankle.enableMotor(false);
+    }
+  }
   const steps = Math.ceil(duration / FIXED_DT);
   let supportedTime = 0;
   let maxRelativeTilt = 0;
@@ -735,7 +759,7 @@ function runRigSymmetryCase(continuousGround = false, runController = true) {
   };
 }
 
-function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmupSteps = 0) {
+function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmupSteps = 0, groundStyle = "segmented", controllerEnabled = true) {
   const random = seededRandom(seed);
   const phaseA = random() * Math.PI * 2;
   const phaseB = random() * Math.PI * 2;
@@ -743,7 +767,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
   const startX = (random() - 0.5) * 0.2;
   const walker = createStanceRig(world, startX, heightAt, terrainAngleAt);
   for (let i = 0; i < warmupSteps; i++) {
-    stanceController(walker, heightAt, terrainAngleAt);
+    if (controllerEnabled) stanceController(walker, heightAt, terrainAngleAt);
     world.step(FIXED_DT, 180, 60);
   }
   const steps = Math.ceil(duration / FIXED_DT);
@@ -756,7 +780,9 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
   const trace = [];
 
   for (let i = 0; i < steps; i++) {
-    const control = stanceController(walker, heightAt, terrainAngleAt);
+    const control = controllerEnabled
+      ? stanceController(walker, heightAt, terrainAngleAt)
+      : { targets: walker.stanceTargets.map(x => Vec2(x, heightAt(x) + FOOT_HALF_HEIGHT * 2)) };
     world.step(FIXED_DT, 180, 60);
     const contacts = walker.legs.map(leg => isGroundContact(leg.foot));
     if (contacts.some(Boolean)) {
@@ -823,6 +849,8 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
   return {
     degrees,
     warmupSteps,
+    groundStyle,
+    controllerEnabled,
     supportedTime: Number(supportedTime.toFixed(3)),
     maxRelativeTiltDegrees: Number((maxRelativeTilt * 180 / Math.PI).toFixed(2)),
     maxSpeed: Number(maxSpeed.toFixed(3)),
