@@ -912,7 +912,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
       maxAirTime = Math.max(maxAirTime, airTime);
     }
     maxRelativeTilt = Math.max(maxRelativeTilt, Math.abs(wrapAngle(walker.hull.getAngle() - slope)));
-    maxAbsoluteTilt = Math.max(maxAbsoluteTilt, Math.abs(walker.hull.getAngle()));
+    maxAbsoluteTilt = Math.max(maxAbsoluteTilt, Math.abs(wrapAngle(walker.hull.getAngle())));
     maxSpeed = Math.max(maxSpeed, walker.hull.getLinearVelocity().length());
     if (i % 10 === 0 || i === steps - 1) {
       trace.push({
