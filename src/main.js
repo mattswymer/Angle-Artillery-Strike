@@ -359,7 +359,7 @@
     if (grounded) coyoteTime = 0.12;
     else coyoteTime = Math.max(0, coyoteTime - FIXED_STEP);
 
-    if (held.jump || jumpQueued) jumpBufferTime = 0.16;
+    if (jumpQueued) jumpBufferTime = 0.16;
     else jumpBufferTime = Math.max(0, jumpBufferTime - FIXED_STEP);
 
     if (jumpBufferTime > 0 && coyoteTime > 0 && !rig.jumping) {
@@ -1012,7 +1012,7 @@
     if (["ArrowLeft", "ArrowRight", "ArrowUp", " "].includes(event.key)) event.preventDefault();
     if (event.key.toLowerCase() === "a" || event.key === "ArrowLeft") held.left = true;
     if (event.key.toLowerCase() === "d" || event.key === "ArrowRight") held.right = true;
-    if (event.key.toLowerCase() === "w" || event.key === "ArrowUp" || event.key === " ") jumpQueued = true;
+    if (!event.repeat && (event.key.toLowerCase() === "w" || event.key === "ArrowUp" || event.key === " ")) jumpQueued = true;
     if (event.key === "Enter") fire();
   });
   window.addEventListener("keyup", event => {
