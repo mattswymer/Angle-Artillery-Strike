@@ -32,12 +32,13 @@ npm test
 
 ## Slope cases
 
-The headless Planck suite runs three-second locomotion cases on 0°, 20°, 35°, and 50° downhill slopes (the direction of travel is downhill). Each slope is exercised with eight fixed seeds that vary the spawn offset and initial upper-leg angle, for 32 physical runs total. A repeatability test also runs the same seed twice and compares the resulting physical metrics.
+The headless Planck suite runs three-second locomotion cases on 0°, 20°, 35°, and 50° downhill slopes (the direction of travel is downhill). Each uniform slope is exercised with eight fixed seeds that vary the spawn offset and initial upper-leg angle, for 32 physical runs total. The 0°, 20°, and 35° cases are also repeated over eight seeds on gently uneven, deterministic terrain (24 additional runs). The uneven profile is a low-amplitude blend of two smooth waves over the base slope. A repeatability test also runs the same seed twice and compares the resulting physical metrics.
 
 - 0°, 20°, and 35° must remain physically upright and accumulate at least 1.5 seconds of ground-supported time, measured relative to the terrain normal
 - 50° must exceed the controlled locomotion envelope (excessive downhill speed or a prolonged airborne interval)
+- On gently uneven 0°, 20°, and 35° terrain, all eight seeds must remain upright and accumulate at least 1.5 seconds of ground-supported time
 
-The 50° test currently measures loss of controlled gait across all eight seeds, not a completed knockdown animation. Physical fall detection and ragdoll response are separate integration work. These are randomized initial conditions on uniform slopes; uneven multi-segment terrain is the next robustness test.
+The 50° test currently measures loss of controlled gait across all eight seeds, not a completed knockdown animation. Physical fall detection and ragdoll response are separate integration work. The uneven-terrain cases use a smooth analytic profile represented by short Planck edge segments; they are not yet a test of abrupt cliffs, craters, or terrain destruction.
 
 GitHub Actions is the authoritative execution environment when local dependency installation is unavailable. The current headless Planck run result is reported by the latest GitHub Actions workflow.
 
