@@ -349,6 +349,37 @@ test("upright common-bend stance sweeps predictive COM lookahead for balance ste
   assert.equal(results.length, 20);
 });
 
+test("upright 20 degree stance checks wider support bases for two-foot balance", () => {
+  const results = [];
+  for (const stanceHalfWidth of [0.25, 0.3, 0.35, 0.4]) {
+    const r = runStanceCase(
+      20, 1, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25,
+      stanceHalfWidth, 0.85, 0, 0, 0.6, 1.5, "same-positive", 0.12, 0.38, 6, 6
+    );
+    results.push({
+      stanceHalfWidth, support: r.supportedTime, bothFeet: r.bothFeetContactTime,
+      tilt: r.maxAbsoluteTiltDegrees, air: r.maxAirTime, speed: r.maxSpeed
+    });
+  }
+  console.log("upright 20 degree wider support sweep", JSON.stringify(results));
+  assert.equal(results.length, 4);
+});
+
+test("upright 35 degree final candidate is checked across eight fixed seeds", () => {
+  const results = SEEDS.map(seed => {
+    const r = runStanceCase(
+      35, seed, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25,
+      0.1, 0.95, 0, 0, 0.6, 1.5, "same-positive", 0.34, 0.36, 6, 6
+    );
+    return {
+      seed, support: r.supportedTime, bothFeet: r.bothFeetContactTime,
+      tilt: r.maxAbsoluteTiltDegrees, air: r.maxAirTime, speed: r.maxSpeed
+    };
+  });
+  console.log("upright 35 degree final eight-seed candidate", JSON.stringify(results));
+  assert.equal(results.length, 8);
+});
+
 test("upright 35 degree improved geometry fine-tunes corrective step placement", () => {
   const results = [];
   for (const stepReach of [0.26, 0.28, 0.3, 0.32, 0.34]) {
