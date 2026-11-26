@@ -98,6 +98,28 @@ function solveLegIK(hip, ankle, upperLength, lowerLength, bend = 1) {
   };
 }
 
+function chooseLegIK(hip, ankle, upperLength, lowerLength, side, slopeRadians) {
+  const candidates = [-1, 1].map(bend => {
+    const ik = solveLegIK(hip, ankle, upperLength, lowerLength, bend);
+    const ankleTarget = slopeRadians - ik.shinAngle;
+    const violations =
+      Math.max(0, Math.abs(ik.thighAngle) - 1.25) +
+      Math.max(0, Math.abs(ik.kneeRelative) - 2.4) +
+      Math.max(0, Math.abs(ankleTarget) - 0.6);
+    const margin = Math.min(
+      1.25 - Math.abs(ik.thighAngle),
+      2.4 - Math.abs(ik.kneeRelative),
+      0.6 - Math.abs(ankleTarget)
+    );
+    return { ...ik, bend, ankleTarget, violations, margin };
+  });
+  const preferred = candidates.find(candidate => candidate.bend === side);
+  if (preferred && preferred.violations < 1e-6) return preferred;
+  const valid = candidates.filter(candidate => candidate.violations < 1e-6);
+  if (valid.length) return valid.sort((a, b) => b.margin - a.margin)[0];
+  return candidates.sort((a, b) => a.violations - b.violations)[0];
+}
+
 function createRig(world, degrees, x = 0) {
   const slope = degrees * Math.PI / 180;
   const normal = V(-Math.sin(slope), Math.cos(slope));
@@ -203,7 +225,7 @@ function createRig(world, degrees, x = 0) {
     );
 
     const hip = V(x + side * 0.105, pelvisY);
-    const ik = solveLegIK(hip, ankle, SEGMENT.thigh, SEGMENT.shin, side);
+    const ik = chooseLegIK(hip, ankle, SEGMENT.thigh, SEGMENT.shin, side, slope);
     const thighCenter = V((hip.x + ik.knee.x) / 2, (hip.y + ik.knee.y) / 2);
     const shinCenter = V((ik.knee.x + ankle.x) / 2, (ik.knee.y + ankle.y) / 2);
     const thigh = addBox(
@@ -229,6 +251,7 @@ function createRig(world, degrees, x = 0) {
       kneeJoint,
       ankleJoint,
       initialIK: ik,
+      bend: ik.bend,
       step: null
     };
   });
@@ -330,8 +353,8 @@ function stepRig(world, rig, slopeRadians, dt = STEP) {
       steppingLeg = rig.legs[0];
     }
 
-    const stepDistance = Math.max(0.18, Math.min(0.45,
-      0.18 + Math.abs(centerOfMass.vx) * 0.20
+    const stepDistance = Math.max(0.18, Math.min(0.26,
+      0.18 + Math.abs(centerOfMass.vx) * 0.06
     ));
     const fromX = steppingLeg.foot.getPosition().x;
     const toX = centerOfMass.x + (left ? -stepDistance : stepDistance);
@@ -390,13 +413,13 @@ function stepRig(world, rig, slopeRadians, dt = STEP) {
     );
     const actualHipAnchor = rig.torso.getWorldPoint(V(leg.side * 0.105, -0.22));
     const hip = V(actualHipAnchor.x, pelvisTargetY);
-    const ik = solveLegIK(hip, ankle, SEGMENT.thigh, SEGMENT.shin, leg.side);
+    const ik = solveLegIK(hip, ankle, SEGMENT.thigh, SEGMENT.shin, leg.bend);
     const hipTarget = ik.thighAngle - rig.torso.getAngle();
     const kneeTarget = ik.kneeRelative;
     const ankleTarget = slopeRadians - ik.shinAngle;
-    driveJoint(leg.hipJoint, hipTarget, 13, 5, 4, rig.stiffness);
-    driveJoint(leg.kneeJoint, kneeTarget, 13, 5, 4, rig.stiffness);
-    driveJoint(leg.ankleJoint, ankleTarget, 12, 4, 1.5, rig.stiffness);
+    driveJoint(leg.hipJoint, hipTarget, 13, 8, 4, rig.stiffness);
+    driveJoint(leg.kneeJoint, kneeTarget, 13, 8, 4, rig.stiffness);
+    driveJoint(leg.ankleJoint, ankleTarget, 12, 6, 1.5, rig.stiffness);
   });
 
   driveJoint(rig.neck, -rig.torso.getAngle(), 10, 5, 1, rig.stiffness);
@@ -470,6 +493,7 @@ function runSlopeCase(degrees, seed = 12345) {
     everLimp: rig.everLimp,
     spawnJointTargets: rig.legs.map(leg => ({
       side: leg.side,
+      bend: leg.bend,
       hip: Number(leg.initialIK.thighAngle.toFixed(3)),
       knee: Number(leg.initialIK.kneeRelative.toFixed(3)),
       ankle: Number((radians - leg.initialIK.shinAngle).toFixed(3))
