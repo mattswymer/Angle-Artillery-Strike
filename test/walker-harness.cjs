@@ -777,7 +777,22 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
         hip: walker.legs.map(leg => Number(leg.hip.getJointAngle().toFixed(2))),
         knee: walker.legs.map(leg => Number(leg.knee.getJointAngle().toFixed(2))),
         ankle: walker.legs.map(leg => Number(leg.ankle.getJointAngle().toFixed(2))),
-        contacts: walker.legs.map(leg => isGroundContact(leg.foot))
+        contacts: walker.legs.map(leg => isGroundContact(leg.foot)),
+        legs: walker.legs.map(leg => ({
+          foot: [Number(leg.foot.getPosition().x.toFixed(3)), Number(leg.foot.getPosition().y.toFixed(3))],
+          footAngle: Number((leg.foot.getAngle() * 180 / Math.PI).toFixed(1)),
+          lowerAngle: Number((leg.lower.getAngle() * 180 / Math.PI).toFixed(1)),
+          ankle: Number(leg.ankle.getJointAngle().toFixed(3)),
+          ankleSpeed: Number(leg.ankle.getJointSpeed().toFixed(3)),
+          ankleTorque: Number(leg.ankle.getReactionTorque(50).toFixed(3)),
+          hipTorque: Number(leg.hip.getReactionTorque(50).toFixed(3)),
+          kneeTorque: Number(leg.knee.getReactionTorque(50).toFixed(3)),
+          motorTorqueLimit: {
+            hip: Number(leg.hip.getMaxMotorTorque().toFixed(2)),
+            knee: Number(leg.knee.getMaxMotorTorque().toFixed(2)),
+            ankle: Number(leg.ankle.getMaxMotorTorque().toFixed(2))
+          }
+        }))
       });
     }
     finite = finite &&
