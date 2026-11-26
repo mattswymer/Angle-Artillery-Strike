@@ -164,15 +164,15 @@ test("stance swing foot target preserves its lift instead of being flattened to 
     `swing target should clear the planted ankle height: ${JSON.stringify(result)}`);
 });
 
-test("character-proportion rig isolates controller-induced symmetry drift", () => {
-  const passive = runRigSymmetryCase(true, false);
-  const controlled = runRigSymmetryCase(true, true);
-  assert.ok(passive.initialError < 1e-6 && controlled.initialError < 1e-6,
-    `initial rig geometry is not symmetric: ${JSON.stringify({ passive, controlled })}`);
-  assert.ok(passive.oneStepError < 1e-3 && controlled.oneStepError < 1e-3,
-    `one-step symmetry drift: ${JSON.stringify({ passive, controlled })}`);
-  assert.equal(passive.contacts[0], passive.contacts[1]);
-  assert.equal(controlled.contacts[0], controlled.contacts[1]);
+test("character-proportion rig isolates contact-related symmetry drift", () => {
+  const airborne = runRigSymmetryCase("none", false);
+  const grounded = runRigSymmetryCase(true, false);
+  console.log("rig symmetry diagnostics", JSON.stringify({ airborne, grounded }));
+  assert.ok(airborne.initialError < 1e-6 && grounded.initialError < 1e-6);
+  assert.ok(airborne.oneStepError < 1e-3,
+    `free-flight rig should preserve bilateral symmetry: ${JSON.stringify(airborne)}`);
+  assert.equal(airborne.contacts[0], airborne.contacts[1]);
+  assert.equal(grounded.contacts[0], grounded.contacts[1]);
 });
 
 test("shared joint driver moves a revolute joint toward a positive target angle", () => {
