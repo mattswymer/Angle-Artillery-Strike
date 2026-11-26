@@ -221,10 +221,50 @@ const FOOT_HALF_HEIGHT = 0.03;
     ...Object.values(upperJoints),
     ...legs.flatMap(leg => [leg.hip, leg.knee, leg.ankle])
   ];
+  const byName = {
+    torso: { body: hull },
+    head: { body: head },
+    "left-upper-arm": { body: leftUpperArm },
+    "left-lower-arm": { body: leftLowerArm },
+    "right-upper-arm": { body: rightUpperArm },
+    "right-lower-arm": { body: rightLowerArm }
+  };
+  const pieces = [
+    { name: "torso", body: hull, halfWidth: TORSO_HALF_WIDTH, halfHeight: TORSO_HALF_HEIGHT },
+    { name: "head", body: head, halfWidth: 0.135, halfHeight: 0.135, circle: true },
+    { name: "left-upper-arm", body: leftUpperArm, halfWidth: 0.065, halfHeight: 0.19 },
+    { name: "left-lower-arm", body: leftLowerArm, halfWidth: 0.055, halfHeight: 0.17 },
+    { name: "right-upper-arm", body: rightUpperArm, halfWidth: 0.065, halfHeight: 0.19 },
+    { name: "right-lower-arm", body: rightLowerArm, halfWidth: 0.055, halfHeight: 0.17 }
+  ];
+  for (const leg of legs) {
+    const prefix = leg.side < 0 ? "left" : "right";
+    byName[`${prefix}-upper-leg`] = { body: leg.upper };
+    byName[`${prefix}-lower-leg`] = { body: leg.lower };
+    byName[`${prefix}-foot`] = { body: leg.foot };
+    pieces.push(
+      { name: `${prefix}-upper-leg`, body: leg.upper, halfWidth: UPPER_HALF_WIDTH, halfHeight: UPPER_LENGTH / 2 },
+      { name: `${prefix}-lower-leg`, body: leg.lower, halfWidth: LOWER_HALF_WIDTH, halfHeight: LOWER_LENGTH / 2 },
+      { name: `${prefix}-foot`, body: leg.foot, halfWidth: FOOT_HALF_LENGTH, halfHeight: FOOT_HALF_HEIGHT }
+    );
+  }
+  const jointMap = {
+    ...upperJoints,
+    leftHip: legs[0].hip,
+    leftKnee: legs[0].knee,
+    leftAnkle: legs[0].ankle,
+    rightHip: legs[1].hip,
+    rightKnee: legs[1].knee,
+    rightAnkle: legs[1].ankle
+  };
   return {
     hull,
+    torso: hull,
     head,
     upperJoints,
+    jointMap,
+    byName,
+    pieces,
     bodies,
     joints,
     legs,
@@ -244,7 +284,7 @@ const FOOT_HALF_HEIGHT = 0.03;
     noContactTime: 0,
     outsideSupportTime: 0,
     fallReason: null,
-    hit(dv = Vec2(0, 0)) {
+    hit(dv = Vec2(0, 0), targetBody = this.hull, impactPoint = null) {
       this.mode = "limp";
       this.stiffness = 0;
       this.falling = false;
@@ -255,9 +295,10 @@ const FOOT_HALF_HEIGHT = 0.03;
         joint.setMotorSpeed(0);
         joint.setMaxMotorTorque(0);
       }
-      this.hull.applyLinearImpulse(
-        Vec2(dv.x * this.hull.getMass(), dv.y * this.hull.getMass()),
-        this.hull.getWorldCenter(),
+      const mass = targetBody.getMass();
+      targetBody.applyLinearImpulse(
+        Vec2(dv.x * mass, dv.y * mass),
+        impactPoint || targetBody.getWorldCenter(),
         true
       );
     }
