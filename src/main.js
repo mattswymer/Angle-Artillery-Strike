@@ -553,8 +553,8 @@
       if (bodyKind === "terrain" || bodyKind === "character") {
         impactPoint = V(point.x, point.y);
         if (bodyKind === "character") {
-          const target = characters.find(character => character.body === fixture.getBody() ||
-            character.ragdoll?.pieces.some(piece => piece.body === fixture.getBody()));
+          const target = characters.find(character =>
+            character.rig.bodies.some(body => body === fixture.getBody()));
           if (target) projectileHit = { character: target, location: classifyHitLocation(target, fixture, point) };
         }
         hit = true;
@@ -586,8 +586,7 @@
       const p = character.body.getPosition();
       if (p.x < 0 || p.x > WORLD_WIDTH || p.y < 0) {
         character.eliminated = true;
-        character.body.setActive(false);
-        character.ragdoll?.pieces.forEach(piece => piece.body.setActive(false));
+        character.rig.bodies.forEach(body => body.setActive(false));
         statusEl.textContent = (character.team === 0 ? "Blue" : "Red") + " character crossed a lethal boundary";
       }
     }
@@ -612,12 +611,12 @@
   }
 
   function drawCharacter(character, scale, offsetX) {
-    if (character.eliminated && !character.ragdoll) return;
+    if (character.eliminated && !character.rig) return;
     const p = character.body.getPosition();
     const screen = worldToScreen(p.x, p.y, scale, offsetX);
     const unit = scale;
-    if (character.ragdoll) {
-      const ragdoll = character.ragdoll;
+    if (character.rig) {
+      const ragdoll = character.rig;
       const jointPoint = joint => {
         const a = joint.getAnchorA();
         const b = joint.getAnchorB();
@@ -841,9 +840,9 @@
     const scale = Math.min(canvasWidth / WORLD_WIDTH, canvasHeight / WORLD_HEIGHT);
     const offsetX = (canvasWidth - WORLD_WIDTH * scale) / 2;
     const livingHighest = characters.filter(c => !c.eliminated).reduce((max, c) => Math.max(max, c.body.getPosition().y), 0);
-    const ragdollHighest = characters.filter(c => c.ragdoll).reduce((max, c) =>
-      Math.max(max, ...c.ragdoll.pieces.map(piece => piece.body.getPosition().y)), 0);
-    const highest = Math.max(0, livingHighest, ragdollHighest, projectile ? projectile.getPosition().y : 0);
+    const rigHighest = characters.filter(c => c.rig).reduce((max, c) =>
+      Math.max(max, ...c.rig.pieces.map(piece => piece.body.getPosition().y)), 0);
+    const highest = Math.max(0, livingHighest, rigHighest, projectile ? projectile.getPosition().y : 0);
     cameraY = Math.max(0, highest - 10.4);
     const sky = ctx.createLinearGradient(0, 0, 0, canvasHeight);
     sky.addColorStop(0, "#9fc7d6");
@@ -879,22 +878,15 @@
     accumulator += elapsed;
     while (accumulator >= FIXED_STEP) {
       moveActive();
-      // Two smaller substeps improve revolute-joint anchor stability.
-      world.step(FIXED_STEP / 2, 10, 6);
-      world.step(FIXED_STEP / 2, 10, 6);
+      updateCharacterRigs();
+      world.step(FIXED_STEP, 180, 60);
       detectProjectileImpact();
       if (pendingImpact) {
         pendingImpact = false;
         explode();
       }
       checkBoundaries();
-      for (const character of characters) {
-        if (!character.eliminated && (!character.ragdoll || character.ragdoll.standing)) character.grounded = isGrounded(character);
-      }
-      recoverRagdolls();
-      for (const character of characters) {
-        if (!character.eliminated && character.ragdoll?.standing) driveStandingRagdoll(character.ragdoll);
-      }
+      updateRigStability();
       accumulator -= FIXED_STEP;
     }
     render();
