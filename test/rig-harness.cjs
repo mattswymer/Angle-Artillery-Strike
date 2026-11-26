@@ -60,11 +60,12 @@ function makeSlopeWorld(degrees) {
   const tangent = V(Math.cos(radians), Math.sin(radians));
   const normal = V(-Math.sin(radians), Math.cos(radians));
   const ground = world.createBody();
-  const halfLength = 20;
-  const center = V(0, 0);
-  const a = V(center.x - tangent.x * halfLength, center.y - tangent.y * halfLength);
-  const b = V(center.x + tangent.x * halfLength, center.y + tangent.y * halfLength);
-  ground.createFixture({ shape: new planck.Edge(a, b), friction: 1.0 });
+  // A thin solid platform gives the harness an unambiguous upward-facing
+  // contact surface; the top face lies on the requested slope through origin.
+  ground.createFixture({
+    shape: new planck.Box(20, 0.05, V(0, -0.05), radians),
+    friction: 1.0
+  });
   return { world, radians, tangent, normal };
 }
 
