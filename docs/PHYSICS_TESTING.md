@@ -21,15 +21,15 @@ The two-bone IK solver clamps unreachable targets and has geometry tests for bot
 
 ## Important current limitation
 
-**The stance rig is not physically stable yet. Do not treat its passing diagnostic tests as proof that it can stand.**
+**The stance rig is only partially validated.** It now passes three-second flat-ground and 20° slope tests across eight fixed seeds. It still does not pass the 35° slope requirement.
 
-The latest stance traces show the rig initially supporting itself, then losing one or both foot contacts and rotating/falling. The current tests for this experiment only assert finite simulation output; they do not assert successful standing. This is intentional while the controller is being debugged. Flat ground must pass first, followed by 20° and 35° slopes, before the stance controller can be considered validated.
+The current acceptance tests verify three seconds of support on flat ground and 20° terrain across eight fixed seeds. The 20° case uses a narrower stance and a torso target aligned to the terrain. The 35° case is retained as a characterization test and still falls. The original ±0.6-radian ankle limits leave the high-side foot unable to align to the 35° surface; the target ankle angle is about 0.9 radians in the initial pose.
 
-The main unresolved behavior is loss of foot contact during the balance step. The controller uses actual foot contacts to determine the support interval and moves the foot on the side of the center-of-mass escape, holding its swing target until landing. The swing-height overwrite has been fixed and is covered by a regression test, but the corrected lift has not yet produced a reliable stand.
+The balance controller now measures the actual planted foot contact-patch bounds, rather than treating each foot as a point. This eliminated premature swing initiation and is the change that made the 20° test pass. Swing targets remain fixed until landing, and a regression test verifies that the swing lift is preserved. The remaining 35° issue is no longer an early-step trigger: the high-side ankle saturates before it can align the foot to the terrain.
 
-A bilateral diagnostic confirms that the rig's initial geometry and a free-flight physics step are mirror-symmetric. Once both feet contact a flat ground edge, the first solver step introduces a small asymmetry (about 0.005 radians, primarily at the ankles). This is a contact-solver effect and is not, by itself, large enough to explain the eventual fall. A 60-step controlled settling phase before the measured three-second interval does not materially improve the flat-ground result; the large torso rotation and peak speed remain essentially unchanged.
+A bilateral diagnostic confirms that the rig's initial geometry and a free-flight physics step are mirror-symmetric. Independent terrain edge fixtures produced seam-sensitive results; the harness now simplifies collinear terrain samples before creating a connected Planck chain, matching the production terrain contour simplification. A separate diagnostic confirms that a 60-step controlled settling phase is not needed for the flat-ground acceptance case.
 
-The reference gait controller and its existing slope results remain separate from this stance result. Passing the locomotion tests does not imply that the new stance rig is stable.
+The reference gait controller and its existing slope results remain separate from this stance result. Passing the locomotion tests does not imply that the new stance rig is stable. A diagnostic ankle-limit sweep shows that ±0.8 radians improves 35° behavior but still does not produce a stable three-second stand; increasing ankle motor torque from 1.5 to 6 Nm has negligible effect. No change to the production ragdoll or its ±0.6-radian test limits has been made.
 
 ## Reference locomotion cases
 
@@ -55,10 +55,10 @@ npm install
 npm test
 ```
 
-GitHub Actions is the authoritative execution environment when local dependency installation is unavailable. The suite currently includes the reference locomotion cases, rig structure and motor coverage, IK geometry, motor-sign verification, swing-clearance regression, bilateral symmetry/contact diagnostics, spawn-settling comparison, and finite-output stance/posture diagnostics. The current 24 tests pass, but the stance acceptance criteria remain unmet.
+GitHub Actions is the authoritative execution environment when local dependency installation is unavailable. The suite currently contains 27 passing tests. It covers reference locomotion, rig structure and motor coverage, IK geometry, motor-sign verification, swing-clearance regression, bilateral symmetry, spawn settling, three-second flat/20° stance acceptance, and a 35° failure characterization. The 35° acceptance criterion remains unmet.
 
 ## Scope and next steps
 
 The harness remains isolated. The production game still uses its existing character implementation; `src/main.js` has not been modified by this experiment.
 
-Do not integrate the stance rig until it passes real physical acceptance criteria: stable for three seconds on 0°, 20°, and 35° terrain; no unintended limp transition at spawn; and deterministic results across fixed seeds. Once that is achieved, proceed to fall triggers, hit-driven limp, recovery, turn-safety handling, and only then walking/jumping.
+Do not integrate the stance rig until it passes real physical acceptance criteria: stable for three seconds on 0°, 20°, and 35° terrain; no unintended limp transition at spawn; and deterministic results across fixed seeds. The unresolved design choice is whether the torso may lean with the local terrain and whether the ankle range/leg geometry may change to support 35° terrain. Once that is achieved, proceed to fall triggers, hit-driven limp, recovery, turn-safety handling, and only then walking/jumping.
