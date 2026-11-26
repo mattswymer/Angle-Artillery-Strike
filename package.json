@@ -1,0 +1,11 @@
+{
+  "name": "angle-artillery-strike",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "test:physics": "node --test tests/rig-physics.test.js"
+  },
+  "devDependencies": {
+    "planck": "1.5.1"
+  }
+}
