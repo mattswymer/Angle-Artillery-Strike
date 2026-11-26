@@ -301,6 +301,32 @@ test("common-bend upright stance sweeps support width and stance-center placemen
   assert.equal(results.length, 24);
 });
 
+test("common-bend upright stance sweeps corrective step reach", () => {
+  const results = [];
+  for (const degrees of [20, 35]) {
+    for (const stanceHalfWidth of [0.05, 0.15]) {
+      for (const stepReach of [0.1, 0.18, 0.25, 0.35]) {
+        const r = runStanceCase(
+          degrees, 1, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25,
+          stanceHalfWidth, 0.95, 0, 0, 0.6, 1.5, "same-positive", stepReach
+        );
+        results.push({
+          degrees, stanceHalfWidth, stepReach,
+          support: r.supportedTime, bothFeet: r.bothFeetContactTime,
+          tilt: r.maxAbsoluteTiltDegrees, air: r.maxAirTime, speed: r.maxSpeed,
+          trace: r.trace.slice(0, 6).map(point => ({
+            t: point.t, x: point.x, angle: point.angle, contacts: point.contacts,
+            center: point.centerOfMassX, swing: point.swingIndex,
+            feet: point.legs.map(leg => leg.foot)
+          }))
+        });
+      }
+    }
+  }
+  console.log("upright corrective step reach sweep", JSON.stringify(results));
+  assert.equal(results.length, 16);
+});
+
 test("common-bend upright stance sweeps torso balance gains on 20 degree terrain", () => {
   const results = [];
   for (const balanceKp of [0, 1.5, 3.5, 6]) {
