@@ -727,8 +727,7 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
   });
   const terrainReferenceAngle = terrainAngleAt(hull.getPosition().x) * (walker.terrainTiltBlend ?? 0);
   const walking = walkDirection !== 0 && walker.jumpPhase === "idle";
-  const landing = walker.jumpPhase === "land";
-  const pelvisRatio = walking || landing
+  const pelvisRatio = walking
     ? (walker.walkingPelvisRatio ?? 0.82)
     : (walker.pelvisRatio ?? 0.95);
   const pelvisTargetY = Math.min(
@@ -779,7 +778,9 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
     } else if (walker.jumpPhase === "air") {
       kneeTarget = wrapAngle(kneeTarget + leg.bend * 0.4);
     } else if (walker.jumpPhase === "land") {
-      kneeTarget = wrapAngle(kneeTarget + leg.bend * 0.25);
+      // Recover to the normal IK extension after the first contact rather
+      // than holding the knees in a permanently deep landing crouch.
+      kneeTorque = kneeTorqueMax * 1.5;
     }
     hipTargets.push(hipTarget);
     kneeTargets.push(kneeTarget);
