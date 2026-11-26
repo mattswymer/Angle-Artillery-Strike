@@ -262,14 +262,19 @@ function getRigCenterOfMass(rig) {
   let totalMass = 0;
   let x = 0;
   let y = 0;
+  let vx = 0;
+  let vy = 0;
   for (const body of bodies) {
     const mass = body.getMass();
     const center = body.getWorldCenter();
+    const velocity = body.getLinearVelocity();
     totalMass += mass;
     x += center.x * mass;
     y += center.y * mass;
+    vx += velocity.x * mass;
+    vy += velocity.y * mass;
   }
-  return V(x / totalMass, y / totalMass);
+  return { x: x / totalMass, y: y / totalMass, vx: vx / totalMass, vy: vy / totalMass };
 }
 
 function stepRig(world, rig, slopeRadians, dt = STEP) {
@@ -313,7 +318,12 @@ function stepRig(world, rig, slopeRadians, dt = STEP) {
       return left ? (a < b ? candidate : chosen) : (a > b ? candidate : chosen);
     }, null);
     const fromX = leg.foot.getPosition().x;
-    const toX = centerOfMass.x + (left ? -0.22 : 0.22);
+    // Predict the COM's drift during the swing so the new support foot lands
+    // ahead of the falling body rather than directly beneath its current pose.
+    const stepDistance = Math.max(0.18, Math.min(0.45,
+      0.18 + Math.abs(centerOfMass.vx) * 0.20
+    ));
+    const toX = centerOfMass.x + (left ? -stepDistance : stepDistance);
     if (Math.abs(toX - fromX) > 0.12) {
       leg.step = { fromX, toX, elapsed: 0, duration: 0.24 };
     }
@@ -412,6 +422,8 @@ function runSlopeCase(degrees, seed = 12345) {
         ankles: rig.legs.map(leg => Number(leg.ankleJoint.getJointAngle().toFixed(2))),
         badReasons: rig.badReasons,
         comX: Number(getRigCenterOfMass(rig).x.toFixed(3)),
+        comVx: Number(getRigCenterOfMass(rig).vx.toFixed(3)),
+        outsideSupport: rig.outsideTime > 0,
         steps: rig.legs.map(leg => leg.step ? Number((leg.step.elapsed / leg.step.duration).toFixed(2)) : 0),
         feet: rig.legs.map(leg => ({
           x: Number(leg.foot.getPosition().x.toFixed(3)),
