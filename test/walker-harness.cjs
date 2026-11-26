@@ -349,7 +349,7 @@ function walkerController(walker, terrainAngleAt = () => 0) {
 function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1) {
   const { hull, legs } = walker;
   const centerX = hull.getPosition().x;
-  const halfStance = 0.24;
+  const halfStance = 0.12;
   if (!walker.stanceTargets) {
     walker.stanceTargets = [centerX - halfStance, centerX + halfStance];
   }
@@ -369,9 +369,9 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1) {
     const surfaceY = heightAt(target.x);
     const terrainAngle = terrainAngleAt(target.x);
     target.y = surfaceY + 0.03;
-    const hipWorld = hull.getWorldPoint(Vec2(leg.side * (walker.separatedHips ? 0.16 : 0), LEG_DOWN));
+    const hipWorld = hull.getWorldPoint(Vec2(0, LEG_DOWN));
     const ankleTarget = Vec2(target.x, target.y);
-    const solution = legIK(hipWorld, ankleTarget, LEG_H, LEG_H, leg.side);
+    const solution = legIK(hipWorld, ankleTarget, LEG_H, LEG_H, 1);
 
     // Box long axes point down at body angle zero. Convert the IK's
     // mathematical +X segment direction into Planck body/joint angles.
@@ -400,8 +400,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0) {
   const phaseB = random() * Math.PI * 2;
   const { world, slope, heightAt, terrainAngleAt } = makeWorld(degrees, roughness, phaseA, phaseB);
   const startX = (random() - 0.5) * 0.2;
-  const walker = createWalker(world, slope, startX, random, heightAt, terrainAngleAt, { alignToTerrain: true, separatedHips: true });
-  walker.separatedHips = true;
+  const walker = createWalker(world, slope, startX, random, heightAt, terrainAngleAt, { alignToTerrain: true });
   const steps = Math.ceil(duration / FIXED_DT);
   let supportedTime = 0;
   let maxRelativeTilt = 0;
