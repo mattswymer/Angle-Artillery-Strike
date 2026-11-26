@@ -546,7 +546,7 @@ test("eight production rigs settle on a seeded uneven map without self-collision
         if (rig.mode === "active") {
           const p = rig.settings;
           productionRig.stanceController(rig, heightAt, terrainAngleAt, rig.stiffness,
-            3.5, 0.02, 1.5, p.reach, p.lookahead, 6, 6, p.swing, 0.2,
+            3.5, 0.06, 1.5, p.reach, p.lookahead, 6, 6, p.swing, 0.2,
             1, p.hipBlend, p.upperTorque);
         }
       } else {
@@ -554,7 +554,7 @@ test("eight production rigs settle on a seeded uneven map without self-collision
         if (rig.recovering) {
           const p = rig.settings;
           productionRig.stanceController(rig, heightAt, terrainAngleAt, state.stiffness,
-            3.5, 0.02, 1.5, p.reach, p.lookahead, 6, 6, p.swing, 0.2,
+            3.5, 0.06, 1.5, p.reach, p.lookahead, 6, 6, p.swing, 0.2,
             1, p.hipBlend, p.upperTorque);
         }
       }
