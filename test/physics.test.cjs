@@ -385,6 +385,22 @@ test("upright 35 degree final candidate tunes swing arc and duration", () => {
   assert.equal(results.length, 25);
 });
 
+test("upright 35 degree final pose reports initial foot clearance", () => {
+  const r = runStanceCase(
+    35, 1, 0.5, 0, 0, "chain", true, 3.5, 0.02, 0.25,
+    0.1, 0.95, 0, 0, 0.6, 1.5, "same-positive", 0.34, 0.36, 6, 6,
+    0.08, 0.2
+  );
+  console.log("upright 35 initial clearance", JSON.stringify({
+    initialPose: r.initialPose,
+    trace: r.trace.slice(0, 4).map(point => ({
+      t: point.t, contacts: point.contacts, angle: point.angle,
+      footPositions: point.legs.map(leg => leg.foot)
+    }))
+  }));
+  assert.equal(r.initialPose.length, 2);
+});
+
 test("upright 35 degree swing arc is fine-tuned around the two-foot near-pass", () => {
   const results = [];
   for (const swingHeight of [0.07, 0.075, 0.08, 0.085, 0.09]) {
