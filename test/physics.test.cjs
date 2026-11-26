@@ -431,6 +431,30 @@ test("stance-width sweep finds feasible ankle geometry on 20 and 35 degree slope
   assert.equal(results.length, 10);
 });
 
+test("terrain-relative torso lean and pelvis-height sweep finds a feasible slope stance", () => {
+  const results = [];
+  for (const degrees of [20, 35]) {
+    for (const blend of [0, 0.5, 1]) {
+      for (const halfWidth of [0.08, 0.1, 0.12]) {
+        const result = runStanceCase(
+          degrees, 1, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25,
+          halfWidth, 0.99, blend
+        );
+        results.push({
+          degrees, blend, halfWidth,
+          support: result.supportedTime,
+          tilt: result.maxRelativeTiltDegrees,
+          air: result.maxAirTime,
+          speed: result.maxSpeed,
+          maxAnkle: Math.max(...result.trace.flatMap(p => p.legs.map(leg => Math.abs(leg.ankle))))
+        });
+      }
+    }
+  }
+  console.log("terrain lean and pelvis sweep", JSON.stringify(results));
+  assert.equal(results.length, 18);
+});
+
 test("shared joint driver moves a revolute joint toward a positive target angle", () => {
   const world = new planck.World({ gravity: planck.Vec2(0, 0) });
   const base = world.createBody();
