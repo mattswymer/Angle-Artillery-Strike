@@ -679,33 +679,41 @@ function runRigSymmetryCase() {
   const measure = () => {
     const left = walker.legs[0];
     const right = walker.legs[1];
-    const pairs = [
-      [left.upper, right.upper],
-      [left.lower, right.lower],
-      [left.foot, right.foot]
-    ];
-    let error = 0;
-    for (const [a, b] of pairs) {
+    const details = {};
+    for (const key of ["upper", "lower", "foot"]) {
+      const a = left[key];
+      const b = right[key];
       const pa = walker.hull.getLocalPoint(a.getPosition());
       const pb = walker.hull.getLocalPoint(b.getPosition());
-      error = Math.max(error, Math.abs(pa.x + pb.x), Math.abs(pa.y - pb.y));
-      error = Math.max(error, Math.abs(
-        wrapAngle((a.getAngle() - walker.hull.getAngle()) +
-          (b.getAngle() - walker.hull.getAngle()))
-      ));
+      details[key] = {
+        x: Number((pa.x + pb.x).toFixed(8)),
+        y: Number((pa.y - pb.y).toFixed(8)),
+        angle: Number(wrapAngle(
+          (a.getAngle() - walker.hull.getAngle()) +
+          (b.getAngle() - walker.hull.getAngle())
+        ).toFixed(8))
+      };
     }
     for (const key of ["hip", "knee", "ankle"]) {
-      error = Math.max(error, Math.abs(left[key].getJointAngle() + right[key].getJointAngle()));
+      details[key] = Number((left[key].getJointAngle() + right[key].getJointAngle()).toFixed(8));
     }
-    return error;
+    const error = Math.max(...Object.values(details).flatMap(value =>
+      typeof value === "number" ? [Math.abs(value)] : Object.values(value).map(Math.abs)
+    ));
+    return { error, details };
   };
-  const initialError = measure();
+  const initial = measure();
   stanceController(walker, heightAt, terrainAngleAt);
   world.step(FIXED_DT, 180, 60);
+  const afterStep = measure();
   return {
-    initialError,
-    oneStepError: measure(),
-    contacts: walker.legs.map(leg => isGroundContact(leg.foot))
+    initialError: initial.error,
+    oneStepError: afterStep.error,
+    initial: initial.details,
+    afterStep: afterStep.details,
+    contacts: walker.legs.map(leg => isGroundContact(leg.foot)),
+    torsoAngle: walker.hull.getAngle(),
+    torsoVelocity: walker.hull.getLinearVelocity()
   };
 }
 
