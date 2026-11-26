@@ -47,14 +47,26 @@ for (const slope of [0, 20, 35]) {
     assert.equal(rig.torso, rig.byName.torso.body);
     assert.equal(rig.pieces.some(piece => piece.body.isFixedRotation()), false);
 
+    const trace = [];
     for (let i = 0; i < 180; i++) {
       rig.driveStance(STEP, terrainProbe);
       world.step(STEP, 10, 6);
       rig.updateFallState(STEP);
+      if (i % 10 === 0 || rig.mode === "limp") {
+        trace.push({
+          t: Number(((i + 1) * STEP).toFixed(2)),
+          mode: rig.mode,
+          torso: rig.torso.getPosition(),
+          feet: rig.footBodies.map(body => body.getPosition()),
+          targets: rig.footTargets.map(target => target.x),
+          joints: Object.fromEntries(["leftHip", "leftKnee", "leftAnkle", "rightHip", "rightKnee", "rightAnkle"]
+            .map(name => [name, Number(rig.jointMap[name].getJointAngle().toFixed(2))]))
+        });
+      }
     }
 
     assert.equal(rig.mode, "active", "a supported slope must not release the rig: " +
-      JSON.stringify({ reason: rig.limpReason, metrics: rig.lastFallMetrics }));
+      JSON.stringify({ reason: rig.limpReason, metrics: rig.lastFallMetrics, trace }));
     assert.equal(rig.getFootContacts().filter(Boolean).length, 2, "both feet must contact terrain");
     assert.ok(rig.stableTime >= 2.8, `stable duration was ${rig.stableTime.toFixed(2)}s`);
   });
