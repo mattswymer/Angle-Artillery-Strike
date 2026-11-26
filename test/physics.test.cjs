@@ -4,6 +4,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const planck = require("planck");
 const { runSlopeCase, runStanceCase, runSwingTargetCase, runRigSymmetryCase, seededRandom, legIK, driveJoint, createStanceRig, updateRigFallState, updateRigRecovery, recoveryAssistForce, footContactNormals, stanceController } = require("./walker-harness.cjs");
+const productionRig = require("../src/character-rig.js").create(planck);
 
 const SEEDS = [1, 7, 42, 99, 314, 1337, 481516, 8675309];
 
@@ -474,6 +475,22 @@ test("recovery assist never exceeds 1.3 times body weight and requires foot cont
   assert.equal(recoveryAssistForce(mass, 10, gravity, false), 0);
   assert.ok(recoveryAssistForce(mass, 100, gravity, true) <= 1.3 * mass * gravity);
   assert.equal(recoveryAssistForce(mass, 100, gravity, true), 65);
+});
+
+test("production rig module builds the same eleven-body, eleven-joint character", () => {
+  const world = new planck.World({ gravity: planck.Vec2(0, -10) });
+  const ground = world.createBody();
+  ground.createFixture({ shape: new planck.Edge(planck.Vec2(-5, 0), planck.Vec2(5, 0)), friction: 2.5 });
+  const rig = productionRig.createStanceRig(world, 0, () => 0, () => 0);
+  assert.equal(rig.bodies.length, 11);
+  assert.equal(rig.joints.length, 11);
+  assert.equal(rig.hull, rig.bodies[0]);
+  assert.equal(rig.mode, "active");
+  assert.equal(rig.stiffness, 1);
+  productionRig.stanceController(rig, () => 0, () => 0, 1, 3.5, 0.02, 1.5,
+    0.12, 0.41, 6, 6, 0.12, 0.2, 1, 1, 0.1);
+  world.step(1 / 50, 180, 60);
+  assert.ok(rig.bodies.every(body => Number.isFinite(body.getPosition().x)));
 });
 
 test("50 degree terrain exceeds the character stance rig's stable envelope", () => {
