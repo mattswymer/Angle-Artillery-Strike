@@ -234,7 +234,7 @@ test("stance translation is compared across segmented, continuous, and passive g
 
 test("joint-based torso feedback reduces flat-ground translation and rotation", () => {
   const seeds = SEEDS.slice(0, 4);
-  const baseline = seeds.map(seed => runStanceCase(0, seed, 3, 0, 0, "segmented", true, 0, 0));
+  const baseline = seeds.map(seed => runStanceCase(0, seed, 3, 0, 0, "chain", true, 0, 0));
   const stabilized = seeds.map(seed => runStanceCase(0, seed, 3));
   const summary = values => values.map(result => ({
     supportedTime: result.supportedTime,
@@ -258,7 +258,7 @@ test("joint-only torso feedback gain sweep identifies a stable flat-ground regio
   for (const kp of [1, 1.5, 2, 3, 4]) {
     for (const kd of [0.06, 0.25, 0.5]) {
       const runs = SEEDS.slice(0, 4).map(seed =>
-        runStanceCase(0, seed, 3, 0, 0, "segmented", true, kp, kd)
+        runStanceCase(0, seed, 3, 0, 0, "chain", true, kp, kd)
       );
       gains.push({
         kp,
@@ -298,30 +298,37 @@ test("higher-gain joint balance sweep checks seed sensitivity", () => {
   assert.equal(gains.length, 15);
 });
 
-test("high-gain stance behavior is compared at identical starts on segmented and continuous terrain", () => {
+test("connected terrain chains remove spawn-boundary instability", () => {
   const comparison = [];
   for (const seed of SEEDS.slice(0, 4)) {
+    const chain = runStanceCase(0, seed, 3, 0, 0, "chain", true, 3.5, 0.02);
     const segmented = runStanceCase(0, seed, 3, 0, 0, "segmented", true, 3.5, 0.02);
-    const continuous = runStanceCase(0, seed, 3, 0, 0, "continuous", true, 3.5, 0.02);
     comparison.push({
       seed,
-      startX: segmented.trace[0].x,
+      startX: chain.trace[0].x,
+      chain: {
+        support: chain.supportedTime,
+        tilt: chain.maxRelativeTiltDegrees,
+        air: chain.maxAirTime,
+        speed: chain.maxSpeed
+      },
       segmented: {
         support: segmented.supportedTime,
         tilt: segmented.maxRelativeTiltDegrees,
         air: segmented.maxAirTime,
         speed: segmented.maxSpeed
-      },
-      continuous: {
-        support: continuous.supportedTime,
-        tilt: continuous.maxRelativeTiltDegrees,
-        air: continuous.maxAirTime,
-        speed: continuous.maxSpeed
       }
     });
   }
-  console.log("segmented versus continuous terrain", JSON.stringify(comparison));
-  assert.equal(comparison.length, 4);
+  console.log("chain versus independent terrain edges", JSON.stringify(comparison));
+  for (const result of comparison) {
+    assert.ok(result.chain.support >= 2.9,
+      `connected chain should support the rig for 3 seconds: ${JSON.stringify(result)}`);
+    assert.ok(result.chain.tilt < 10,
+      `connected chain should keep the torso upright: ${JSON.stringify(result)}`);
+    assert.ok(result.chain.air < 0.1,
+      `connected chain should not produce prolonged airtime: ${JSON.stringify(result)}`);
+  }
 });
 
 test("shared joint driver moves a revolute joint toward a positive target angle", () => {
