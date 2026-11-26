@@ -455,7 +455,7 @@ function runSlopeCase(degrees, seed = 12345, allowSteps = true) {
   }
 
   for (let i = 0; i < frames; i++) {
-    stepRig(world, rig, radians);
+    stepRig(world, rig, radians, STEP, allowSteps);
     world.step(STEP, 8, 3);
     if (i % 30 === 0 || (i % 6 === 0 && i <= 36)) {
       trace.push({
