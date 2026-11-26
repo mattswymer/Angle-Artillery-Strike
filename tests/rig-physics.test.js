@@ -72,6 +72,18 @@ for (const slope of [0, 20, 35]) {
   });
 }
 
+test("initial motor pose can hold the rig without the stance controller", () => {
+  const { world, rig } = spawnRig(0);
+  const initial = rig.torso.getPosition();
+  for (let i = 0; i < 180; i++) world.step(STEP, 10, 6);
+  const final = rig.torso.getPosition();
+  assert.ok(Math.abs(final.x - initial.x) < 0.15,
+    `torso drifted horizontally: ${initial.x.toFixed(3)} to ${final.x.toFixed(3)}`);
+  assert.ok(Math.abs(final.y - initial.y) < 0.15,
+    `torso drifted vertically: ${initial.y.toFixed(3)} to ${final.y.toFixed(3)}`);
+  assert.equal(rig.getFootContacts().filter(Boolean).length, 2);
+});
+
 test("rig releases on a 50 degree slope", () => {
   const { world, rig, terrainProbe } = spawnRig(50);
   for (let i = 0; i < 90; i++) {
