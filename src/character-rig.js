@@ -723,7 +723,8 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
   });
   const terrainReferenceAngle = terrainAngleAt(hull.getPosition().x) * (walker.terrainTiltBlend ?? 0);
   const walking = walkDirection !== 0 && walker.jumpPhase === "idle";
-  const pelvisRatio = walking
+  const landing = walker.jumpPhase === "land";
+  const pelvisRatio = walking || landing
     ? (walker.walkingPelvisRatio ?? 0.82)
     : (walker.pelvisRatio ?? 0.95);
   const pelvisTargetY = Math.min(
