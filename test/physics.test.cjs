@@ -472,6 +472,28 @@ test("candidate terrain-aligned slope pose records its initial and failure state
   assert.equal(cases.length, 2);
 });
 
+test("COM-to-hip stance-center blend sweep finds slope-compatible foot placement", () => {
+  const results = [];
+  for (const degrees of [20, 35]) {
+    for (const centerBlend of [0, 0.25, 0.5, 0.75, 1]) {
+      const result = runStanceCase(
+        degrees, 1, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25,
+        0.05, 1.0, 1.0, centerBlend
+      );
+      results.push({
+        degrees, centerBlend,
+        support: result.supportedTime,
+        tilt: result.maxRelativeTiltDegrees,
+        air: result.maxAirTime,
+        speed: result.maxSpeed,
+        maxAnkle: Math.max(...result.trace.flatMap(p => p.legs.map(leg => Math.abs(leg.ankle))))
+      });
+    }
+  }
+  console.log("COM-to-hip stance center sweep", JSON.stringify(results));
+  assert.equal(results.length, 10);
+});
+
 test("shared joint driver moves a revolute joint toward a positive target angle", () => {
   const world = new planck.World({ gravity: planck.Vec2(0, 0) });
   const base = world.createBody();
