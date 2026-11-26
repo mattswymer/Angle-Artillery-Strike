@@ -510,7 +510,14 @@ function createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidt
     hit(dv = Vec2(0, 0)) {
       this.mode = "limp";
       this.stiffness = 0;
+      this.falling = false;
+      this.recovering = false;
+      this.recoverySettleTime = 0;
       this.fallReason = "hit";
+      for (const joint of this.joints) {
+        joint.setMotorSpeed(0);
+        joint.setMaxMotorTorque(0);
+      }
       this.hull.applyLinearImpulse(
         Vec2(dv.x * this.hull.getMass(), dv.y * this.hull.getMass()),
         this.hull.getWorldCenter(),
