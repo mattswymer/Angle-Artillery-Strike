@@ -145,9 +145,8 @@ test("two-bone IK clamps unreachable targets without producing invalid angles", 
 });
 
 for (const degrees of [0, 20, 35]) {
-  test(`IK stance controller remains numerically stable on ${degrees} degree terrain`, () => {
+  test(`IK stance controller emits finite diagnostics on ${degrees} degree terrain`, () => {
     const results = SEEDS.slice(0, 4).map(seed => runStanceCase(degrees, seed, 3));
-    console.log(`stance ${degrees}deg`, JSON.stringify(results));
     for (const result of results) {
       assert.equal(result.finite, true, `non-finite state on ${degrees} degree terrain: ${JSON.stringify(result)}`);
       assert.ok(Number.isFinite(result.maxSpeed));
@@ -175,9 +174,8 @@ test("shared joint driver moves a revolute joint toward a positive target angle"
 });
 
 for (const degrees of [0, 20, 35]) {
-  test(`simple joint posture controller diagnostic on ${degrees} degree terrain`, () => {
+  test(`simple posture diagnostic remains finite on ${degrees} degree terrain`, () => {
     const results = SEEDS.slice(0, 4).map(seed => runPostureCase(degrees, seed, 3));
-    console.log(`posture ${degrees}deg`, JSON.stringify(results));
     for (const result of results) {
       assert.ok(Number.isFinite(result.maxRelativeTiltDegrees));
       assert.ok(Number.isFinite(result.maxSpeed));
