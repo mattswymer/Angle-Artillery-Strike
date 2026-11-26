@@ -236,21 +236,21 @@ test("one slope-adaptive knee-bend policy works at 20 and 35 degrees", () => {
   assert.equal(results.length, 3);
 });
 
-test("full articulated rig tunes hip and knee torque for upright 35 degree terrain", () => {
+test("full articulated rig isolates upper-body motor torque on 35 degree terrain", () => {
   const results = [];
-  for (const [hipTorqueMax, kneeTorqueMax] of [[6, 6], [8, 8], [10, 10], [12, 12], [16, 16], [8, 12], [12, 8]]) {
+  for (const upperBodyTorqueScale of [0, 0.25, 0.5, 0.75, 1, 1.5, 2]) {
     const r = runStanceCase(
       35, 1, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25,
       0.1, 0.95, 0, 0, 0.6, 1.5, "same-positive", 0.34, 0.36,
-      hipTorqueMax, kneeTorqueMax, 0.08, 0.2, 1, 0.8
+      6, 6, 0.08, 0.2, 1, 0.8, 0.4, 1, upperBodyTorqueScale
     );
     results.push({
-      hipTorqueMax, kneeTorqueMax,
+      upperBodyTorqueScale,
       support: r.supportedTime, bothFeet: r.bothFeetContactTime,
       tilt: r.maxAbsoluteTiltDegrees, air: r.maxAirTime, speed: r.maxSpeed
     });
   }
-  console.log("full articulated 35 degree motor torque sweep", JSON.stringify(results));
+  console.log("full articulated upper-body torque sweep", JSON.stringify(results));
   assert.equal(results.length, 7);
 });
 
