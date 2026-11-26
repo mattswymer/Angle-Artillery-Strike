@@ -615,8 +615,7 @@
     const p = character.body.getPosition();
     const screen = worldToScreen(p.x, p.y, scale, offsetX);
     const unit = scale;
-    if (character.rig) {
-      const ragdoll = character.rig;
+    const ragdoll = character.rig;
       const jointPoint = joint => {
         const a = joint.getAnchorA();
         const b = joint.getAnchorB();
@@ -689,76 +688,6 @@
       ctx.fillStyle = character.team === 0 ? "#58a8ff" : "#ff7770";
       ctx.fillRect(screen.x - barWidth / 2, screen.y + barY, barWidth * (character.health / character.maxHealth), Math.max(3, unit * 0.055));
       return;
-    }
-
-    const velocity = character.body.getLinearVelocity();
-    const moving = character.grounded && Math.abs(velocity.x) > 0.35;
-    const jumping = !character.grounded;
-    const phase = performance.now() * 0.012 * (velocity.x < 0 ? -1 : 1);
-    const stride = moving ? Math.min(1, Math.abs(velocity.x) / 3.4) : 0;
-    const legSwing = jumping ? 0.23 : Math.sin(phase) * 0.28 * stride;
-    const armSwing = jumping ? -0.38 : -Math.sin(phase) * 0.22 * stride;
-    const kneeBend = moving ? Math.max(0, Math.sin(phase + 0.9)) * 0.12 * stride : 0;
-    const torsoLean = Math.max(-0.16, Math.min(0.16, velocity.x * 0.035));
-
-    ctx.save();
-    ctx.translate(screen.x, screen.y);
-    ctx.rotate(torsoLean);
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.strokeStyle = "#17232b";
-    ctx.lineWidth = Math.max(2.6, unit * 0.072);
-    ctx.fillStyle = character.color;
-    ctx.beginPath();
-    ctx.arc(0, -unit * 0.49, unit * 0.14, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(0, -unit * 0.34);
-    ctx.lineTo(0, unit * 0.25);
-    ctx.stroke();
-
-    const shoulderY = -unit * 0.22;
-    const leftElbowX = -unit * (0.24 + armSwing * 0.55);
-    const rightElbowX = unit * (0.24 + armSwing * 0.55);
-    const elbowY = jumping ? -unit * 0.48 : unit * 0.05;
-    const leftHandX = -unit * (0.30 + armSwing);
-    const rightHandX = unit * (0.30 + armSwing);
-    const handY = jumping ? -unit * 0.68 : unit * (0.02 + armSwing * 0.6);
-    ctx.beginPath();
-    ctx.moveTo(0, shoulderY);
-    ctx.lineTo(leftElbowX, elbowY);
-    ctx.lineTo(leftHandX, handY);
-    ctx.moveTo(0, shoulderY);
-    ctx.lineTo(rightElbowX, elbowY);
-    ctx.lineTo(rightHandX, handY);
-    ctx.stroke();
-
-    const hipY = unit * 0.25;
-    const leftKneeX = -unit * (0.14 + legSwing * 0.62);
-    const rightKneeX = unit * (0.14 - legSwing * 0.62);
-    const leftFootX = -unit * (0.23 + legSwing);
-    const rightFootX = unit * (0.23 - legSwing);
-    const leftKneeY = jumping ? unit * 0.46 : unit * (0.50 + kneeBend);
-    const rightKneeY = jumping ? unit * 0.43 : unit * (0.50 - kneeBend);
-    const leftFootY = jumping ? unit * 0.69 : unit * (0.78 - Math.max(0, Math.sin(phase)) * 0.12 * stride);
-    const rightFootY = jumping ? unit * 0.66 : unit * (0.78 + Math.max(0, Math.sin(phase)) * 0.12 * stride);
-    ctx.beginPath();
-    ctx.moveTo(0, hipY);
-    ctx.lineTo(leftKneeX, leftKneeY);
-    ctx.lineTo(leftFootX, leftFootY);
-    ctx.moveTo(0, hipY);
-    ctx.lineTo(rightKneeX, rightKneeY);
-    ctx.lineTo(rightFootX, rightFootY);
-    ctx.stroke();
-
-    const barWidth = unit * 0.64;
-    const barY = -unit * 0.96;
-    ctx.fillStyle = "#17232b";
-    ctx.fillRect(-barWidth / 2, barY, barWidth, Math.max(3, unit * 0.055));
-    ctx.fillStyle = character.team === 0 ? "#58a8ff" : "#ff7770";
-    ctx.fillRect(-barWidth / 2, barY, barWidth * (character.health / character.maxHealth), Math.max(3, unit * 0.055));
-    ctx.restore();
   }
 
   function drawAim(scale, offsetX) {
