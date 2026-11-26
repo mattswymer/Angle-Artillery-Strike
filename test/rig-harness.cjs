@@ -203,7 +203,7 @@ function createRig(world, degrees, x = 0) {
     );
 
     const hip = V(x + side * 0.105, pelvisY);
-    const ik = solveLegIK(hip, ankle, SEGMENT.thigh, SEGMENT.shin, -1);
+    const ik = solveLegIK(hip, ankle, SEGMENT.thigh, SEGMENT.shin, side);
     const thighCenter = V((hip.x + ik.knee.x) / 2, (hip.y + ik.knee.y) / 2);
     const shinCenter = V((ik.knee.x + ankle.x) / 2, (ik.knee.y + ankle.y) / 2);
     const thigh = addBox(
@@ -390,7 +390,7 @@ function stepRig(world, rig, slopeRadians, dt = STEP) {
     );
     const actualHipAnchor = rig.torso.getWorldPoint(V(leg.side * 0.105, -0.22));
     const hip = V(actualHipAnchor.x, pelvisTargetY);
-    const ik = solveLegIK(hip, ankle, SEGMENT.thigh, SEGMENT.shin, -1);
+    const ik = solveLegIK(hip, ankle, SEGMENT.thigh, SEGMENT.shin, leg.side);
     const hipTarget = ik.thighAngle - rig.torso.getAngle();
     const kneeTarget = ik.kneeRelative;
     const ankleTarget = slopeRadians - ik.shinAngle;
