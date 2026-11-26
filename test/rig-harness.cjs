@@ -254,10 +254,28 @@ function footContact(foot) {
   return null;
 }
 
+function getRigCenterOfMass(rig) {
+  const bodies = [
+    rig.torso, rig.head,
+    ...rig.legs.flatMap(leg => [leg.thigh, leg.shin, leg.foot])
+  ];
+  let totalMass = 0;
+  let x = 0;
+  let y = 0;
+  for (const body of bodies) {
+    const mass = body.getMass();
+    const center = body.getWorldCenter();
+    totalMass += mass;
+    x += center.x * mass;
+    y += center.y * mass;
+  }
+  return V(x / totalMass, y / totalMass);
+}
+
 function stepRig(world, rig, slopeRadians, dt = STEP) {
   rig.elapsed += dt;
   const torsoPosition = rig.torso.getPosition();
-  const slopeNormal = V(-Math.sin(slopeRadians), Math.cos(slopeRadians));
+  const centerOfMass = getRigCenterOfMass(rig);
   let contacts = 0;
   let worstNormalAngle = 0;
   let minFootX = Infinity;
@@ -277,17 +295,17 @@ function stepRig(world, rig, slopeRadians, dt = STEP) {
       worstNormalAngle = Math.max(worstNormalAngle, angleFromVertical);
     }
     const px = leg.foot.getPosition().x;
-    minFootX = Math.min(minFootX, px);
-    maxFootX = Math.max(maxFootX, px);
+    minFootX = Math.min(minFootX, px - 0.11);
+    maxFootX = Math.max(maxFootX, px + 0.11);
   }
 
-  const outsideSupport = torsoPosition.x < minFootX - 0.04 ||
-    torsoPosition.x > maxFootX + 0.04;
+  const outsideSupport = centerOfMass.x < minFootX - 0.04 ||
+    centerOfMass.x > maxFootX + 0.04;
   rig.outsideTime = outsideSupport ? rig.outsideTime + dt : 0;
 
   // Step only when the torso COM leaves the current foot support span.
   if (outsideSupport && !rig.legs.some(leg => leg.step)) {
-    const left = torsoPosition.x < minFootX;
+    const left = centerOfMass.x < minFootX;
     const leg = rig.legs.reduce((chosen, candidate) => {
       if (!chosen) return candidate;
       const a = candidate.foot.getPosition().x;
@@ -295,7 +313,7 @@ function stepRig(world, rig, slopeRadians, dt = STEP) {
       return left ? (a < b ? candidate : chosen) : (a > b ? candidate : chosen);
     }, null);
     const fromX = leg.foot.getPosition().x;
-    const toX = torsoPosition.x + (left ? -0.22 : 0.22);
+    const toX = centerOfMass.x + (left ? -0.22 : 0.22);
     if (Math.abs(toX - fromX) > 0.12) {
       leg.step = { fromX, toX, elapsed: 0, duration: 0.24 };
     }
@@ -349,10 +367,8 @@ function stepRig(world, rig, slopeRadians, dt = STEP) {
       footCenter.x - Math.sin(slopeRadians) * 0.035,
       footCenter.y + Math.cos(slopeRadians) * 0.035
     );
-    const hip = V(
-      torsoPosition.x + leg.side * 0.105,
-      pelvisTargetY
-    );
+    const actualHipAnchor = rig.torso.getWorldPoint(V(leg.side * 0.105, -0.22));
+    const hip = V(actualHipAnchor.x, pelvisTargetY);
     const ik = solveLegIK(hip, ankle, SEGMENT.thigh, SEGMENT.shin, -leg.side);
     const hipTarget = ik.thighAngle - rig.torso.getAngle() - leg.hipReference;
     const kneeTarget = ik.kneeRelative - leg.kneeReference;
