@@ -514,6 +514,26 @@ test("ankle-limit sensitivity sweep measures the additional range required at 35
   assert.equal(results.length, 6);
 });
 
+test("ankle torque sweep measures whether stronger foot alignment stabilizes 35 degree terrain", () => {
+  const results = [];
+  for (const ankleTorqueMax of [1.5, 2, 3, 4, 6]) {
+    const result = runStanceCase(
+      35, 1, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25,
+      0.05, 1.0, 1.0, 0, 0.8, ankleTorqueMax
+    );
+    results.push({
+      ankleTorqueMax,
+      support: result.supportedTime,
+      tilt: result.maxRelativeTiltDegrees,
+      air: result.maxAirTime,
+      speed: result.maxSpeed,
+      maxAnkle: Math.max(...result.trace.flatMap(p => p.legs.map(leg => Math.abs(leg.ankle))))
+    });
+  }
+  console.log("35 degree ankle torque sweep", JSON.stringify(results));
+  assert.equal(results.length, 5);
+});
+
 test("shared joint driver moves a revolute joint toward a positive target angle", () => {
   const world = new planck.World({ gravity: planck.Vec2(0, 0) });
   const base = world.createBody();
