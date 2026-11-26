@@ -175,6 +175,21 @@ test("character-proportion rig isolates contact-related symmetry drift", () => {
   assert.equal(grounded.contacts[0], grounded.contacts[1]);
 });
 
+test("spawn settling phase records physical stability after 60 physics steps", () => {
+  const results = SEEDS.slice(0, 4).map(seed => ({
+    cold: runStanceCase(0, seed, 3),
+    settled: runStanceCase(0, seed, 3, 0, 60)
+  }));
+  console.log("spawn settling comparison", JSON.stringify(results.map(({ cold, settled }) => ({
+    cold: { supportedTime: cold.supportedTime, maxRelativeTiltDegrees: cold.maxRelativeTiltDegrees, maxSpeed: cold.maxSpeed, maxAirTime: cold.maxAirTime },
+    settled: { supportedTime: settled.supportedTime, maxRelativeTiltDegrees: settled.maxRelativeTiltDegrees, maxSpeed: settled.maxSpeed, maxAirTime: settled.maxAirTime }
+  }))));
+  for (const { settled } of results) {
+    assert.ok(Number.isFinite(settled.maxRelativeTiltDegrees));
+    assert.ok(Number.isFinite(settled.maxSpeed));
+  }
+});
+
 test("shared joint driver moves a revolute joint toward a positive target angle", () => {
   const world = new planck.World({ gravity: planck.Vec2(0, 0) });
   const base = world.createBody();
