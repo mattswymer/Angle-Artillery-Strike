@@ -275,6 +275,29 @@ test("joint-only torso feedback gain sweep identifies a stable flat-ground regio
   assert.equal(gains.length, 15);
 });
 
+test("higher-gain joint balance sweep checks seed sensitivity", () => {
+  const gains = [];
+  for (const kp of [3.5, 4, 4.5, 5, 6]) {
+    for (const kd of [0.02, 0.06, 0.1]) {
+      const runs = SEEDS.slice(0, 4).map(seed =>
+        runStanceCase(0, seed, 3, 0, 0, "segmented", true, kp, kd)
+      );
+      gains.push({
+        kp, kd,
+        seeds: runs.map(r => ({
+          support: r.supportedTime,
+          tilt: r.maxRelativeTiltDegrees,
+          air: r.maxAirTime,
+          speed: r.maxSpeed,
+          x: r.finalPosition.x
+        }))
+      });
+    }
+  }
+  console.log("higher-gain stance sweep", JSON.stringify(gains));
+  assert.equal(gains.length, 15);
+});
+
 test("shared joint driver moves a revolute joint toward a positive target angle", () => {
   const world = new planck.World({ gravity: planck.Vec2(0, 0) });
   const base = world.createBody();
