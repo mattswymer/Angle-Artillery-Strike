@@ -365,9 +365,11 @@
       // segments from colliding with one another, while preserving terrain and
       // other-character collisions.
       const collisionGroup = -((character.team * 4) + character.number);
+      const distalLimb = name.includes("lower-arm") || name.includes("lower-leg");
       const fixture = body.createFixture({
         shape: circle ? new P.Circle(halfWidth) : new P.Box(halfWidth, halfHeight),
-        density, friction: 0.4, restitution: 0.2,
+        density, friction: 0.18, restitution: 0.04,
+        isSensor: distalLimb,
         filterGroupIndex: collisionGroup
       });
       fixture.setUserData({
@@ -445,6 +447,9 @@
       settledTime: 0, hitLocation, gettingUp: false, getUpElapsed: 0,
       standing: false, facing: character.team === 0 ? 1 : -1
     };
+    // The old upright hitbox was shorter than the articulated body. Clear any
+    // overlap created when converting it into a full ragdoll before applying blast force.
+    liftRagdollOutOfTerrain(character.ragdoll);
     world.destroyBody(oldBody);
 
   }
@@ -474,9 +479,56 @@
     }
   }
 
+  function ragdollIntersectsTerrain(ragdoll) {
+    const supportParts = new Set([
+      "torso", "head", "left-upper-arm", "right-upper-arm",
+      "left-upper-leg", "right-upper-leg"
+    ]);
+    for (const piece of ragdoll.pieces) {
+      if (!supportParts.has(piece.name)) continue;
+      const points = piece.circle
+        ? [[0, 0], [piece.halfWidth * 0.7, 0], [-piece.halfWidth * 0.7, 0],
+          [0, piece.halfWidth * 0.7], [0, -piece.halfWidth * 0.7]]
+        : [[0, 0],
+          [piece.halfWidth * 0.8, piece.halfHeight * 0.8],
+          [-piece.halfWidth * 0.8, piece.halfHeight * 0.8],
+          [piece.halfWidth * 0.8, -piece.halfHeight * 0.8],
+          [-piece.halfWidth * 0.8, -piece.halfHeight * 0.8]];
+      for (const local of points) {
+        const point = piece.body.getWorldPoint(V(local[0], local[1]));
+        const cellX = Math.floor(point.x / terrainSystem.cellSize);
+        const cellY = Math.floor((point.y - terrainSystem.originY) / terrainSystem.cellSize);
+        if (terrainSystem.isSolid(cellX, cellY)) return true;
+      }
+    }
+    return false;
+  }
+
+  function liftRagdollOutOfTerrain(ragdoll) {
+    let lifted = 0;
+    while (lifted < 2.0 && ragdollIntersectsTerrain(ragdoll)) {
+      for (const piece of ragdoll.pieces) {
+        const body = piece.body;
+        const position = body.getPosition();
+        body.setTransform(V(position.x, position.y + 0.04), body.getAngle());
+        body.setAwake(true);
+      }
+      lifted += 0.04;
+    }
+    if (lifted > 0) {
+      for (const piece of ragdoll.pieces) {
+        const body = piece.body;
+        const velocity = body.getLinearVelocity();
+        body.setLinearVelocity(V(velocity.x, Math.max(0, velocity.y * 0.25)));
+        body.setAngularVelocity(body.getAngularVelocity() * 0.35);
+      }
+    }
+    return lifted;
+  }
+
   function ragdollHasGroundContact(ragdoll) {
     return ragdoll.pieces.some(piece => {
-      if (!piece.name.includes("lower-leg") && piece.name !== "torso") return false;
+      if (!piece.name.includes("upper-leg") && piece.name !== "torso") return false;
       const body = piece.body;
       const position = body.getPosition();
       const angle = body.getAngle();
@@ -499,18 +551,18 @@
   }
 
   function getUpPose(ragdoll, elapsed) {
-    // Both knees/hands -> one foot/knee/hands -> both feet/hands -> stand.
-    if (elapsed < 0.85) return {
+    // Keep the requested support sequence, but move through it decisively.
+    if (elapsed < 0.28) return {
       leftHip: -0.48, rightHip: -0.48, leftKnee: 1.25, rightKnee: -1.25,
       leftShoulder: -ragdoll.facing * 0.78, rightShoulder: -ragdoll.facing * 0.78,
       leftElbow: ragdoll.facing * 1.05, rightElbow: ragdoll.facing * 1.05, neck: 0
     };
-    if (elapsed < 1.65) return {
+    if (elapsed < 0.56) return {
       leftHip: -0.32, rightHip: 0, leftKnee: 1.05, rightKnee: 0,
       leftShoulder: -ragdoll.facing * 0.72, rightShoulder: -ragdoll.facing * 0.72,
       leftElbow: ragdoll.facing * 0.9, rightElbow: ragdoll.facing * 0.9, neck: 0
     };
-    if (elapsed < 2.45) return {
+    if (elapsed < 0.84) return {
       leftHip: 0, rightHip: 0, leftKnee: 0, rightKnee: 0,
       leftShoulder: -ragdoll.facing * 0.62, rightShoulder: -ragdoll.facing * 0.62,
       leftElbow: ragdoll.facing * 0.82, rightElbow: ragdoll.facing * 0.82, neck: 0
@@ -519,23 +571,35 @@
       leftShoulder: 0, rightShoulder: 0, leftElbow: 0, rightElbow: 0, neck: 0 };
   }
 
+  function terrainHeightBelow(x, y, distance = 2.2) {
+    let surface = null;
+    world.rayCast(V(x, y + 0.25), V(x, y - distance), (fixture, point, normal, fraction) => {
+      if (fixture.getBody().getUserData()?.kind !== "terrain") return -1;
+      surface = point.y;
+      return fraction;
+    });
+    return surface;
+  }
+
   function driveGetUp(ragdoll) {
     const targets = getUpPose(ragdoll, ragdoll.getUpElapsed);
-    const torque = ragdoll.getUpElapsed < 2.45 ? 0.42 : 0.32;
+    const torque = ragdoll.getUpElapsed < 0.84 ? 0.78 : 0.58;
     for (const [name, joint] of Object.entries(ragdoll.jointMap)) {
       const error = (targets[name] ?? 0) - joint.getJointAngle();
-      joint.setMotorSpeed(Math.max(-5, Math.min(5, error * 7 - joint.getJointSpeed() * 0.9)));
+      joint.setMotorSpeed(Math.max(-7, Math.min(7, error * 9 - joint.getJointSpeed() * 1.2)));
       joint.setMaxMotorTorque(torque);
     }
     const torso = ragdoll.torso;
     let angle = torso.getAngle();
     while (angle > Math.PI) angle -= Math.PI * 2;
     while (angle < -Math.PI) angle += Math.PI * 2;
-    torso.applyTorque(-angle * 5.5 - torso.getAngularVelocity() * 1.6, true);
-    if (ragdoll.getUpElapsed > 1.55 && ragdoll.getUpElapsed < 3.0) {
+    torso.applyTorque(-angle * 8 - torso.getAngularVelocity() * 2.4, true);
+    if (ragdoll.getUpElapsed > 0.56 && ragdoll.getUpElapsed < 1.02) {
       const position = torso.getPosition();
-      const floor = heightAt(Math.max(0, Math.min(WORLD_WIDTH, position.x)));
-      if (position.y < floor + 0.94) torso.applyForceToCenter(V(0, torso.getMass() * 4.5), true);
+      const floor = terrainHeightBelow(position.x, position.y);
+      if (floor !== null && position.y < floor + 0.98) {
+        torso.applyForceToCenter(V(0, torso.getMass() * 6.0), true);
+      }
     }
   }
 
@@ -557,19 +621,28 @@
         const averageSpin = ragdoll.pieces.reduce((sum, piece) =>
           sum + Math.abs(piece.body.getAngularVelocity()), 0) / ragdoll.pieces.length;
         ragdoll.elapsedTime += FIXED_STEP;
-        const settled = ragdoll.elapsedTime > 0.8 && ragdollHasGroundContact(ragdoll) &&
-          averageSpeed < 0.55 && averageSpin < 1.8;
+        const settled = ragdoll.elapsedTime > 0.3 && ragdollHasGroundContact(ragdoll) &&
+          averageSpeed < 0.85 && averageSpin < 2.4;
         ragdoll.settledTime = settled ? ragdoll.settledTime + FIXED_STEP : 0;
-        if (ragdoll.settledTime >= 0.3 || ragdoll.elapsedTime >= 4.5) {
+        if (ragdoll.settledTime >= 0.12 || ragdoll.elapsedTime >= 1.4) {
+          // If a limb is buried or still tumbling, clear the overlap and bleed
+          // off the worst residual motion before the motors begin standing up.
+          liftRagdollOutOfTerrain(ragdoll);
+          ragdoll.pieces.forEach(piece => {
+            const body = piece.body;
+            const velocity = body.getLinearVelocity();
+            body.setLinearVelocity(V(velocity.x * 0.3, velocity.y * 0.3));
+            body.setAngularVelocity(body.getAngularVelocity() * 0.35);
+            body.setAwake(true);
+          });
           ragdoll.gettingUp = true;
           ragdoll.getUpElapsed = 0;
-          ragdoll.pieces.forEach(piece => piece.body.setAwake(true));
         }
         continue;
       }
       ragdoll.getUpElapsed += FIXED_STEP;
       driveGetUp(ragdoll);
-      if (ragdoll.getUpElapsed >= 3.25) {
+      if (ragdoll.getUpElapsed >= 1.15) {
         ragdoll.gettingUp = false;
         ragdoll.standing = true;
         ragdoll.elapsedTime = 0;
@@ -596,6 +669,11 @@
     const blastRadius = 2.6;
     const removedCells = terrainSystem.carveCircle(point.x, point.y, radius);
     rebuildTerrain();
+    // Destruction can leave existing articulated bodies intersecting a newly
+    // exposed crater wall. Resolve that before contacts and get-up motors fight it.
+    for (const character of characters) {
+      if (character.ragdoll && !character.eliminated) liftRagdollOutOfTerrain(character.ragdoll);
+    }
     const damageEvents = [];
 
     for (const character of characters) {
@@ -758,34 +836,70 @@
     const screen = worldToScreen(p.x, p.y, scale, offsetX);
     const unit = scale;
     if (character.ragdoll) {
-      for (const piece of character.ragdoll.pieces) {
-        const body = piece.body;
-        const pos = body.getPosition();
-        const point = worldToScreen(pos.x, pos.y, scale, offsetX);
-        ctx.save();
-        ctx.translate(point.x, point.y);
-        ctx.rotate(-body.getAngle());
-        ctx.fillStyle = character.color;
-        ctx.strokeStyle = "#17232b";
-        ctx.lineWidth = Math.max(2.4, unit * 0.065);
-        if (piece.circle) {
-          ctx.beginPath();
-          ctx.arc(0, 0, piece.halfWidth * unit, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.stroke();
-        } else {
-          ctx.lineCap = "round";
-          ctx.lineJoin = "round";
-          // Draw ragdoll segments as the same thin stick-like strokes used by
-          // the standing character; physics boxes remain invisible hit shapes.
-          ctx.beginPath();
-          ctx.moveTo(0, -piece.halfHeight * unit);
-          ctx.lineTo(0, piece.halfHeight * unit);
-          ctx.lineWidth = Math.max(2.6, unit * 0.072);
-          ctx.stroke();
-        }
-        ctx.restore();
+      const ragdoll = character.ragdoll;
+      const jointPoint = joint => {
+        const a = joint.getAnchorA();
+        const b = joint.getAnchorB();
+        return V((a.x + b.x) * 0.5, (a.y + b.y) * 0.5);
+      };
+      const screenPoint = point => worldToScreen(point.x, point.y, scale, offsetX);
+      const drawBone = (a, b) => {
+        const start = screenPoint(a);
+        const end = screenPoint(b);
+        ctx.beginPath();
+        ctx.moveTo(start.x, start.y);
+        ctx.lineTo(end.x, end.y);
+        ctx.stroke();
+      };
+      const points = {};
+      for (const [name, joint] of Object.entries(ragdoll.jointMap)) {
+        points[name] = jointPoint(joint);
       }
+      const leftHand = ragdoll.byName["left-lower-arm"].body.getWorldPoint(V(0, -0.17));
+      const rightHand = ragdoll.byName["right-lower-arm"].body.getWorldPoint(V(0, -0.17));
+      const leftFoot = ragdoll.byName["left-lower-leg"].body.getWorldPoint(V(0, -0.17));
+      const rightFoot = ragdoll.byName["right-lower-leg"].body.getWorldPoint(V(0, -0.17));
+      const head = ragdoll.byName.head.body.getPosition();
+      const shoulderCenter = V((points.leftShoulder.x + points.rightShoulder.x) * 0.5,
+        (points.leftShoulder.y + points.rightShoulder.y) * 0.5);
+      const hipCenter = V((points.leftHip.x + points.rightHip.x) * 0.5,
+        (points.leftHip.y + points.rightHip.y) * 0.5);
+
+      ctx.save();
+      ctx.strokeStyle = character.color;
+      ctx.lineWidth = Math.max(2.8, unit * 0.075);
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      // Render each bone between the live physics joint anchors. This keeps
+      // the stick figure visually connected even within solver tolerance.
+      drawBone(points.neck, head);
+      drawBone(shoulderCenter, hipCenter);
+      drawBone(points.leftShoulder, points.leftElbow);
+      drawBone(points.leftElbow, leftHand);
+      drawBone(points.rightShoulder, points.rightElbow);
+      drawBone(points.rightElbow, rightHand);
+      drawBone(points.leftHip, points.leftKnee);
+      drawBone(points.leftKnee, leftFoot);
+      drawBone(points.rightHip, points.rightKnee);
+      drawBone(points.rightKnee, rightFoot);
+
+      ctx.fillStyle = "#17232b";
+      for (const point of Object.values(points)) {
+        const screenPointValue = screenPoint(point);
+        ctx.beginPath();
+        ctx.arc(screenPointValue.x, screenPointValue.y, Math.max(2.2, unit * 0.045), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      const headScreen = screenPoint(head);
+      ctx.beginPath();
+      ctx.arc(headScreen.x, headScreen.y, Math.max(3.2, unit * 0.135), 0, Math.PI * 2);
+      ctx.fillStyle = character.color;
+      ctx.fill();
+      ctx.lineWidth = 1.4;
+      ctx.strokeStyle = "#17232b";
+      ctx.stroke();
+      ctx.restore();
+
       const barWidth = unit * 0.64;
       const barY = -unit * 0.96;
       ctx.fillStyle = "#17232b";
