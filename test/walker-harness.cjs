@@ -412,8 +412,8 @@ function createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidt
       localAnchorB: Vec2(0, FOOT_HALF_HEIGHT),
       enableMotor: true,
       enableLimit: true,
-      lowerAngle: -0.6,
-      upperAngle: 0.6,
+      lowerAngle: -ankleLimit,
+      upperAngle: ankleLimit,
       maxMotorTorque: 4,
       referenceAngle: 0,
       collideConnected: false
