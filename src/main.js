@@ -22,10 +22,11 @@
 
   const P = window.planck;
   const V = P.Vec2;
+  const CharacterRig = window.CharacterRig.create(P);
   const WORLD_WIDTH = 24;
   const WORLD_HEIGHT = 13.5;
   const TERRAIN_SAMPLES = 121;
-  const FIXED_STEP = 1 / 60;
+  const FIXED_STEP = 1 / 50;
   const GRAVITY = 10;
   const POWER_100_SPEED = Math.sqrt(WORLD_WIDTH * GRAVITY);
   const COLORS = ["#287bd1", "#d64d4d"];
@@ -79,6 +80,42 @@
     const right = Math.min(TERRAIN_SAMPLES - 1, left + 1);
     const blend = position - left;
     return terrainHeights[left] * (1 - blend) + terrainHeights[right] * blend;
+  }
+
+  function terrainAngleAt(x) {
+    return Math.atan2(heightAt(x + 0.01) - heightAt(x - 0.01), 0.02);
+  }
+
+  function rigSettingsForX(x) {
+    const angle = terrainAngleAt(x);
+    const slope = Math.abs(angle) * 180 / Math.PI;
+    if (slope > 25) {
+      return {
+        stanceHalfWidth: 0.1, pelvisRatio: 0.95,
+        bendMode: angle < 0 ? "same-positive" : "same-negative",
+        highSideBend: 1, lowSideBend: 1,
+        stepReach: 0.34, stepLookahead: 0.36,
+        hipHeightBlend: 0.8, swingHeight: 0.08,
+        swingDuration: 0.2, upperBodyTorqueScale: 0.1
+      };
+    }
+    if (slope > 8) {
+      return {
+        stanceHalfWidth: 0.1, pelvisRatio: 0.85,
+        bendMode: "slope-adaptive",
+        highSideBend: 0.4, lowSideBend: 1,
+        stepReach: 0.12, stepLookahead: 0.41,
+        hipHeightBlend: 1, swingHeight: 0.12,
+        swingDuration: 0.2, upperBodyTorqueScale: 1
+      };
+    }
+    return {
+      stanceHalfWidth: 0.12, pelvisRatio: 0.95,
+      bendMode: "side", highSideBend: 0.4, lowSideBend: 1,
+      stepReach: 0.18, stepLookahead: 0.25,
+      hipHeightBlend: 1, swingHeight: 0.12,
+      swingDuration: 0.2, upperBodyTorqueScale: 1
+    };
   }
 
   function generateTerrain(random) {
@@ -140,34 +177,72 @@
   }
 
   function makeCharacter(team, number, x) {
-    const y = heightAt(x) + 0.78;
-    const body = world.createBody({
-      type: "dynamic",
-      position: V(x, y),
-      fixedRotation: true,
-      linearDamping: 0.7,
-      allowSleep: false,
-      userData: { kind: "character", team, number }
-    });
-    const hitboxes = [
-      { location: "head", shape: new P.Circle(V(0, 0.49), 0.14), density: 0.75 },
-      { location: "chest", shape: new P.Box(0.17, 0.29, V(0, 0.04)), density: 1.5 },
-      { location: "legs", shape: new P.Box(0.13, 0.28, V(0, -0.53)), density: 1.1 }
-    ];
-    for (const hitbox of hitboxes) {
-      const fixture = body.createFixture({
-        shape: hitbox.shape,
-        density: hitbox.density,
-        friction: 0.82,
-        restitution: 0.02
-      });
-      fixture.setUserData({ kind: "character", location: hitbox.location });
+    const settings = rigSettingsForX(x);
+    const collisionGroup = -((team * 4) + number);
+    const rig = CharacterRig.createStanceRig(
+      world, x, heightAt, terrainAngleAt,
+      settings.stanceHalfWidth, settings.pelvisRatio, 0, 0, 0.6,
+      settings.bendMode, settings.highSideBend, settings.lowSideBend, collisionGroup
+    );
+    for (const piece of rig.pieces) {
+      const part = piece.name;
+      piece.body.setUserData({ kind: "character", team, number, part });
+      const location = part === "head" ? "head" :
+        part.includes("leg") || part.includes("foot") ? "legs" : "chest";
+      for (let fixture = piece.body.getFixtureList(); fixture; fixture = fixture.getNext()) {
+        fixture.setUserData({ kind: "character", location, part });
+      }
     }
+    rig.settings = settings;
     return {
-      body, team, number, color: COLORS[team], grounded: false, eliminated: false,
-      health: 100, maxHealth: 100, aimAngle: team === 0 ? 0 : 180, aimPower: 100,
-      grounded: true, ragdoll: null
+      body: rig.hull, rig, team, number, color: COLORS[team],
+      grounded: false, eliminated: false,
+      health: 100, maxHealth: 100,
+      aimAngle: team === 0 ? 0 : 180, aimPower: 100
     };
+  }
+
+  function driveCharacterRig(character) {
+    if (character.eliminated) return;
+    const rig = character.rig;
+    const settings = rig.settings;
+    if (rig.mode === "active") {
+      CharacterRig.updateRigFallState(rig, FIXED_STEP, false);
+      if (rig.mode !== "active") return;
+      CharacterRig.stanceController(
+        rig, heightAt, terrainAngleAt, rig.stiffness,
+        3.5, 0.02, 1.5, settings.stepReach, settings.stepLookahead,
+        6, 6, settings.swingHeight, settings.swingDuration,
+        1, settings.hipHeightBlend, settings.upperBodyTorqueScale
+      );
+      return;
+    }
+    const recovery = CharacterRig.updateRigRecovery(rig, FIXED_STEP, heightAt);
+    if (rig.recovering) {
+      CharacterRig.stanceController(
+        rig, heightAt, terrainAngleAt, recovery.stiffness,
+        3.5, 0.02, 1.5, settings.stepReach, settings.stepLookahead,
+        6, 6, settings.swingHeight, settings.swingDuration,
+        1, settings.hipHeightBlend, settings.upperBodyTorqueScale
+      );
+    }
+  }
+
+  function updateRigStability() {
+    for (const character of characters) {
+      const rig = character.rig;
+      if (!character.eliminated && rig.mode === "active" && CharacterRig.rigIsStable(rig)) {
+        rig.stableTime += FIXED_STEP;
+      } else {
+        rig.stableTime = 0;
+      }
+      character.grounded = rig.legs.some(leg => CharacterRig.isGroundContact(leg.foot));
+    }
+  }
+
+  function canAct(character) {
+    return Boolean(character && !character.eliminated &&
+      character.rig.mode === "active" && character.rig.stableTime >= 0.3);
   }
 
   function createWorld() {
@@ -193,6 +268,12 @@
     const firstOrder = shuffle(firstTeam === 0 ? blueTeam : redTeam, random);
     const secondOrder = shuffle(firstTeam === 0 ? redTeam : blueTeam, random);
     characters = firstOrder.map((character, index) => [character, secondOrder[index]]).flat();
+    // Settle the articulated spawn pose before the first frame is rendered.
+    for (let step = 0; step < 60; step++) {
+      characters.forEach(driveCharacterRig);
+      world.step(FIXED_STEP, 180, 60);
+      updateRigStability();
+    }
     damagePopups = [];
     activeIndex = 0;
     activeAction = null;
