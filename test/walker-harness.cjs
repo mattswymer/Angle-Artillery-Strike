@@ -588,7 +588,7 @@ function getRigCenterOfMassX(walker) {
   return totalMass > 0 ? weightedX / totalMass : walker.hull.getPosition().x;
 }
 
-function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1, balanceKp = 1.5, balanceKd = 0.06, ankleTorqueMax = 1.5, stepReach = 0.18, stepLookahead = 0.25, hipTorqueMax = 4, kneeTorqueMax = 4, swingHeight = 0.12, swingDuration = 0.2) {
+function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1, balanceKp = 1.5, balanceKd = 0.06, ankleTorqueMax = 1.5, stepReach = 0.18, stepLookahead = 0.25, hipTorqueMax = 4, kneeTorqueMax = 4, swingHeight = 0.12, swingDuration = 0.2, stanceTorqueScale = 1) {
   const { hull, legs } = walker;
   const centerX = getRigCenterOfMassX(walker);
   const predictedCenterX = centerX + hull.getLinearVelocity().x * stepLookahead;
@@ -659,6 +659,8 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1, balan
   for (let i = 0; i < legs.length; i++) {
     const leg = legs[i];
     const target = footTargets[i];
+    const swing = walker.swingIndex === i;
+    const legStiffness = stiffness * (swing ? 1 : stanceTorqueScale);
     const surfaceY = heightAt(target.x);
     const terrainAngle = terrainAngleAt(target.x);
     // Keep the swing lift calculated above. The IK target is the ankle joint
@@ -687,13 +689,13 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1, balan
     const kneeTarget = wrapAngle(lowerBodyAngle - upperBodyAngle);
     hipTargets.push(hipTarget);
     kneeTargets.push(kneeTarget);
-    driveJoint(leg.hip, hipTarget, 13, 4, hipTorqueMax, stiffness);
-    driveJoint(leg.knee, kneeTarget, 15, 5, kneeTorqueMax, stiffness);
+    driveJoint(leg.hip, hipTarget, 13, 4, hipTorqueMax, legStiffness);
+    driveJoint(leg.knee, kneeTarget, 15, 5, kneeTorqueMax, legStiffness);
 
     const desiredFootAngle = terrainAngle;
     const ankleTargetAngle = wrapAngle(desiredFootAngle - leg.lower.getAngle());
     ankleTargets.push(ankleTargetAngle);
-    driveJoint(leg.ankle, ankleTargetAngle, 12, 3, ankleTorqueMax, stiffness);
+    driveJoint(leg.ankle, ankleTargetAngle, 12, 3, ankleTorqueMax, legStiffness);
   }
 
   return {
@@ -839,7 +841,7 @@ function runRigSymmetryCase(continuousGround = false, runController = true) {
   };
 }
 
-function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmupSteps = 0, groundStyle = "chain", controllerEnabled = true, balanceKp = 3.5, balanceKd = 0.02, chainStep = 0.25, stanceHalfWidth = 0.12, pelvisRatio = 0.95, terrainTiltBlend = 0, stanceCenterBlend = 0, ankleLimit = 0.6, ankleTorqueMax = 1.5, bendMode = "side", stepReach = 0.18, stepLookahead = 0.25, hipTorqueMax = 4, kneeTorqueMax = 4, swingHeight = 0.12, swingDuration = 0.2) {
+function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmupSteps = 0, groundStyle = "chain", controllerEnabled = true, balanceKp = 3.5, balanceKd = 0.02, chainStep = 0.25, stanceHalfWidth = 0.12, pelvisRatio = 0.95, terrainTiltBlend = 0, stanceCenterBlend = 0, ankleLimit = 0.6, ankleTorqueMax = 1.5, bendMode = "side", stepReach = 0.18, stepLookahead = 0.25, hipTorqueMax = 4, kneeTorqueMax = 4, swingHeight = 0.12, swingDuration = 0.2, stanceTorqueScale = 1) {
   const random = seededRandom(seed);
   const phaseA = random() * Math.PI * 2;
   const phaseB = random() * Math.PI * 2;
@@ -881,7 +883,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
     }
   }
   for (let i = 0; i < warmupSteps; i++) {
-    if (controllerEnabled) stanceController(walker, heightAt, terrainAngleAt, 1, balanceKp, balanceKd, ankleTorqueMax, stepReach, stepLookahead, hipTorqueMax, kneeTorqueMax, swingHeight, swingDuration);
+    if (controllerEnabled) stanceController(walker, heightAt, terrainAngleAt, 1, balanceKp, balanceKd, ankleTorqueMax, stepReach, stepLookahead, hipTorqueMax, kneeTorqueMax, swingHeight, swingDuration, stanceTorqueScale);
     world.step(FIXED_DT, 180, 60);
   }
   const steps = Math.ceil(duration / FIXED_DT);
@@ -1004,6 +1006,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
     kneeTorqueMax,
     swingHeight,
     swingDuration,
+    stanceTorqueScale,
     initialPose,
     supportedTime: Number(supportedTime.toFixed(3)),
     bothFeetContactTime: Number(bothFeetContactTime.toFixed(3)),
