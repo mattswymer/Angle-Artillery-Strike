@@ -3,7 +3,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const planck = require("planck");
-const { runSlopeCase, runStanceCase, runSwingTargetCase, runRigSymmetryCase, seededRandom, legIK, driveJoint } = require("./walker-harness.cjs");
+const { runSlopeCase, runStanceCase, runSwingTargetCase, runRigSymmetryCase, seededRandom, legIK, driveJoint, createStanceRig, updateRigFallState } = require("./walker-harness.cjs");
 
 const SEEDS = [1, 7, 42, 99, 314, 1337, 481516, 8675309];
 
@@ -337,6 +337,46 @@ test("upright 20 and 35 degree stance remains controlled for three seconds acros
     assert.deepEqual(failures, [],
       `${candidate.degrees} degree upright stance failed: ${JSON.stringify(failures)}`);
   }
+});
+
+test("direct rig hit immediately removes all motor stiffness and applies delta velocity", () => {
+  const world = new planck.World({ gravity: planck.Vec2(0, -10) });
+  const heightAt = () => 0;
+  const terrainAngleAt = () => 0;
+  const rig = createStanceRig(world, 0, heightAt, terrainAngleAt);
+  rig.hit(planck.Vec2(2, 1));
+  assert.equal(rig.mode, "limp");
+  assert.equal(rig.stiffness, 0);
+  assert.equal(rig.fallReason, "hit");
+  assert.ok(rig.hull.getLinearVelocity().x > 0);
+  assert.ok(rig.hull.getLinearVelocity().y > 0);
+});
+
+test("excessive torso tilt ramps stiffness to limp over 100 milliseconds", () => {
+  const world = new planck.World({ gravity: planck.Vec2(0, -10) });
+  const rig = createStanceRig(world, 0, () => 0, () => 0);
+  rig.hull.setTransform(rig.hull.getPosition(), Math.PI / 2);
+  const first = updateRigFallState(rig, 0.02);
+  assert.equal(first.mode, "active");
+  assert.equal(first.reason, "torso-tilt");
+  assert.ok(first.stiffness < 1 && first.stiffness > 0);
+  for (let i = 0; i < 4; i++) updateRigFallState(rig, 0.02);
+  assert.equal(rig.mode, "limp");
+  assert.equal(rig.stiffness, 0);
+});
+
+test("loss of all foot contact triggers limp only after 300 milliseconds", () => {
+  const world = new planck.World({ gravity: planck.Vec2(0, -10) });
+  const rig = createStanceRig(world, 0, () => 0, () => 0);
+  for (let i = 0; i < 15; i++) {
+    const state = updateRigFallState(rig, 0.02);
+    assert.equal(state.mode, "active");
+  }
+  const triggered = updateRigFallState(rig, 0.02);
+  assert.equal(triggered.reason, "no-foot-contact");
+  assert.equal(triggered.mode, "active");
+  for (let i = 0; i < 4; i++) updateRigFallState(rig, 0.02);
+  assert.equal(rig.mode, "limp");
 });
 
 test("50 degree terrain exceeds the character stance rig's stable envelope", () => {
