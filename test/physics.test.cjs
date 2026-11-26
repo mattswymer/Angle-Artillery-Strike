@@ -2,7 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { runSlopeCase, seededRandom } = require("./walker-harness.cjs");
+const { runSlopeCase, seededRandom, legIK } = require("./walker-harness.cjs");
 
 const SEEDS = [1, 7, 42, 99, 314, 1337, 481516, 8675309];
 
@@ -96,4 +96,49 @@ test("all six hip, knee, and ankle joints are routed through the shared motor dr
   const result = runSlopeCase(20, 20261125, 3);
   assert.equal(result.jointCount, 6);
   assert.equal(result.motorJointCount, 6);
+});
+
+test("two-bone IK reconstructs reachable foot targets for both bend directions", () => {
+  const cases = [
+    { hip: { x: 0, y: 1 }, foot: { x: 0, y: 0 } },
+    { hip: { x: -0.2, y: 1.1 }, foot: { x: 0.35, y: 0.05 } },
+    { hip: { x: 0.4, y: 0.9 }, foot: { x: -0.3, y: 0.15 } },
+    { hip: { x: -0.5, y: 0.8 }, foot: { x: 0.2, y: -0.1 } }
+  ];
+  const upperLength = 0.6;
+  const lowerLength = 0.6;
+
+  for (const bend of [-1, 1]) {
+    for (const sample of cases) {
+      const solution = legIK(sample.hip, sample.foot, upperLength, lowerLength, bend);
+      const shinDirection = solution.thighDir - solution.kneeRel;
+      const knee = {
+        x: sample.hip.x + upperLength * Math.cos(solution.thighDir),
+        y: sample.hip.y + upperLength * Math.sin(solution.thighDir)
+      };
+      const reconstructedFoot = {
+        x: knee.x + lowerLength * Math.cos(shinDirection),
+        y: knee.y + lowerLength * Math.sin(shinDirection)
+      };
+      const error = Math.hypot(
+        reconstructedFoot.x - sample.foot.x,
+        reconstructedFoot.y - sample.foot.y
+      );
+      assert.ok(error < 1e-6,
+        `IK reconstruction error ${error} for bend ${bend}`);
+    }
+  }
+});
+
+test("two-bone IK clamps unreachable targets without producing invalid angles", () => {
+  const solution = legIK(
+    { x: 0, y: 0 },
+    { x: 10, y: 10 },
+    0.6,
+    0.6,
+    1
+  );
+  assert.ok(Number.isFinite(solution.thighDir));
+  assert.ok(Number.isFinite(solution.kneeRel));
+  assert.ok(solution.distance > 0);
 });
