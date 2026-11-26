@@ -626,6 +626,14 @@ test("production jump crouches, extends, leaves the ground, tucks, and lands sof
     maxY = Math.max(maxY, rig.hull.getPosition().y);
     if (rig.jumpPhase === "idle" && i > 20) break;
   }
+  console.log("jump diagnostic", JSON.stringify({
+    phases: [...phases], startY, maxY, endY: rig.hull.getPosition().y,
+    velocity: rig.hull.getLinearVelocity(),
+    mode: rig.mode, fallReason: rig.fallReason,
+    jumpPhase: rig.jumpPhase, airborne: rig.jumpAirborne,
+    contacts: rig.legs.map(leg => productionRig.isGroundContact(leg.foot)),
+    knees: rig.legs.map(leg => ({ target: leg.knee.getJointAngle(), bend: leg.bend }))
+  }));
   assert.ok(phases.has("crouch"));
   assert.ok(phases.has("extend"));
   assert.ok(phases.has("air"));
