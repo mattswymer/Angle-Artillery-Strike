@@ -292,17 +292,17 @@ const LOWER_HALF_WIDTH = 0.06;
 const FOOT_HALF_LENGTH = 0.09;
 const FOOT_HALF_HEIGHT = 0.03;
 
-function createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidth = 0.12) {
+function createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidth = 0.12, pelvisRatio = 0.95, terrainTiltBlend = 0) {
   // Start the torso aligned with the local terrain frame; the feet independently
   // align to the surface normal through their ankle joints.
-  const initialTerrainAngle = terrainAngleAt(startX);
+  const initialTerrainAngle = terrainAngleAt(startX) * terrainTiltBlend;
   const stanceCenterX = startX - HIP_Y * Math.sin(initialTerrainAngle);
   const initialFootY = Math.min(
     heightAt(stanceCenterX - stanceHalfWidth) + FOOT_HALF_HEIGHT * 2,
     heightAt(stanceCenterX + stanceHalfWidth) + FOOT_HALF_HEIGHT * 2
   );
   const pelvisTargetY = initialFootY +
-    0.97 * (UPPER_LENGTH + LOWER_LENGTH) +
+    pelvisRatio * (UPPER_LENGTH + LOWER_LENGTH) +
     Math.abs(HIP_X * Math.sin(initialTerrainAngle));
   const hull = world.createDynamicBody({
     position: Vec2(startX, pelvisTargetY - HIP_Y * Math.cos(initialTerrainAngle)),
@@ -431,7 +431,9 @@ function createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidt
     hull,
     legs,
     stanceTargets: [stanceCenterX - stanceHalfWidth, stanceCenterX + stanceHalfWidth],
-    stanceHalfWidth
+    stanceHalfWidth,
+    pelvisRatio,
+    terrainTiltBlend
   };
 }
 
@@ -633,11 +635,11 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1, balan
     const lift = swing ? Math.sin(progress * Math.PI) * 0.12 : 0;
     return { x, y: heightAt(x) + FOOT_HALF_HEIGHT * 2 + lift };
   });
-  const terrainReferenceAngle = terrainAngleAt(hull.getPosition().x);
+  const terrainReferenceAngle = terrainAngleAt(hull.getPosition().x) * (walker.terrainTiltBlend ?? 0);
   const pelvisTargetY = Math.min(
     heightAt(walker.stanceTargets[0]) + FOOT_HALF_HEIGHT * 2,
     heightAt(walker.stanceTargets[1]) + FOOT_HALF_HEIGHT * 2
-  ) + 0.97 * (UPPER_LENGTH + LOWER_LENGTH) +
+  ) + (walker.pelvisRatio ?? 0.95) * (UPPER_LENGTH + LOWER_LENGTH) +
     Math.abs(HIP_X * Math.sin(terrainReferenceAngle));
 
   const hipTargets = [];
@@ -825,7 +827,7 @@ function runRigSymmetryCase(continuousGround = false, runController = true) {
   };
 }
 
-function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmupSteps = 0, groundStyle = "chain", controllerEnabled = true, balanceKp = 3.5, balanceKd = 0.02, chainStep = 0.25, stanceHalfWidth = 0.08) {
+function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmupSteps = 0, groundStyle = "chain", controllerEnabled = true, balanceKp = 3.5, balanceKd = 0.02, chainStep = 0.25, stanceHalfWidth = 0.12, pelvisRatio = 0.95, terrainTiltBlend = 0) {
   const random = seededRandom(seed);
   const phaseA = random() * Math.PI * 2;
   const phaseB = random() * Math.PI * 2;
@@ -835,7 +837,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
       ? makeSegmentedWorld(degrees, roughness, phaseA, phaseB)
       : makeWorld(degrees, roughness, phaseA, phaseB, chainStep);
   const startX = (random() - 0.5) * 0.2;
-  const walker = createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidth);
+  const walker = createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidth, pelvisRatio, terrainTiltBlend);
   if (!controllerEnabled) {
     for (const leg of walker.legs) {
       leg.hip.enableMotor(false);
@@ -949,6 +951,8 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
     balanceKd,
     chainStep,
     stanceHalfWidth,
+    pelvisRatio,
+    terrainTiltBlend,
     supportedTime: Number(supportedTime.toFixed(3)),
     maxRelativeTiltDegrees: Number((maxRelativeTilt * 180 / Math.PI).toFixed(2)),
     maxSpeed: Number(maxSpeed.toFixed(3)),
