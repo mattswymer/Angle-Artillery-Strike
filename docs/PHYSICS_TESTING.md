@@ -2,21 +2,24 @@
 
 ## Controller foundation
 
-The earlier custom 12-body IK/stance harness is superseded. The current isolated prototype is a small four-joint biped based on the proven control pattern in Gymnasium's Box2D BipedalWalker:
+The earlier custom 12-body IK/stance experiment has been removed from the active test suite. The isolated prototype now ports the lower-body architecture and control pattern of Gymnasium's Box2D BipedalWalker into Planck.js:
 
-- torso/hull plus two upper and two lower leg bodies
-- revolute hip and knee joints with limits and torque-limited motors
-- contact detection on the lower legs
-- a three-phase gait state machine: support/swing, foot placement, push-off
-- joint feedback combines angle error and angular velocity damping
-- torso angle/angular velocity feedback is shared across both hips
-- vertical velocity damping is shared across both knees
+- one hull/torso plus two upper-leg and two lower-leg bodies
+- four revolute joints: hips and knees
+- the reference model's joint anchors, segment proportions, density/friction relationships, limits, and motor model
+- ground contact detected on the lower-leg bodies
+- three-phase gait: stay on one leg, put the other down, push off
+- joint-angle feedback with normalized joint-speed damping
+- torso-angle/angular-velocity feedback shared by both hips
+- vertical-velocity damping shared by both knees
+- bounded motor speed and torque
+- 50 Hz fixed timestep and the reference's high solver iteration budget (180 velocity / 60 position iterations)
 - deterministic seeded spawn offset
 
 Reference implementation:
 https://github.com/Farama-Foundation/Gymnasium/blob/main/gymnasium/envs/box2d/bipedal_walker.py
 
-This is a direct architectural reference, not a claim that the current prototype is already stable. The reference walker is designed to move forward; its heuristic is not a stationary standing controller. The harness therefore measures continuous locomotion and ground contact, not a static pose.
+The controller is based on a successful Box2D walker, but this is a Planck.js port and not a claim of identical simulation behavior. In particular, the reference heuristic is designed for forward locomotion, not static standing.
 
 ## Running
 
@@ -29,10 +32,15 @@ npm test
 
 ## Slope cases
 
-The headless Planck suite runs a deterministic three-second locomotion case on 0°, 20°, 35°, and 50° slopes. The intended envelope is to remain upright with repeated ground contact through 35° and lose stance at 50°.
+The headless Planck suite runs a deterministic three-second locomotion case on 0°, 20°, 35°, and 50° downhill slopes (the direction of travel is downhill).
 
-GitHub Actions is the authoritative execution environment when local dependency installation is unavailable. Do not integrate this controller into `src/main.js` until the tests pass and browser behavior is verified.
+- 0°, 20°, and 35° must remain physically upright and accumulate at least 1.5 seconds of ground-supported time, measured relative to the terrain normal
+- 50° must exceed the controlled locomotion envelope (excessive downhill speed or a prolonged airborne interval)
+
+The 50° test currently measures loss of controlled gait, not a completed knockdown animation. Physical fall detection and ragdoll response are separate integration work.
+
+GitHub Actions is the authoritative execution environment when local dependency installation is unavailable. The current headless Planck run passes all six tests.
 
 ## Scope
 
-The harness is deliberately isolated. The production game still uses its existing character implementation; `src/main.js` has not been modified by this experiment. The next step after the lower-body walker passes is to add the upper body/head/arms and hit-driven limp behavior without replacing the locomotion foundation.
+The harness is deliberately isolated. The production game still uses its existing character implementation; `src/main.js` has not been modified by this experiment. The next step is to add head, arms, feet, hit-driven limp behavior, and recovery around this proven lower-body foundation without replacing the locomotion controller.
