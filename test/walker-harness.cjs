@@ -519,9 +519,12 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1) {
   // COM has escaped from is replanted, and only after leaving the support
   // interval by 4 cm.
   if (centerX < walker.stanceTargets[0] - 0.04) {
-    walker.stanceTargets[0] = centerX - halfStance;
+    // The right leg is the swing leg when balance escapes left.
+    walker.stanceTargets[1] = centerX - halfStance;
   } else if (centerX > walker.stanceTargets[1] + 0.04) {
-    walker.stanceTargets[1] = centerX + halfStance;
+    // The left leg steps ahead when balance escapes right; keep the
+    // currently supporting right foot planted.
+    walker.stanceTargets[0] = centerX + halfStance;
   }
   const footTargets = walker.stanceTargets.map(x => ({ x, y: heightAt(x) + FOOT_HALF_HEIGHT * 2 }));
   const pelvisTargetY = Math.min(footTargets[0].y, footTargets[1].y) +
