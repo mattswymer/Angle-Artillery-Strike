@@ -222,6 +222,149 @@ function rotateLocal(point, angle) {
   );
 }
 
+
+const TORSO_HALF_WIDTH = 0.17;
+const TORSO_HALF_HEIGHT = 0.29;
+const HIP_X = 0.105;
+const HIP_Y = -0.25;
+const UPPER_LENGTH = 0.41;
+const LOWER_LENGTH = 0.34;
+const UPPER_HALF_WIDTH = 0.075;
+const LOWER_HALF_WIDTH = 0.06;
+const FOOT_HALF_LENGTH = 0.09;
+const FOOT_HALF_HEIGHT = 0.03;
+
+function createStanceRig(world, startX, heightAt, terrainAngleAt) {
+  const initialTerrainAngle = terrainAngleAt(startX);
+  const hull = world.createDynamicBody({
+    position: Vec2(startX, heightAt(startX) + 1.0),
+    angle: initialTerrainAngle,
+    linearDamping: 0.08,
+    angularDamping: 0.08,
+    allowSleep: false,
+    userData: { part: "torso" }
+  });
+  hull.createFixture({
+    shape: new planck.Box(TORSO_HALF_WIDTH, TORSO_HALF_HEIGHT),
+    density: 1.5,
+    friction: 0.18,
+    restitution: 0,
+    filterGroupIndex: -1
+  });
+
+  const legs = [];
+  for (const side of [-1, 1]) {
+    const targetX = startX + side * 0.12;
+    const ankleTarget = Vec2(targetX, heightAt(targetX) + FOOT_HALF_HEIGHT * 2);
+    const hipWorld = hull.getWorldPoint(Vec2(side * HIP_X, HIP_Y));
+    const solution = legIK(hipWorld, ankleTarget, UPPER_LENGTH, LOWER_LENGTH, side);
+
+    const upperAngle = solution.thighDir + Math.PI / 2;
+    const upperAnchorOffset = rotateLocal(Vec2(0, UPPER_LENGTH / 2), upperAngle);
+    const upper = world.createDynamicBody({
+      position: Vec2(hipWorld.x - upperAnchorOffset.x, hipWorld.y - upperAnchorOffset.y),
+      angle: upperAngle,
+      linearDamping: 0.08,
+      angularDamping: 0.08,
+      allowSleep: false,
+      userData: { part: side < 0 ? "left-upper-leg" : "right-upper-leg" }
+    });
+    upper.createFixture({
+      shape: new planck.Box(UPPER_HALF_WIDTH, UPPER_LENGTH / 2),
+      density: 1.15,
+      friction: 0.2,
+      restitution: 0,
+      filterGroupIndex: -1
+    });
+
+    const hip = world.createJoint(planck.RevoluteJoint({
+      localAnchorA: Vec2(side * HIP_X, HIP_Y),
+      localAnchorB: Vec2(0, UPPER_LENGTH / 2),
+      enableMotor: true,
+      enableLimit: true,
+      lowerAngle: -1.25,
+      upperAngle: 1.25,
+      maxMotorTorque: 18,
+      referenceAngle: 0,
+      collideConnected: false
+    }, hull, upper));
+
+    const kneeWorld = upper.getWorldPoint(Vec2(0, -UPPER_LENGTH / 2));
+    const lowerAngle = upperAngle - solution.kneeRel;
+    const lowerAnchorOffset = rotateLocal(Vec2(0, LOWER_LENGTH / 2), lowerAngle);
+    const lower = world.createDynamicBody({
+      position: Vec2(kneeWorld.x - lowerAnchorOffset.x, kneeWorld.y - lowerAnchorOffset.y),
+      angle: lowerAngle,
+      linearDamping: 0.08,
+      angularDamping: 0.08,
+      allowSleep: false,
+      userData: { part: side < 0 ? "left-lower-leg" : "right-lower-leg" }
+    });
+    lower.createFixture({
+      shape: new planck.Box(LOWER_HALF_WIDTH, LOWER_LENGTH / 2),
+      density: 1.1,
+      friction: 0.2,
+      restitution: 0,
+      filterGroupIndex: -1
+    });
+
+    const knee = world.createJoint(planck.RevoluteJoint({
+      localAnchorA: Vec2(0, -UPPER_LENGTH / 2),
+      localAnchorB: Vec2(0, LOWER_LENGTH / 2),
+      enableMotor: true,
+      enableLimit: true,
+      lowerAngle: side < 0 ? -0.25 : -2.2,
+      upperAngle: side < 0 ? 2.2 : 0.25,
+      maxMotorTorque: 18,
+      referenceAngle: 0,
+      collideConnected: false
+    }, upper, lower));
+
+    const footAngle = terrainAngleAt(targetX);
+    const ankleAnchor = lower.getWorldPoint(Vec2(0, -LOWER_LENGTH / 2));
+    const footAnchorOffset = rotateLocal(Vec2(0, FOOT_HALF_HEIGHT), footAngle);
+    const foot = world.createDynamicBody({
+      position: Vec2(ankleAnchor.x - footAnchorOffset.x, ankleAnchor.y - footAnchorOffset.y),
+      angle: footAngle,
+      linearDamping: 0.08,
+      angularDamping: 0.08,
+      allowSleep: false,
+      userData: { part: side < 0 ? "left-foot" : "right-foot" }
+    });
+    foot.createFixture({
+      shape: new planck.Box(FOOT_HALF_LENGTH, FOOT_HALF_HEIGHT),
+      density: 0.65,
+      friction: 0.9,
+      restitution: 0,
+      filterGroupIndex: -1
+    });
+
+    const ankle = world.createJoint(planck.RevoluteJoint({
+      localAnchorA: Vec2(0, -LOWER_LENGTH / 2),
+      localAnchorB: Vec2(0, FOOT_HALF_HEIGHT),
+      enableMotor: true,
+      enableLimit: true,
+      lowerAngle: -0.6,
+      upperAngle: 0.6,
+      maxMotorTorque: 4,
+      referenceAngle: 0,
+      collideConnected: false
+    }, lower, foot));
+
+    legs.push({
+      side, upper, lower, foot, hip, knee, ankle,
+      upperLength: UPPER_LENGTH, lowerLength: LOWER_LENGTH,
+      targetX
+    });
+  }
+
+  return {
+    hull,
+    legs,
+    stanceTargets: [startX - 0.12, startX + 0.12]
+  };
+}
+
 function isGroundContact(body) {
   for (let edge = body.getContactList(); edge; edge = edge.next) {
     if (edge.contact.isTouching()) {
@@ -381,10 +524,10 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1) {
     const target = footTargets[i];
     const surfaceY = heightAt(target.x);
     const terrainAngle = terrainAngleAt(target.x);
-    target.y = surfaceY + 0.06;
-    const hipWorld = hull.getWorldPoint(Vec2(0, LEG_DOWN));
+    target.y = surfaceY + FOOT_HALF_HEIGHT * 2;
+    const hipWorld = hull.getWorldPoint(Vec2(leg.side * HIP_X, HIP_Y));
     const ankleTarget = Vec2(target.x, target.y);
-    const solution = legIK(hipWorld, ankleTarget, LEG_H, LEG_H, 1);
+    const solution = legIK(hipWorld, ankleTarget, leg.upperLength, leg.lowerLength, leg.side);
 
     // Box long axes point down at body angle zero. Convert the IK's
     // mathematical +X segment direction into Planck body/joint angles.
@@ -392,8 +535,8 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1) {
     const lowerBodyAngle = solution.thighDir - solution.kneeRel + Math.PI / 2;
     const hipTarget = wrapAngle(upperBodyAngle - hull.getAngle());
     const kneeTarget = wrapAngle(lowerBodyAngle - upperBodyAngle);
-    driveJoint(leg.hip, hipTarget, 10, 5, 32, stiffness);
-    driveJoint(leg.knee, kneeTarget, 12, 6, 32, stiffness);
+    driveJoint(leg.hip, hipTarget, 10, 5, 18, stiffness);
+    driveJoint(leg.knee, kneeTarget, 12, 6, 18, stiffness);
 
     const desiredFootAngle = terrainAngle;
     const ankleTargetAngle = wrapAngle(desiredFootAngle - leg.lower.getAngle());
@@ -427,7 +570,7 @@ function runPostureCase(degrees, seed = 12345, duration = 3, roughness = 0) {
   const phaseB = random() * Math.PI * 2;
   const { world, slope, heightAt, terrainAngleAt } = makeWorld(degrees, roughness, phaseA, phaseB);
   const startX = (random() - 0.5) * 0.2;
-  const walker = createWalker(world, slope, startX, random, heightAt, terrainAngleAt, { alignToTerrain: true });
+  const walker = createStanceRig(world, startX, heightAt, terrainAngleAt);
   const steps = Math.ceil(duration / FIXED_DT);
   let supportedTime = 0;
   let maxRelativeTilt = 0;
@@ -467,7 +610,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0) {
   const phaseB = random() * Math.PI * 2;
   const { world, slope, heightAt, terrainAngleAt } = makeWorld(degrees, roughness, phaseA, phaseB);
   const startX = (random() - 0.5) * 0.2;
-  const walker = createWalker(world, slope, startX, random, heightAt, terrainAngleAt, { alignToTerrain: true });
+  const walker = createStanceRig(world, startX, heightAt, terrainAngleAt);
   const steps = Math.ceil(duration / FIXED_DT);
   let supportedTime = 0;
   let maxRelativeTilt = 0;
@@ -592,4 +735,4 @@ function runSlopeCase(degrees, seed = 12345, duration = 3, roughness = 0) {
   };
 }
 
-module.exports = { runSlopeCase, runStanceCase, runPostureCase, seededRandom, walkerController, stanceController, postureController, createWalker, legIK, driveJoint };
+module.exports = { runSlopeCase, runStanceCase, runPostureCase, seededRandom, walkerController, stanceController, postureController, createWalker, createStanceRig, legIK, driveJoint };
