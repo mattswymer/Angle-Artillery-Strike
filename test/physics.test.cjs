@@ -349,6 +349,30 @@ test("upright common-bend stance sweeps predictive COM lookahead for balance ste
   assert.equal(results.length, 20);
 });
 
+test("upright common-bend stance sweeps hip and knee motor torque", () => {
+  const results = [];
+  for (const degrees of [20, 35]) {
+    for (const [hipTorqueMax, kneeTorqueMax] of [[4, 4], [6, 6], [8, 8], [12, 12], [8, 4], [4, 8]]) {
+      const r = runStanceCase(
+        degrees, 1, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25,
+        0.05, 0.95, 0, 0, 0.6, 1.5, "same-positive", 0.18, 0.4,
+        hipTorqueMax, kneeTorqueMax
+      );
+      results.push({
+        degrees, hipTorqueMax, kneeTorqueMax,
+        support: r.supportedTime, bothFeet: r.bothFeetContactTime,
+        tilt: r.maxAbsoluteTiltDegrees, air: r.maxAirTime, speed: r.maxSpeed,
+        trace: r.trace.slice(0, 5).map(point => ({
+          t: point.t, x: point.x, angle: point.angle, contacts: point.contacts,
+          center: point.centerOfMassX, swing: point.swingIndex
+        }))
+      });
+    }
+  }
+  console.log("upright hip knee torque sweep", JSON.stringify(results));
+  assert.equal(results.length, 12);
+});
+
 test("common-bend upright stance sweeps torso balance gains on 20 degree terrain", () => {
   const results = [];
   for (const balanceKp of [0, 1.5, 3.5, 6]) {
