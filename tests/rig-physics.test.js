@@ -95,6 +95,19 @@ test("initial motor pose can hold the rig without the stance controller", () => 
   assert.equal(rig.getFootContacts().filter(Boolean).length, 2);
 });
 
+for (const slope of [20, 35]) {
+  test(`initial IK pose holds without feedback updates on a ${slope} degree slope`, () => {
+    const { world, rig } = spawnRig(slope);
+    const start = rig.torso.getPosition();
+    const initial = { x: start.x, y: start.y };
+    for (let i = 0; i < 180; i++) world.step(STEP, 10, 6);
+    const end = rig.torso.getPosition();
+    assert.ok(Math.abs(end.x - initial.x) < 0.15,
+      `torso drifted: ${initial.x.toFixed(3)} to ${end.x.toFixed(3)}`);
+    assert.equal(rig.getFootContacts().filter(Boolean).length, 2);
+  });
+}
+
 test("rig releases on a 50 degree slope", () => {
   const { world, rig, terrainProbe } = spawnRig(50);
   for (let i = 0; i < 90; i++) {
