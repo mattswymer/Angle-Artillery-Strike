@@ -332,19 +332,25 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1) {
   const { hull, legs } = walker;
   const centerX = hull.getPosition().x;
   const halfStance = 0.24;
-  const footTargets = [
-    { x: centerX - halfStance, y: 0 },
-    { x: centerX + halfStance, y: 0 }
-  ];
+  if (!walker.stanceTargets) {
+    walker.stanceTargets = [centerX - halfStance, centerX + halfStance];
+  }
+  // Feet remain planted at world positions. Only the foot on the side the
+  // COM has escaped from is replanted, and only after leaving the support
+  // interval by 4 cm.
+  if (centerX < walker.stanceTargets[0] - 0.04) {
+    walker.stanceTargets[0] = centerX - halfStance;
+  } else if (centerX > walker.stanceTargets[1] + 0.04) {
+    walker.stanceTargets[1] = centerX + halfStance;
+  }
+  const footTargets = walker.stanceTargets.map(x => ({ x, y: 0 }));
 
-  // Keep the feet beneath the torso. Repositioning is deliberately modest:
-  // the controller does not teleport either foot or apply a hover force.
   for (let i = 0; i < legs.length; i++) {
     const leg = legs[i];
     const target = footTargets[i];
     const surfaceY = heightAt(target.x);
     const terrainAngle = terrainAngleAt(target.x);
-    target.y = surfaceY + 0.06;
+    target.y = surfaceY + 0.03;
     const hipWorld = hull.getWorldPoint(Vec2(0, LEG_DOWN));
     const ankleTarget = Vec2(target.x, target.y);
     const solution = legIK(hipWorld, ankleTarget, LEG_H, LEG_H, leg.side);
