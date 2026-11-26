@@ -27,9 +27,13 @@ for (const degrees of [0, 20, 35, 50]) {
     assert.ok(Number.isFinite(result.finalPosition.x) && Number.isFinite(result.finalPosition.y),
       "torso position must remain finite");
     if (degrees <= 35) {
+      assert.equal(result.everLimp, false,
+        `spawned rig must not enter limp mode at ${degrees} degrees; got ${JSON.stringify(result)}`);
       assert.equal(result.stable, true,
         `expected stable stance at ${degrees} degrees; got ${JSON.stringify(result)}`);
     } else {
+      assert.equal(result.everLimp, true,
+        `50 degree slope should release the stance controller; got ${JSON.stringify(result)}`);
       assert.equal(result.stable, false,
         `expected loss of stance at ${degrees} degrees; got ${JSON.stringify(result)}`);
     }
