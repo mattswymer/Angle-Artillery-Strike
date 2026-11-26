@@ -171,7 +171,7 @@ function createRig(world, degrees, x = 0) {
     });
 
     const hip = V(x + (index === 0 ? -0.105 : 0.105), pelvisY);
-    const ik = solveLegIK(hip, ankle, SEGMENT.thigh, SEGMENT.shin, 1);
+    const ik = solveLegIK(hip, ankle, SEGMENT.thigh, SEGMENT.shin, index === 0 ? 1 : -1);
     const thighCenter = V((hip.x + ik.knee.x) / 2, (hip.y + ik.knee.y) / 2);
     const shinCenter = V((ik.knee.x + ankle.x) / 2, (ik.knee.y + ankle.y) / 2);
 
@@ -337,7 +337,7 @@ function stepRig(world, rig, slopeRadians, dt = STEP) {
       torsoPosition.x + leg.side * 0.105,
       pelvisTargetY
     );
-    const ik = solveLegIK(hip, ankle, SEGMENT.thigh, SEGMENT.shin, 1);
+    const ik = solveLegIK(hip, ankle, SEGMENT.thigh, SEGMENT.shin, -leg.side);
     const hipTarget = ik.thighAngle - rig.torso.getAngle();
     const kneeTarget = ik.kneeRelative;
     const ankleTarget = slopeRadians - ik.shinAngle;
@@ -374,7 +374,10 @@ function runSlopeCase(degrees, seed = 12345) {
         torsoAngle: Number((rig.torso.getAngle() * 180 / Math.PI).toFixed(1)),
         stiffness: Number(rig.stiffness.toFixed(2)),
         stableFor: Number(rig.stableFor.toFixed(2)),
-        contacts: rig.legs.filter(leg => footContact(leg.foot)).length
+        contacts: rig.legs.filter(leg => footContact(leg.foot)).length,
+        hips: rig.legs.map(leg => Number(leg.hipJoint.getJointAngle().toFixed(2))),
+        knees: rig.legs.map(leg => Number(leg.kneeJoint.getJointAngle().toFixed(2))),
+        ankles: rig.legs.map(leg => Number(leg.ankleJoint.getJointAngle().toFixed(2)))
       });
     }
   }
