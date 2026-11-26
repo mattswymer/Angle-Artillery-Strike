@@ -70,29 +70,62 @@ function makeSlopeWorld(degrees) {
 
 function createRig(world, degrees, x = 0) {
   const slope = degrees * Math.PI / 180;
-  const footY = Math.tan(slope) * x;
-  const footAngle = slope;
-  const torsoY = footY + 1.02;
+  const sine = Math.sin(slope);
+  const cosine = Math.cos(slope);
+  const surfaceAt = px => Math.tan(slope) * px;
+  const parts = { torso: null, head: null, legs: [] };
 
-  const makeBox = (name, px, py, hx, hy, density = 1) => {
+  const makeBox = (name, position, angle, hx, hy, density = 1) => {
     const body = world.createDynamicBody({
-      position: V(px, py),
+      position,
+      angle,
       linearDamping: 0.04,
       angularDamping: 0.08,
       allowSleep: false,
       userData: { kind: "rig-part", name }
     });
-    body.createFixture({ shape: new planck.Box(hx, hy), density, friction: 0.85, filterGroupIndex: -1 });
+    body.createFixture({
+      shape: new planck.Box(hx, hy),
+      density,
+      friction: 0.9,
+      filterGroupIndex: -1
+    });
     return body;
   };
 
-  const torso = makeBox("torso", x, torsoY, 0.15, 0.27, 1.5);
-  const head = world.createDynamicBody({ position: V(x, torsoY + 0.40), allowSleep: false });
-  head.createFixture({ shape: new planck.Circle(0.12), density: 0.7, friction: 0.5, filterGroupIndex: -1 });
+  const legGeometry = [-1, 1].map(side => {
+    const footX = x + side * 0.19;
+    const surfaceY = surfaceAt(footX);
+    const footPosition = V(footX, surfaceY + 0.035);
+    const ankle = V(footX - sine * 0.035, surfaceY + 0.035 + cosine * 0.035);
+    const knee = V(ankle.x, ankle.y + SEGMENT.shin);
+    const hipX = x + side * 0.105;
+    const horizontal = knee.x - hipX;
+    const vertical = Math.sqrt(Math.max(0.001, SEGMENT.thigh ** 2 - horizontal ** 2));
+    const hip = V(hipX, knee.y + vertical);
+    return { side, footX, footPosition, ankle, knee, hip };
+  });
 
-  const parts = { torso, head, legs: [] };
-  const revolute = (bodyA, bodyB, anchor, lower, upper, torque) => {
-    const joint = world.createJoint(planck.RevoluteJoint({
+  const torsoY = legGeometry.reduce((sum, leg) => sum + leg.hip.y, 0) /
+    legGeometry.length + 0.22;
+  const torso = makeBox("torso", V(x, torsoY), 0, 0.15, 0.27, 1.5);
+  parts.torso = torso;
+
+  const head = world.createDynamicBody({
+    position: V(x, torsoY + 0.40),
+    allowSleep: false,
+    userData: { kind: "rig-part", name: "head" }
+  });
+  head.createFixture({
+    shape: new planck.Circle(0.12),
+    density: 0.7,
+    friction: 0.5,
+    filterGroupIndex: -1
+  });
+  parts.head = head;
+
+  const revolute = (bodyA, bodyB, anchor, lower, upper, torque) => world.createJoint(
+    planck.RevoluteJoint({
       enableLimit: true,
       lowerAngle: lower,
       upperAngle: upper,
@@ -100,31 +133,27 @@ function createRig(world, degrees, x = 0) {
       motorSpeed: 0,
       maxMotorTorque: torque,
       collideConnected: false
-    }, bodyA, bodyB, anchor));
-    return joint;
-  };
+    }, bodyA, bodyB, anchor)
+  );
   revolute(torso, head, V(x, torsoY + 0.27), -0.65, 0.65, 1);
 
-  for (const side of [-1, 1]) {
-    const footX = x + side * 0.19;
-    const localSurfaceY = Math.tan(slope) * (footX - x) + footY;
-    const foot = makeBox("foot", footX, localSurfaceY + 0.035, 0.11, 0.035, 0.25);
-    foot.setAngle(footAngle);
-    const ankleX = footX - Math.cos(slope) * 0.035;
-    const ankleY = localSurfaceY + Math.sin(slope) * -0.035 + 0.07;
-    const shin = makeBox("shin", ankleX, ankleY + 0.18, 0.055, SEGMENT.shin / 2, 0.75);
-    shin.setAngle(footAngle);
-    const kneeX = ankleX;
-    const kneeY = ankleY + SEGMENT.shin;
-    const thigh = makeBox("thigh", kneeX, kneeY + SEGMENT.thigh / 2, 0.07, SEGMENT.thigh / 2, 0.85);
-    thigh.setAngle(footAngle);
-    const hip = V(x + side * 0.105, torsoY - 0.22);
-    const knee = V(kneeX, kneeY);
-    const ankle = V(ankleX, ankleY);
+  for (const geometry of legGeometry) {
+    const { side, footX, footPosition, ankle, knee, hip } = geometry;
+    const foot = makeBox("foot", footPosition, slope, 0.11, 0.035, 0.25);
+    const shinCenter = V((ankle.x + knee.x) / 2, (ankle.y + knee.y) / 2);
+    const shinAngle = Math.atan2(ankle.y - knee.y, ankle.x - knee.x) + Math.PI / 2;
+    const shin = makeBox("shin", shinCenter, shinAngle, 0.055, SEGMENT.shin / 2, 0.75);
+    const thighCenter = V((hip.x + knee.x) / 2, (hip.y + knee.y) / 2);
+    const thighAngle = Math.atan2(knee.y - hip.y, knee.x - hip.x) + Math.PI / 2;
+    const thigh = makeBox("thigh", thighCenter, thighAngle, 0.07, SEGMENT.thigh / 2, 0.85);
+
     const hipJoint = revolute(torso, thigh, hip, -1.5, 1.5, 4);
     const kneeJoint = revolute(thigh, shin, knee, -2.4, 2.4, 4);
     const ankleJoint = revolute(shin, foot, ankle, -0.7, 0.7, 1.5);
-    parts.legs.push({ side, thigh, shin, foot, hipJoint, kneeJoint, ankleJoint });
+    parts.legs.push({
+      side, footX, thigh, shin, foot,
+      hipJoint, kneeJoint, ankleJoint
+    });
   }
   return { ...parts, mode: "active", stiffness: 1, stableFor: 0, elapsed: 0 };
 }
