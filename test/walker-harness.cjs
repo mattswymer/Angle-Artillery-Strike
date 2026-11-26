@@ -778,6 +778,9 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
         knee: walker.legs.map(leg => Number(leg.knee.getJointAngle().toFixed(2))),
         ankle: walker.legs.map(leg => Number(leg.ankle.getJointAngle().toFixed(2))),
         contacts: walker.legs.map(leg => isGroundContact(leg.foot)),
+        centerOfMassX: Number(getRigCenterOfMassX(walker).toFixed(3)),
+        targets: control.targets.map(point => [Number(point.x.toFixed(3)), Number(point.y.toFixed(3))]),
+        swingIndex: walker.swingIndex ?? null,
         legs: walker.legs.map(leg => ({
           foot: [Number(leg.foot.getPosition().x.toFixed(3)), Number(leg.foot.getPosition().y.toFixed(3))],
           footAngle: Number((leg.foot.getAngle() * 180 / Math.PI).toFixed(1)),
