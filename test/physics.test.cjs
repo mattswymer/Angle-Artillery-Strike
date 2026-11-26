@@ -409,6 +409,28 @@ test("slope stance failures are compared on a single edge and a simplified terra
   assert.equal(comparison.length, 2);
 });
 
+test("stance-width sweep finds feasible ankle geometry on 20 and 35 degree slopes", () => {
+  const results = [];
+  for (const degrees of [20, 35]) {
+    for (const halfWidth of [0.05, 0.07, 0.09, 0.11, 0.13]) {
+      const runs = [1, 7, 42, 99].map(seed =>
+        runStanceCase(degrees, seed, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25, halfWidth)
+      );
+      results.push({
+        degrees,
+        halfWidth,
+        support: Number((runs.reduce((sum, r) => sum + r.supportedTime, 0) / runs.length).toFixed(2)),
+        tilt: Number((runs.reduce((sum, r) => sum + r.maxRelativeTiltDegrees, 0) / runs.length).toFixed(1)),
+        air: Number((runs.reduce((sum, r) => sum + r.maxAirTime, 0) / runs.length).toFixed(2)),
+        speed: Number((runs.reduce((sum, r) => sum + r.maxSpeed, 0) / runs.length).toFixed(2)),
+        maxAnkle: Number(Math.max(...runs.flatMap(r => r.trace.flatMap(p => p.legs.map(leg => Math.abs(leg.ankle))))).toFixed(2))
+      });
+    }
+  }
+  console.log("stance width slope sweep", JSON.stringify(results));
+  assert.equal(results.length, 10);
+});
+
 test("shared joint driver moves a revolute joint toward a positive target angle", () => {
   const world = new planck.World({ gravity: planck.Vec2(0, 0) });
   const base = world.createBody();
