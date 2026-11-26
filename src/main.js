@@ -616,11 +616,11 @@
   }
 
   function drawCharacter(character, scale, offsetX) {
-    if (character.eliminated && !character.rig) return;
+    if (!character.rig) return;
     const p = character.body.getPosition();
     const screen = worldToScreen(p.x, p.y, scale, offsetX);
     const unit = scale;
-    const ragdoll = character.rig;
+    const rig = character.rig;
       const jointPoint = joint => {
         const a = joint.getAnchorA();
         const b = joint.getAnchorB();
@@ -636,14 +636,14 @@
         ctx.stroke();
       };
       const points = {};
-      for (const [name, joint] of Object.entries(ragdoll.jointMap)) {
+      for (const [name, joint] of Object.entries(rig.jointMap)) {
         points[name] = jointPoint(joint);
       }
-      const leftHand = ragdoll.byName["left-lower-arm"].body.getWorldPoint(V(0, -0.17));
-      const rightHand = ragdoll.byName["right-lower-arm"].body.getWorldPoint(V(0, -0.17));
-      const leftFoot = ragdoll.byName["left-lower-leg"].body.getWorldPoint(V(0, -0.17));
-      const rightFoot = ragdoll.byName["right-lower-leg"].body.getWorldPoint(V(0, -0.17));
-      const head = ragdoll.byName.head.body.getPosition();
+      const leftHand = rig.byName["left-lower-arm"].body.getWorldPoint(V(0, -0.17));
+      const rightHand = rig.byName["right-lower-arm"].body.getWorldPoint(V(0, -0.17));
+      const leftFoot = rig.byName["left-lower-leg"].body.getWorldPoint(V(0, -0.17));
+      const rightFoot = rig.byName["right-lower-leg"].body.getWorldPoint(V(0, -0.17));
+      const head = rig.byName.head.body.getPosition();
       const shoulderCenter = V((points.leftShoulder.x + points.rightShoulder.x) * 0.5,
         (points.leftShoulder.y + points.rightShoulder.y) * 0.5);
       const hipCenter = V((points.leftHip.x + points.rightHip.x) * 0.5,
