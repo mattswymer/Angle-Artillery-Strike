@@ -3,7 +3,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const planck = require("planck");
-const { runSlopeCase, runStanceCase, seededRandom, legIK, driveJoint } = require("./walker-harness.cjs");
+const { runSlopeCase, runStanceCase, runPostureCase, seededRandom, legIK, driveJoint } = require("./walker-harness.cjs");
 
 const SEEDS = [1, 7, 42, 99, 314, 1337, 481516, 8675309];
 
@@ -173,3 +173,14 @@ test("shared joint driver moves a revolute joint toward a positive target angle"
   assert.ok(joint.getJointAngle() > 0.1,
     `positive target should produce positive joint angle, got ${joint.getJointAngle()}`);
 });
+
+for (const degrees of [0, 20, 35]) {
+  test(`simple joint posture controller diagnostic on ${degrees} degree terrain`, () => {
+    const results = SEEDS.slice(0, 4).map(seed => runPostureCase(degrees, seed, 3));
+    console.log(`posture ${degrees}deg`, JSON.stringify(results));
+    for (const result of results) {
+      assert.ok(Number.isFinite(result.maxRelativeTiltDegrees));
+      assert.ok(Number.isFinite(result.maxSpeed));
+    }
+  });
+}
