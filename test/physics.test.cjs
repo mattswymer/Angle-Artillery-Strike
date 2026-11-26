@@ -505,6 +505,74 @@ test("production rig module builds the same twelve-body, eleven-joint character"
   assert.ok(rig.bodies.every(body => Number.isFinite(body.getPosition().x)));
 });
 
+test("eight production rigs settle on a seeded uneven map without self-collision or limp", () => {
+  const world = new planck.World({ gravity: planck.Vec2(0, -10) });
+  world.setAllowSleeping(false);
+  const heightAt = x => 3 + 0.35 * Math.sin(x * 0.55) + 0.15 * Math.sin(x * 1.2);
+  const terrainAngleAt = x => Math.atan2(heightAt(x + 0.01) - heightAt(x - 0.01), 0.02);
+  const points = [];
+  for (let x = 0; x <= 24.001; x += 0.25) points.push(planck.Vec2(x, heightAt(x)));
+  const ground = world.createBody();
+  ground.createFixture({ shape: new planck.Chain(points, false), friction: 2.5 });
+
+  const positions = [1.5, 4, 6.5, 9, 15, 17.5, 20, 22.5];
+  const rigs = positions.map((x, index) => {
+    const angle = terrainAngleAt(x);
+    const slope = Math.abs(angle) * 180 / Math.PI;
+    const settings = slope > 8
+      ? {
+          stance: 0.1, pelvis: 0.85, bend: "slope-adaptive",
+          high: 0.4, low: 1, reach: 0.12, lookahead: 0.41,
+          hipBlend: 1, swing: 0.12, upperTorque: 1
+        }
+      : {
+          stance: 0.12, pelvis: 0.95, bend: "side",
+          high: 0.4, low: 1, reach: 0.18, lookahead: 0.25,
+          hipBlend: 1, swing: 0.12, upperTorque: 1
+        };
+    const rig = productionRig.createStanceRig(
+      world, x, heightAt, terrainAngleAt,
+      settings.stance, settings.pelvis, 0, 0, 0.6,
+      settings.bend, settings.high, settings.low, -(index + 1)
+    );
+    rig.settings = settings;
+    return rig;
+  });
+
+  for (let step = 0; step < 60; step++) {
+    for (const rig of rigs) {
+      if (rig.mode === "active") {
+        productionRig.updateRigFallState(rig, 1 / 50, false);
+        if (rig.mode === "active") {
+          const p = rig.settings;
+          productionRig.stanceController(rig, heightAt, terrainAngleAt, rig.stiffness,
+            3.5, 0.02, 1.5, p.reach, p.lookahead, 6, 6, p.swing, 0.2,
+            1, p.hipBlend, p.upperTorque);
+        }
+      } else {
+        const state = productionRig.updateRigRecovery(rig, 1 / 50, heightAt);
+        if (rig.recovering) {
+          const p = rig.settings;
+          productionRig.stanceController(rig, heightAt, terrainAngleAt, state.stiffness,
+            3.5, 0.02, 1.5, p.reach, p.lookahead, 6, 6, p.swing, 0.2,
+            1, p.hipBlend, p.upperTorque);
+        }
+      }
+    }
+    world.step(1 / 50, 180, 60);
+    for (const rig of rigs) {
+      if (rig.mode === "active" && productionRig.rigIsStable(rig)) rig.stableTime += 1 / 50;
+      else rig.stableTime = 0;
+    }
+  }
+
+  assert.equal(rigs.length, 8);
+  assert.ok(rigs.every(rig => rig.bodies.length === 12 && rig.joints.length === 11));
+  assert.deepEqual(rigs.map(rig => rig.mode), Array(8).fill("active"));
+  assert.ok(rigs.every(rig => rig.stableTime >= 0.3),
+    JSON.stringify(rigs.map(rig => ({ mode: rig.mode, stableTime: rig.stableTime, fallReason: rig.fallReason }))));
+});
+
 test("50 degree terrain exceeds the character stance rig's stable envelope", () => {
   const results = SEEDS.slice(0, 4).map(seed => runStanceCase(50, seed, 3));
   assert.ok(results.some(r => r.maxRelativeTiltDegrees > 60 || r.maxAirTime > 0.5),
