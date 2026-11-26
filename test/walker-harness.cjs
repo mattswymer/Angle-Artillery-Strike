@@ -901,7 +901,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
 
   for (let i = 0; i < steps; i++) {
     const control = controllerEnabled
-      ? stanceController(walker, heightAt, terrainAngleAt, 1, balanceKp, balanceKd, ankleTorqueMax, stepReach, stepLookahead, hipTorqueMax, kneeTorqueMax, swingHeight, swingDuration, stanceTorqueScale)
+      ? stanceController(walker, heightAt, terrainAngleAt, 1, balanceKp, balanceKd, ankleTorqueMax, stepReach, stepLookahead, hipTorqueMax, kneeTorqueMax, swingHeight, swingDuration, stanceTorqueScale, hipHeightBlend)
       : { targets: walker.stanceTargets.map(x => Vec2(x, heightAt(x) + FOOT_HALF_HEIGHT * 2)) };
     world.step(FIXED_DT, 180, 60);
     const contacts = walker.legs.map(leg => isGroundContact(leg.foot));
