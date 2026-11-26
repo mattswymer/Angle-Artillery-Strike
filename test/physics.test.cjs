@@ -3,7 +3,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const planck = require("planck");
-const { runSlopeCase, runStanceCase, runSwingTargetCase, runRigSymmetryCase, seededRandom, legIK, driveJoint, createStanceRig, updateRigFallState } = require("./walker-harness.cjs");
+const { runSlopeCase, runStanceCase, runSwingTargetCase, runRigSymmetryCase, seededRandom, legIK, driveJoint, createStanceRig, updateRigFallState, footContactNormals } = require("./walker-harness.cjs");
 
 const SEEDS = [1, 7, 42, 99, 314, 1337, 481516, 8675309];
 
@@ -377,6 +377,62 @@ test("loss of all foot contact triggers limp only after 300 milliseconds", () =>
   assert.equal(triggered.mode, "active");
   for (let i = 0; i < 4; i++) updateRigFallState(rig, 0.02);
   assert.equal(rig.mode, "limp");
+});
+
+test("steep foot contact normal triggers a fall when the surface exceeds 50 degrees", () => {
+  const world = new planck.World({ gravity: planck.Vec2(0, -10) });
+  const angle = 55 * Math.PI / 180;
+  const heightAt = x => Math.tan(angle) * x;
+  const ground = world.createBody();
+  ground.createFixture({
+    shape: new planck.Chain([
+      planck.Vec2(-5, heightAt(-5)),
+      planck.Vec2(5, heightAt(5))
+    ], false),
+    friction: 2.5
+  });
+  const rig = createStanceRig(world, 0, heightAt, () => angle, 0.1, 0.95);
+  for (let i = 0; i < 10; i++) world.step(1 / 50, 180, 60);
+  const normals = rig.legs.flatMap(leg => footContactNormals(leg.foot));
+  assert.ok(normals.length > 0, "at least one foot should contact the slope");
+  assert.ok(normals.some(normal =>
+    Math.atan2(Math.abs(normal.x), normal.y) > 50 * Math.PI / 180
+  ), "the measured support normal should exceed the 50-degree limit");
+  const state = updateRigFallState(rig, 0.02);
+  assert.equal(state.reason, "foot-normal");
+  assert.ok(state.stiffness < 1);
+});
+
+test("center of mass outside planted foot support for 250 milliseconds triggers limp", () => {
+  const world = new planck.World({ gravity: planck.Vec2(0, -10) });
+  const ground = world.createBody();
+  ground.createFixture({ shape: new planck.Edge(planck.Vec2(-5, 0), planck.Vec2(5, 0)), friction: 2.5 });
+  const rig = createStanceRig(world, 0, () => 0, () => 0);
+  for (let i = 0; i < 10; i++) world.step(1 / 50, 180, 60);
+  const feet = new Set(rig.legs.map(leg => leg.foot));
+  for (const body of rig.bodies) {
+    if (feet.has(body)) continue;
+    const p = body.getPosition();
+    body.setTransform(planck.Vec2(p.x + 2, p.y), body.getAngle());
+  }
+  for (let i = 0; i < 12; i++) {
+    const state = updateRigFallState(rig, 0.02);
+    assert.equal(state.reason, null);
+  }
+  const state = updateRigFallState(rig, 0.02);
+  assert.equal(state.reason, "outside-support");
+  assert.ok(state.stiffness < 1);
+});
+
+test("intentional jump airtime does not accumulate toward the no-contact fall trigger", () => {
+  const world = new planck.World({ gravity: planck.Vec2(0, -10) });
+  const rig = createStanceRig(world, 0, () => 0, () => 0);
+  for (let i = 0; i < 30; i++) {
+    const state = updateRigFallState(rig, 0.02, true);
+    assert.equal(state.mode, "active");
+    assert.equal(state.reason, null);
+  }
+  assert.equal(rig.noContactTime, 0);
 });
 
 test("50 degree terrain exceeds the character stance rig's stable envelope", () => {
