@@ -597,7 +597,6 @@ test("production walking uses alternating physical steps and capped tangent forc
       }
     }
   }
-  console.log("walking gait parameter sweep", JSON.stringify(results));
   assert.ok(results.some(r => r.displacement > 0.4 && r.alternations >= 2 && r.mode === "active"),
     JSON.stringify(results));
 });
@@ -633,21 +632,6 @@ test("production jump crouches, extends, leaves the ground, tucks, and lands sof
     maxY = Math.max(maxY, rig.hull.getPosition().y);
     if (rig.jumpPhase === "idle" && i > 20) break;
   }
-  console.log("jump landing result", JSON.stringify({
-    phases: [...phases], startY, maxY, endY: rig.hull.getPosition().y,
-    velocity: rig.hull.getLinearVelocity(), angle: rig.hull.getAngle(),
-    mode: rig.mode, jumpPhase: rig.jumpPhase, jumpLandContactTime: rig.jumpLandContactTime,
-    contacts: rig.legs.map(leg => productionRig.isGroundContact(leg.foot)),
-    feet: rig.legs.map(leg => ({ x: leg.foot.getPosition().x, y: leg.foot.getPosition().y })),
-    targets: rig.stanceTargets,
-    kneeAngles: rig.legs.map(leg => leg.knee.getJointAngle()),
-    hipAngles: rig.legs.map(leg => leg.hip.getJointAngle()),
-    stiffness: rig.stiffness,
-    fallReason: rig.fallReason,
-    hipTargets: lastDiagnostics?.hipTargets,
-    kneeTargets: lastDiagnostics?.kneeTargets,
-    ankleTargets: lastDiagnostics?.ankleTargets
-  }));
   assert.ok(phases.has("crouch"));
   assert.ok(phases.has("extend"));
   assert.ok(phases.has("air"));
