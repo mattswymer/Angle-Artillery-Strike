@@ -398,7 +398,7 @@ function runSlopeCase(degrees, seed = 12345) {
   for (let i = 0; i < frames; i++) {
     stepRig(world, rig, radians);
     world.step(STEP, 8, 3);
-    if (i % 6 === 0 && i <= 36) {
+    if (i % 30 === 0 || (i % 6 === 0 && i <= 36)) {
       trace.push({
         time: Number((i * STEP).toFixed(2)),
         x: Number(rig.torso.getPosition().x.toFixed(3)),
