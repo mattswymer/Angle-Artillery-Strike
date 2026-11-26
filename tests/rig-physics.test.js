@@ -11,7 +11,7 @@ function makeSlopeWorld(angleDegrees) {
   const world = new Planck.World({ gravity: V(0, -GRAVITY) });
   world.setAllowSleeping(false);
   const angle = angleDegrees * Math.PI / 180;
-  const ground = world.createBody();
+  const ground = world.createBody({ userData: { kind: "terrain" } });
   ground.createFixture(new Planck.Edge(
     V(8, 8 * Math.tan(angle)),
     V(-8, -8 * Math.tan(angle))
