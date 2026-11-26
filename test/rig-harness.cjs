@@ -238,6 +238,8 @@ function createRig(world, degrees, x = 0) {
     stableFor: 0,
     elapsed: 0,
     outsideTime: 0,
+    noContactTime: 0,
+    everLimp: false,
     pelvisTargetY: pelvisY
   };
 }
@@ -269,9 +271,10 @@ function stepRig(world, rig, slopeRadians, dt = STEP) {
       const upwardNormal = footIsFixtureA
         ? V(-contact.normal.x, -contact.normal.y)
         : contact.normal;
-      const alignment = Math.max(-1, Math.min(1,
-        upwardNormal.x * slopeNormal.x + upwardNormal.y * slopeNormal.y));
-      worstNormalAngle = Math.max(worstNormalAngle, Math.acos(alignment));
+      // The failure threshold is measured from world vertical, not from the
+      // local ground normal (otherwise every slope would read as zero degrees).
+      const angleFromVertical = Math.acos(Math.max(-1, Math.min(1, upwardNormal.y)));
+      worstNormalAngle = Math.max(worstNormalAngle, angleFromVertical);
     }
     const px = leg.foot.getPosition().x;
     minFootX = Math.min(minFootX, px);
@@ -312,11 +315,12 @@ function stepRig(world, rig, slopeRadians, dt = STEP) {
   }
 
   const supported = contacts > 0;
+  rig.noContactTime = supported ? 0 : rig.noContactTime + dt;
   const torsoTilt = Math.abs(wrapAngle(rig.torso.getAngle()));
   const badReasons = [];
-  if (worstNormalAngle > 50 * Math.PI / 180) badReasons.push("contact-normal");
+  if (worstNormalAngle >= 50 * Math.PI / 180) badReasons.push("contact-normal");
   if (rig.outsideTime > 0.25) badReasons.push("outside-support");
-  if (!supported && rig.elapsed > 0.3) badReasons.push("no-foot-contact");
+  if (rig.noContactTime > 0.3) badReasons.push("no-foot-contact");
   if (torsoTilt > 60 * Math.PI / 180) badReasons.push("torso-tilt");
   rig.badReasons = badReasons;
   const badSupport = badReasons.length > 0;
@@ -324,6 +328,7 @@ function stepRig(world, rig, slopeRadians, dt = STEP) {
     ? Math.max(0, rig.stiffness - dt / 0.1)
     : Math.min(1, rig.stiffness + dt / 0.5);
   rig.mode = rig.stiffness <= 0.001 ? "limp" : "active";
+  if (rig.mode === "limp") rig.everLimp = true;
 
   const terrainSlope = Math.tan(slopeRadians);
   const pelvisTargetY = Math.min(...rig.legs.map(leg =>
@@ -405,7 +410,8 @@ function runSlopeCase(degrees, seed = 12345) {
     degrees,
     stable: rig.stableFor >= 0.3,
     stableFor: Number(rig.stableFor.toFixed(3)),
-    mode: rig.stiffness > 0 ? "active" : "limp",
+    mode: rig.mode,
+    everLimp: rig.everLimp,
     finalAngle: Number((rig.torso.getAngle() * 180 / Math.PI).toFixed(2)),
     finalPosition: { x: rig.torso.getPosition().x, y: rig.torso.getPosition().y },
     trace
