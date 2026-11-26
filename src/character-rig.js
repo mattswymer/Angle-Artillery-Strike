@@ -595,6 +595,18 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
       walker.jumpPhase = "extend";
       walker.jumpElapsed = 0;
     } else if (walker.jumpPhase === "extend" && walker.jumpElapsed >= 0.1) {
+      // The knee motors create the crouch-to-extension motion. Apply the
+      // resulting ground-reaction impulse coherently to every rig body so
+      // the articulated character launches as one assembly rather than
+      // stretching the torso away from its limbs.
+      const launchDeltaV = walker.jumpLaunchDeltaV ?? 2.4;
+      for (const body of walker.bodies) {
+        body.applyLinearImpulse(
+          Vec2(0, body.getMass() * launchDeltaV),
+          body.getWorldCenter(),
+          true
+        );
+      }
       walker.jumpPhase = "air";
       walker.jumpElapsed = 0;
     } else if (walker.jumpPhase === "air") {
