@@ -1046,7 +1046,11 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
     finite = finite &&
       Number.isFinite(walker.hull.getAngle()) &&
       Number.isFinite(walker.hull.getPosition().x) &&
-      control.targets.every(point => Number.isFinite(point.x) && Number.isFinite(point.y));
+      control.targets.every(point => Number.isFinite(point.x) && Number.isFinite(point.y)) &&
+      walker.joints.every(joint =>
+        Number.isFinite(joint.getMotorSpeed()) &&
+        Number.isFinite(joint.getMaxMotorTorque())
+      );
   }
 
   return {
@@ -1074,6 +1078,8 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
     hipHeightBlend,
     highSideBend,
     lowSideBend,
+    bodyCount: walker.bodies.length,
+    jointCount: walker.joints.length,
     initialPose,
     supportedTime: Number(supportedTime.toFixed(3)),
     bothFeetContactTime: Number(bothFeetContactTime.toFixed(3)),
