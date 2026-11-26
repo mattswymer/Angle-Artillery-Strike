@@ -675,15 +675,17 @@ function runSwingTargetCase() {
 
 function runRigSymmetryCase(continuousGround = false, runController = true) {
   let world, heightAt, terrainAngleAt;
-  if (continuousGround) {
+  if (continuousGround === true || continuousGround === "none") {
     world = new planck.World({ gravity: Vec2(0, -GRAVITY) });
     world.setAllowSleeping(false);
-    const ground = world.createBody();
-    ground.createFixture({
-      shape: new planck.Edge(Vec2(-30, 0), Vec2(30, 0)),
-      friction: 2.5,
-      restitution: 0
-    });
+    if (continuousGround === true) {
+      const ground = world.createBody();
+      ground.createFixture({
+        shape: new planck.Edge(Vec2(-30, 0), Vec2(30, 0)),
+        friction: 2.5,
+        restitution: 0
+      });
+    }
     heightAt = () => 0;
     terrainAngleAt = () => 0;
   } else {
