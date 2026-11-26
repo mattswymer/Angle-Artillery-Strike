@@ -124,7 +124,7 @@ function createRig(world, degrees, x = 0) {
   const slope = degrees * Math.PI / 180;
   const normal = V(-Math.sin(slope), Math.cos(slope));
   const surfaceAt = px => Math.tan(slope) * px;
-  const footXs = [x - 0.17, x + 0.17];
+  const footXs = [x - 0.105, x + 0.105];
   const pelvisY = Math.min(...footXs.map(px =>
     surfaceAt(px) + Math.cos(slope) * 0.067
   )) + 0.95 * (SEGMENT.thigh + SEGMENT.shin);
@@ -225,7 +225,7 @@ function createRig(world, degrees, x = 0) {
       { friction: 0.9 }
     );
 
-    const hip = V(x + side * 0.17, pelvisY);
+    const hip = V(x + side * 0.105, pelvisY);
     const ik = chooseLegIK(hip, ankle, SEGMENT.thigh, SEGMENT.shin, side, slope);
     const thighCenter = V((hip.x + ik.knee.x) / 2, (hip.y + ik.knee.y) / 2);
     const shinCenter = V((ik.knee.x + ankle.x) / 2, (ik.knee.y + ankle.y) / 2);
@@ -416,7 +416,7 @@ function stepRig(world, rig, slopeRadians, dt = STEP, allowSteps = true) {
     // Solve from the live hinge anchor. The pelvis height is a spawn/stance
     // reference; using it as a fictitious hinge point makes the IK command a
     // pose the physical joint cannot actually reach when the torso moves.
-    const hip = rig.torso.getWorldPoint(V(leg.side * 0.17, -0.25));
+    const hip = rig.torso.getWorldPoint(V(leg.side * 0.105, -0.25));
     const ik = solveLegIK(hip, ankle, SEGMENT.thigh, SEGMENT.shin, leg.bend);
     const hipTarget = ik.thighAngle - rig.torso.getAngle();
     const kneeTarget = ik.kneeRelative;
