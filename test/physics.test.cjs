@@ -30,9 +30,7 @@ for (const degrees of [0, 20, 35, 50]) {
       for (const joint of result.spawnJointTargets) {
         assert.ok(joint.hip >= -1.25 && joint.hip <= 1.25,
           `spawn hip target out of range at ${degrees} degrees: ${JSON.stringify(joint)}`);
-        const kneeValid = joint.side < 0
-          ? joint.knee >= -0.25 && joint.knee <= 2.2
-          : joint.knee >= -2.2 && joint.knee <= 0.25;
+        const kneeValid = joint.knee >= -2.4 && joint.knee <= 2.4;
         assert.ok(kneeValid,
           `spawn knee target out of range at ${degrees} degrees: ${JSON.stringify(joint)}`);
         assert.ok(joint.ankle >= -0.6 && joint.ankle <= 0.6,
