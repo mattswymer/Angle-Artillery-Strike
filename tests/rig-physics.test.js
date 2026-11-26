@@ -74,7 +74,8 @@ for (const slope of [0, 20, 35]) {
 
 test("initial motor pose can hold the rig without the stance controller", () => {
   const { world, rig } = spawnRig(0);
-  const initial = rig.torso.getPosition();
+  const start = rig.torso.getPosition();
+  const initial = { x: start.x, y: start.y };
   for (let i = 0; i < 180; i++) world.step(STEP, 10, 6);
   const final = rig.torso.getPosition();
   assert.ok(Math.abs(final.x - initial.x) < 0.15,
