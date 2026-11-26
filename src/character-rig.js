@@ -645,6 +645,15 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
     }
   }
 
+  // During landing, keep an unplanted foot over its current horizontal
+  // position and lower it toward the terrain. Once planted, its x target is
+  // held, so the second foot can find support without dragging the first.
+  if (walker.jumpPhase === "land") {
+    for (let i = 0; i < legs.length; i++) {
+      if (!contacts[i]) walker.stanceTargets[i] = legs[i].foot.getPosition().x;
+    }
+  }
+
   const walkDirection = Math.sign(walker.walkDirection || 0);
   if (walkDirection && contacts.some(Boolean) && walker.jumpPhase === "idle") {
     const terrainAngle = terrainAngleAt(hull.getPosition().x);
