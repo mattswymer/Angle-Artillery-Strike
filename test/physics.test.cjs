@@ -365,6 +365,26 @@ test("upright 20 degree stance checks wider support bases for two-foot balance",
   assert.equal(results.length, 4);
 });
 
+test("upright 35 degree final candidate tunes swing arc and duration", () => {
+  const results = [];
+  for (const swingHeight of [0.06, 0.08, 0.1, 0.12, 0.14]) {
+    for (const swingDuration of [0.16, 0.18, 0.2, 0.22, 0.24]) {
+      const r = runStanceCase(
+        35, 1, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25,
+        0.1, 0.95, 0, 0, 0.6, 1.5, "same-positive", 0.34, 0.36, 6, 6,
+        swingHeight, swingDuration
+      );
+      results.push({
+        swingHeight, swingDuration,
+        support: r.supportedTime, bothFeet: r.bothFeetContactTime,
+        tilt: r.maxAbsoluteTiltDegrees, air: r.maxAirTime, speed: r.maxSpeed
+      });
+    }
+  }
+  console.log("upright 35 degree swing arc sweep", JSON.stringify(results));
+  assert.equal(results.length, 25);
+});
+
 test("upright 35 degree final candidate is checked across eight fixed seeds", () => {
   const results = SEEDS.map(seed => {
     const r = runStanceCase(
