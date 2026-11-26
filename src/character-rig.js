@@ -125,8 +125,10 @@
     }));
     const pelvisY = Math.min(footTargets[0].y, footTargets[1].y) +
       0.95 * (LEG_UPPER + LEG_LOWER);
-    const hipLeft = { x: com.x - 0.105, y: pelvisY };
-    const hipRight = { x: com.x + 0.105, y: pelvisY };
+    const actualLeftHip = rig.torso.getWorldPoint(V(-0.105, -0.25));
+    const actualRightHip = rig.torso.getWorldPoint(V(0.105, -0.25));
+    const hipLeft = { x: actualLeftHip.x, y: pelvisY };
+    const hipRight = { x: actualRightHip.x, y: pelvisY };
     const left = legIK(hipLeft, footTargets[0], 1);
     const right = legIK(hipRight, footTargets[1], -1);
 
