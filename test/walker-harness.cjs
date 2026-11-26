@@ -291,7 +291,7 @@ function walkerController(walker, terrainAngleAt = () => 0) {
     applyMotor(legs[i].knee, actions[i * 2 + 1] * 0.5, KNEE_SPEED);
     const targetFootAngle = terrainAngleAt(legs[i].foot.getPosition().x);
     const targetAnkleAngle = targetFootAngle - legs[i].lower.getAngle();
-    driveJoint(legs[i].ankle, targetAnkleAngle, 8, 2, 0.75, 1);
+    driveJoint(legs[i].ankle, targetAnkleAngle, 8, 2, 1.5, 1);
   }
 
   gait.elapsed += FIXED_DT;
