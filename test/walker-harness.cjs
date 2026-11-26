@@ -152,7 +152,7 @@ function createWalker(world, slope, startX, random = () => 0.5, heightAt = x => 
       restitution: 0,
       filterGroupIndex: -1
     });
-    const ankleReferenceAngle = footAngle - lower.getAngle();
+    const ankleReferenceAngle = 0;
     const ankle = world.createJoint(planck.RevoluteJoint({
       localAnchorA: Vec2(0, -LEG_H / 2),
       localAnchorB: Vec2(0, FOOT_HALF_HEIGHT),
@@ -291,8 +291,8 @@ function walkerController(walker, terrainAngleAt = () => 0) {
     applyMotor(legs[i].hip, actions[i * 2] * 0.5, HIP_SPEED);
     applyMotor(legs[i].knee, actions[i * 2 + 1] * 0.5, KNEE_SPEED);
     const targetFootAngle = terrainAngleAt(legs[i].foot.getPosition().x);
-    const targetAnkleAngle = targetFootAngle - legs[i].lower.getAngle() - legs[i].ankleReferenceAngle;
-    driveJoint(legs[i].ankle, targetAnkleAngle, 8, 2, 1.5, 1);
+    const targetAnkleAngle = targetFootAngle - legs[i].lower.getAngle();
+    driveJoint(legs[i].ankle, targetAnkleAngle, 12, 4, 1.5, 1);
   }
 
   gait.elapsed += FIXED_DT;
@@ -313,7 +313,7 @@ function runSlopeCase(degrees, seed = 12345, duration = 3, roughness = 0) {
   for (let i = 0; i < warmup + steps; i++) {
     const contacts = walker.legs.map(leg => isGroundContact(leg.foot));
     const control = walkerController(walker, terrainAngleAt);
-    world.step(FIXED_DT, 180, 100);
+    world.step(FIXED_DT, 180, 60);
 
     const angle = Math.abs(walker.hull.getAngle());
     const relativeTilt = Math.abs(walker.hull.getAngle() - slope);
@@ -367,6 +367,8 @@ function runSlopeCase(degrees, seed = 12345, duration = 3, roughness = 0) {
     maxAnkleAngle: Number(walker.maxAnkleAngle.toFixed(4)),
     footCount: walker.legs.filter(leg => Boolean(leg.foot)).length,
     ankleJointCount: walker.legs.filter(leg => Boolean(leg.ankle)).length,
+    ankleLowerLimit: walker.legs[0].ankle.getLowerLimit(),
+    ankleUpperLimit: walker.legs[0].ankle.getUpperLimit(),
     finalPosition: {
       x: Number(walker.hull.getPosition().x.toFixed(4)),
       y: Number(finalY.toFixed(4))
