@@ -164,8 +164,23 @@
     rig.noContactTime = touching.length === 0 && !rig.jumping ? rig.noContactTime + dt : 0;
     const tilted = Math.abs(wrapAngle(rig.torso.getAngle())) > 60 * Math.PI / 180;
 
+    rig.lastFallMetrics = {
+      contactCount: touching.length,
+      contactNormals: touching.map(contact => contact.normal),
+      com,
+      supportXs,
+      outsideSupport,
+      outsideSupportTime: rig.outsideSupportTime,
+      noContactTime: rig.noContactTime,
+      torsoAngle: wrapAngle(rig.torso.getAngle()),
+      steepContact,
+      tilted
+    };
     if (steepContact || rig.outsideSupportTime > 0.25 ||
         rig.noContactTime > 0.3 || tilted) {
+      rig.limpReason = steepContact ? "steep-contact" :
+        rig.outsideSupportTime > 0.25 ? "outside-support" :
+        rig.noContactTime > 0.3 ? "no-foot-contact" : "torso-tilt";
       rig.mode = "limp";
       rig.stiffness = 0;
       for (const joint of rig.joints) joint.setMaxMotorTorque(0);
