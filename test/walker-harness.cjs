@@ -292,7 +292,7 @@ const LOWER_HALF_WIDTH = 0.06;
 const FOOT_HALF_LENGTH = 0.09;
 const FOOT_HALF_HEIGHT = 0.03;
 
-function createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidth = 0.12, pelvisRatio = 0.95, terrainTiltBlend = 0, stanceCenterBlend = 0, ankleLimit = 0.6, bendMode = "side") {
+function createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidth = 0.12, pelvisRatio = 0.95, terrainTiltBlend = 0, stanceCenterBlend = 0, ankleLimit = 0.6, bendMode = "side", highSideBend = 0.4, lowSideBend = 1) {
   // Start the torso aligned with the local terrain frame; the feet independently
   // align to the surface normal through their ankle joints.
   const initialTerrainAngle = terrainAngleAt(startX) * terrainTiltBlend;
@@ -320,12 +320,13 @@ function createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidt
   });
 
   const legs = [];
+  const highSide = heightAt(startX - stanceHalfWidth) >= heightAt(startX + stanceHalfWidth) ? -1 : 1;
   for (const side of [-1, 1]) {
     const targetX = stanceCenterX + side * stanceHalfWidth;
     const ankleTarget = Vec2(targetX, heightAt(targetX) + FOOT_HALF_HEIGHT * 2);
     const actualHip = hull.getWorldPoint(Vec2(side * HIP_X, HIP_Y));
     const hipWorld = actualHip;
-    const bend = bendMode === "same-positive" ? 1 : bendMode === "same-negative" ? -1 : side;
+    const bend = bendMode === "same-positive" ? 1 : bendMode === "same-negative" ? -1 : bendMode === "slope-adaptive" ? (side === highSide ? highSideBend : lowSideBend) : side;
     const solution = legIK(hipWorld, ankleTarget, UPPER_LENGTH, LOWER_LENGTH, bend);
 
     const upperAngle = solution.thighDir + Math.PI / 2;
@@ -842,7 +843,7 @@ function runRigSymmetryCase(continuousGround = false, runController = true) {
   };
 }
 
-function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmupSteps = 0, groundStyle = "chain", controllerEnabled = true, balanceKp = 3.5, balanceKd = 0.02, chainStep = 0.25, stanceHalfWidth = 0.12, pelvisRatio = 0.95, terrainTiltBlend = 0, stanceCenterBlend = 0, ankleLimit = 0.6, ankleTorqueMax = 1.5, bendMode = "side", stepReach = 0.18, stepLookahead = 0.25, hipTorqueMax = 4, kneeTorqueMax = 4, swingHeight = 0.12, swingDuration = 0.2, stanceTorqueScale = 1, hipHeightBlend = 1) {
+function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmupSteps = 0, groundStyle = "chain", controllerEnabled = true, balanceKp = 3.5, balanceKd = 0.02, chainStep = 0.25, stanceHalfWidth = 0.12, pelvisRatio = 0.95, terrainTiltBlend = 0, stanceCenterBlend = 0, ankleLimit = 0.6, ankleTorqueMax = 1.5, bendMode = "side", stepReach = 0.18, stepLookahead = 0.25, hipTorqueMax = 4, kneeTorqueMax = 4, swingHeight = 0.12, swingDuration = 0.2, stanceTorqueScale = 1, hipHeightBlend = 1, highSideBend = 0.4, lowSideBend = 1) {
   const random = seededRandom(seed);
   const phaseA = random() * Math.PI * 2;
   const phaseB = random() * Math.PI * 2;
@@ -852,7 +853,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
       ? makeSegmentedWorld(degrees, roughness, phaseA, phaseB)
       : makeWorld(degrees, roughness, phaseA, phaseB, chainStep);
   const startX = (random() - 0.5) * 0.2;
-  const walker = createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidth, pelvisRatio, terrainTiltBlend, stanceCenterBlend, ankleLimit, bendMode);
+  const walker = createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidth, pelvisRatio, terrainTiltBlend, stanceCenterBlend, ankleLimit, bendMode, highSideBend, lowSideBend);
   const initialPose = walker.legs.map(leg => {
     const footCorners = [
       leg.foot.getWorldPoint(Vec2(-FOOT_HALF_LENGTH, -FOOT_HALF_HEIGHT)),
@@ -1009,6 +1010,8 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
     swingDuration,
     stanceTorqueScale,
     hipHeightBlend,
+    highSideBend,
+    lowSideBend,
     initialPose,
     supportedTime: Number(supportedTime.toFixed(3)),
     bothFeetContactTime: Number(bothFeetContactTime.toFixed(3)),
