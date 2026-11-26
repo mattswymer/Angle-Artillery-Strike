@@ -49,8 +49,8 @@ function makeWorld(degrees, roughness = 0, phaseA = 0, phaseB = 0) {
   return { world, slope, heightAt };
 }
 
-function createWalker(world, slope, startX, random = () => 0.5) {
-  const surfaceY = Math.tan(slope) * startX;
+function createWalker(world, slope, startX, random = () => 0.5, heightAt = x => Math.tan(slope) * x) {
+  const surfaceY = heightAt(startX);
   const initY = surfaceY + 2 * LEG_H;
   const hull = world.createDynamicBody({
     position: Vec2(startX, initY),
@@ -247,9 +247,11 @@ function walkerController(walker) {
 
 function runSlopeCase(degrees, seed = 12345, duration = 3, roughness = 0) {
   const random = seededRandom(seed);
-  const { world, slope } = makeWorld(degrees);
+  const phaseA = random() * Math.PI * 2;
+  const phaseB = random() * Math.PI * 2;
+  const { world, slope, heightAt } = makeWorld(degrees, roughness, phaseA, phaseB);
   const startX = (random() - 0.5) * 0.5;
-  const walker = createWalker(world, slope, startX, random);
+  const walker = createWalker(world, slope, startX, random, heightAt);
   const warmup = 45;
   const steps = Math.ceil(duration / FIXED_DT);
   const trace = [];
