@@ -535,12 +535,12 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1) {
     const lowerBodyAngle = solution.thighDir - solution.kneeRel + Math.PI / 2;
     const hipTarget = wrapAngle(upperBodyAngle - hull.getAngle());
     const kneeTarget = wrapAngle(lowerBodyAngle - upperBodyAngle);
-    driveJoint(leg.hip, hipTarget, 10, 5, 18, stiffness);
-    driveJoint(leg.knee, kneeTarget, 12, 6, 18, stiffness);
+    driveJoint(leg.hip, hipTarget, 13, 4, 4, stiffness);
+    driveJoint(leg.knee, kneeTarget, 15, 5, 4, stiffness);
 
     const desiredFootAngle = terrainAngle;
     const ankleTargetAngle = wrapAngle(desiredFootAngle - leg.lower.getAngle());
-    driveJoint(leg.ankle, ankleTargetAngle, 10, 4, 4, stiffness);
+    driveJoint(leg.ankle, ankleTargetAngle, 12, 3, 1.5, stiffness);
   }
 
   return {
