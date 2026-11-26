@@ -185,6 +185,7 @@ function createWalker(world, slope, startX, random = () => 0.5, heightAt = x => 
     contactTime: 0,
     maxTilt: 0,
     maxSpeed: 0,
+    maxAnkleAngle: 0,
     trace: []
   };
 }
@@ -315,6 +316,9 @@ function runSlopeCase(degrees, seed = 12345, duration = 3, roughness = 0) {
 
     const angle = Math.abs(walker.hull.getAngle());
     const relativeTilt = Math.abs(walker.hull.getAngle() - slope);
+    for (const leg of walker.legs) {
+      walker.maxAnkleAngle = Math.max(walker.maxAnkleAngle, Math.abs(leg.ankle.getJointAngle()));
+    }
     walker.maxTilt = Math.max(walker.maxTilt, angle);
     walker.maxSpeed = Math.max(walker.maxSpeed, Math.abs(walker.hull.getLinearVelocity().x));
     const grounded = contacts.some(Boolean);
@@ -359,6 +363,9 @@ function runSlopeCase(degrees, seed = 12345, duration = 3, roughness = 0) {
     everFallen: walker.everFallen,
     maxTiltDegrees: Number((walker.maxTilt * 180 / Math.PI).toFixed(2)),
     maxSpeed: Number(walker.maxSpeed.toFixed(3)),
+    maxAnkleAngle: Number(walker.maxAnkleAngle.toFixed(4)),
+    footCount: walker.legs.filter(leg => Boolean(leg.foot)).length,
+    ankleJointCount: walker.legs.filter(leg => Boolean(leg.ankle)).length,
     finalPosition: {
       x: Number(walker.hull.getPosition().x.toFixed(4)),
       y: Number(finalY.toFixed(4))
