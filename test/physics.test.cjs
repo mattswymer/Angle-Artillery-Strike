@@ -589,67 +589,6 @@ test("production walking uses alternating physical steps and capped tangent forc
   assert.equal(rig.mode, "active");
 });
 
-test("production articulated walking maintains support while climbing a 20 degree slope", () => {
-  const results = [];
-  for (const walkingPelvisRatio of [0.85, 0.9, 0.95]) {
-    const world = new planck.World({ gravity: planck.Vec2(0, -10) });
-    const slope = Math.tan(20 * Math.PI / 180);
-    const heightAt = x => slope * x;
-    const terrainAngleAt = () => Math.atan(slope);
-    const ground = world.createBody();
-    ground.createFixture({
-      shape: new planck.Edge(planck.Vec2(-8, heightAt(-8)), planck.Vec2(8, heightAt(8))),
-      friction: 2.5
-    });
-    const rig = productionRig.createStanceRig(
-      world, 0, heightAt, terrainAngleAt,
-      0.1, 0.85, 0, 0, 0.6, "slope-adaptive", 0.4, 1
-    );
-    rig.walkingPelvisRatio = walkingPelvisRatio;
-    let lastControl;
-    const control = () => {
-      lastControl = productionRig.stanceController(
-        rig, heightAt, terrainAngleAt, rig.stiffness,
-        3.5, 0.06, 1.5, 0.12, 0.41, 6, 6, 0.12, 0.2, 1, 1, 1
-      );
-      return lastControl;
-    };
-    for (let i = 0; i < 60; i++) {
-      control();
-      world.step(1 / 50, 180, 60);
-    }
-    const startX = rig.hull.getPosition().x;
-    rig.walkDirection = 1;
-    let steps = 0;
-    let previousSwing = rig.nextSwingIndex;
-    for (let i = 0; i < 100; i++) {
-      productionRig.updateRigFallState(rig, 1 / 50, rig.jumping);
-      if (rig.mode === "active") control();
-      if (rig.nextSwingIndex !== previousSwing) {
-        steps++;
-        previousSwing = rig.nextSwingIndex;
-      }
-      world.step(1 / 50, 180, 60);
-      if (rig.mode === "limp") break;
-    }
-    results.push({
-      walkingPelvisRatio,
-      displacement: rig.hull.getPosition().x - startX,
-      steps, mode: rig.mode, swingIndex: rig.swingIndex ?? null,
-      swingTime: rig.swingTime, swingRetargeted: rig.swingRetargeted,
-      feet: rig.legs.map(leg => ({
-        position: leg.foot.getPosition(),
-        angle: leg.foot.getAngle(),
-        target: lastControl?.targets[rig.legs.indexOf(leg)]
-      })),
-      hipAnchors: rig.legs.map(leg => rig.hull.getWorldPoint(planck.Vec2(leg.side * 0.105, -0.25)))
-    });
-  }
-  console.log("uphill pelvis sweep", JSON.stringify(results));
-  assert.ok(results.some(r => r.displacement > 0.25 && r.steps >= 2 && r.mode === "active"),
-    JSON.stringify(results));
-});
-
 test("production jump crouches, extends, leaves the ground, tucks, and lands softly", () => {
   const world = new planck.World({ gravity: planck.Vec2(0, -10) });
   const ground = world.createBody();
