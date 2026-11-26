@@ -17,7 +17,7 @@ function driveJoint(j, target, kp, wMax, tauMax, stiffness) {
 }
 ```
 
-The two-bone IK solver clamps unreachable targets and has geometry tests for both bend directions. A separate Planck test verifies the revolute-motor sign convention.
+The two-bone IK solver clamps unreachable targets and has geometry tests for both bend directions. A separate Planck test verifies the revolute-motor sign convention. A regression test also verifies that a swing foot retains its computed lift; a previous assignment accidentally flattened the target back to planted height.
 
 ## Important current limitation
 
@@ -25,7 +25,9 @@ The two-bone IK solver clamps unreachable targets and has geometry tests for bot
 
 The latest stance traces show the rig initially supporting itself, then losing one or both foot contacts and rotating/falling. The current tests for this experiment only assert finite simulation output; they do not assert successful standing. This is intentional while the controller is being debugged. Flat ground must pass first, followed by 20° and 35° slopes, before the stance controller can be considered validated.
 
-The main unresolved behavior is loss of foot contact during the balance step. The controller now uses actual foot contacts to determine the support interval and moves the foot on the side of the center-of-mass escape, holding its swing target until landing. A raised swing arc is included. These changes have not yet produced a reliable stand.
+The main unresolved behavior is loss of foot contact during the balance step. The controller uses actual foot contacts to determine the support interval and moves the foot on the side of the center-of-mass escape, holding its swing target until landing. The swing-height overwrite has been fixed and is covered by a regression test, but the corrected lift has not yet produced a reliable stand.
+
+A bilateral diagnostic confirms that the rig's initial geometry and a free-flight physics step are mirror-symmetric. Once both feet contact a flat ground edge, the first solver step introduces a small asymmetry (about 0.005 radians, primarily at the ankles). This is a contact-solver effect and is not, by itself, large enough to explain the eventual fall. A 60-step controlled settling phase before the measured three-second interval does not materially improve the flat-ground result; the large torso rotation and peak speed remain essentially unchanged.
 
 The reference gait controller and its existing slope results remain separate from this stance result. Passing the locomotion tests does not imply that the new stance rig is stable.
 
@@ -53,7 +55,7 @@ npm install
 npm test
 ```
 
-GitHub Actions is the authoritative execution environment when local dependency installation is unavailable. The suite currently includes the reference locomotion cases, rig structure and motor coverage, IK geometry, motor-sign verification, and finite-output stance/posture diagnostics.
+GitHub Actions is the authoritative execution environment when local dependency installation is unavailable. The suite currently includes the reference locomotion cases, rig structure and motor coverage, IK geometry, motor-sign verification, swing-clearance regression, bilateral symmetry/contact diagnostics, spawn-settling comparison, and finite-output stance/posture diagnostics. The current 24 tests pass, but the stance acceptance criteria remain unmet.
 
 ## Scope and next steps
 
