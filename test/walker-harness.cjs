@@ -1060,8 +1060,9 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
   const trace = [];
 
   for (let i = 0; i < steps; i++) {
-    const control = controllerEnabled
-      ? stanceController(walker, heightAt, terrainAngleAt, 1, balanceKp, balanceKd, ankleTorqueMax, stepReach, stepLookahead, hipTorqueMax, kneeTorqueMax, swingHeight, swingDuration, stanceTorqueScale, hipHeightBlend, upperBodyTorqueScale)
+    updateRigFallState(walker, FIXED_DT, false);
+    const control = controllerEnabled && walker.mode === "active"
+      ? stanceController(walker, heightAt, terrainAngleAt, walker.stiffness, balanceKp, balanceKd, ankleTorqueMax, stepReach, stepLookahead, hipTorqueMax, kneeTorqueMax, swingHeight, swingDuration, stanceTorqueScale, hipHeightBlend, upperBodyTorqueScale)
       : { targets: walker.stanceTargets.map(x => Vec2(x, heightAt(x) + FOOT_HALF_HEIGHT * 2)) };
     world.step(FIXED_DT, 180, 60);
     const contacts = walker.legs.map(leg => isGroundContact(leg.foot));
@@ -1188,6 +1189,9 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
     maxAirTime: Number(maxAirTime.toFixed(3)),
     finite,
     trace,
+    mode: walker.mode,
+    fallReason: walker.fallReason,
+    stiffness: Number(walker.stiffness.toFixed(3)),
     finalPosition: {
       x: Number(walker.hull.getPosition().x.toFixed(4)),
       y: Number(walker.hull.getPosition().y.toFixed(4))
