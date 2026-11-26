@@ -33,7 +33,7 @@ The key corrections were:
 
 The headless Planck acceptance tests now cover eight fixed seeds on flat, 20°, and 35° terrain. Flat and 20° cases maintain support for the full three seconds with no airtime. The 20° high-side bend is adapted to keep both initial ankle angles within ±0.6 radians.
 
-The 35° case maintains an upright torso (under 10° maximum tilt) and at least 2.9 seconds of support in each three-second run. It can have a single 20 ms physics step with neither foot in contact during a corrective transfer; that is below the 0.3-second no-contact threshold intended to trigger limp. This is a controlled dynamic stance, not a perfectly motionless two-foot pose.
+The 35° full-body case maintains an upright torso (under 10° maximum tilt) and at least 2.9 seconds of support in each three-second run. Its tested configuration uses 0.1× upper-body motor torque while the hips and knees retain 6 Nm limits; this avoids the head and arms overpowering the stance controller. Brief contact-transfer gaps total no more than 0.06 seconds in a run, below the 0.3-second no-contact threshold intended to trigger limp. This is a controlled dynamic stance, not a perfectly motionless two-foot pose.
 
 The 50° case remains outside the stance controller's stable envelope. The reference gait controller and the character-proportion stance rig are separate experiments; passing one does not imply the other is stable.
 
@@ -63,7 +63,7 @@ npm install
 npm test
 ```
 
-GitHub Actions is the authoritative execution environment when local dependency installation is unavailable. The suite currently contains 24 tests. It covers reference locomotion, rig structure and motor coverage, IK geometry, motor-sign verification, swing-clearance regression, bilateral symmetry, spawn settling, and repeatable flat/20°/35° upright stance acceptance across eight fixed seeds. The 35° acceptance allows at most one 20 ms contact-transfer gap in a three-second run.
+GitHub Actions is the authoritative execution environment when local dependency installation is unavailable. The suite currently contains 29 tests. It covers reference locomotion, rig structure and motor coverage, IK geometry, motor-sign verification, swing-clearance regression, bilateral symmetry, spawn settling, and repeatable flat/20°/35° upright stance acceptance across eight fixed seeds. The 35° acceptance allows up to 0.06 seconds of cumulative no-foot-contact time in a three-second run.
 
 ## Scope and next steps
 
