@@ -865,6 +865,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
   const steps = Math.ceil(duration / FIXED_DT);
   let supportedTime = 0;
   let maxRelativeTilt = 0;
+  let maxAbsoluteTilt = 0;
   let maxSpeed = 0;
   let maxAirTime = 0;
   let airTime = 0;
@@ -885,6 +886,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
       maxAirTime = Math.max(maxAirTime, airTime);
     }
     maxRelativeTilt = Math.max(maxRelativeTilt, Math.abs(wrapAngle(walker.hull.getAngle() - slope)));
+    maxAbsoluteTilt = Math.max(maxAbsoluteTilt, Math.abs(walker.hull.getAngle()));
     maxSpeed = Math.max(maxSpeed, walker.hull.getLinearVelocity().length());
     if (i % 10 === 0 || i === steps - 1) {
       trace.push({
@@ -971,6 +973,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
     ankleTorqueMax,
     supportedTime: Number(supportedTime.toFixed(3)),
     maxRelativeTiltDegrees: Number((maxRelativeTilt * 180 / Math.PI).toFixed(2)),
+    maxAbsoluteTiltDegrees: Number((maxAbsoluteTilt * 180 / Math.PI).toFixed(2)),
     maxSpeed: Number(maxSpeed.toFixed(3)),
     maxAirTime: Number(maxAirTime.toFixed(3)),
     finite,
