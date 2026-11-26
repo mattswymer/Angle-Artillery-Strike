@@ -641,8 +641,10 @@
       }
       const leftHand = rig.byName["left-lower-arm"].body.getWorldPoint(V(0, -0.17));
       const rightHand = rig.byName["right-lower-arm"].body.getWorldPoint(V(0, -0.17));
-      const leftFoot = rig.byName["left-lower-leg"].body.getWorldPoint(V(0, -0.17));
-      const rightFoot = rig.byName["right-lower-leg"].body.getWorldPoint(V(0, -0.17));
+      const leftAnkle = points.leftAnkle;
+      const rightAnkle = points.rightAnkle;
+      const leftFoot = rig.byName["left-foot"].body.getWorldPoint(V(0.09, 0));
+      const rightFoot = rig.byName["right-foot"].body.getWorldPoint(V(0.09, 0));
       const head = rig.byName.head.body.getPosition();
       const shoulderCenter = V((points.leftShoulder.x + points.rightShoulder.x) * 0.5,
         (points.leftShoulder.y + points.rightShoulder.y) * 0.5);
@@ -665,9 +667,11 @@
       drawBone(points.rightShoulder, points.rightElbow);
       drawBone(points.rightElbow, rightHand);
       drawBone(points.leftHip, points.leftKnee);
-      drawBone(points.leftKnee, leftFoot);
+      drawBone(points.leftKnee, leftAnkle);
+      drawBone(leftAnkle, leftFoot);
       drawBone(points.rightHip, points.rightKnee);
-      drawBone(points.rightKnee, rightFoot);
+      drawBone(points.rightKnee, rightAnkle);
+      drawBone(rightAnkle, rightFoot);
 
       ctx.fillStyle = "#17232b";
       for (const point of Object.values(points)) {
