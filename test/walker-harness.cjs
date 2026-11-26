@@ -31,17 +31,22 @@ function seededRandom(seed) {
   };
 }
 
-function makeWorld(degrees) {
+function makeWorld(degrees, roughness = 0, phaseA = 0, phaseB = 0) {
   const world = new planck.World({ gravity: Vec2(0, -GRAVITY) });
   world.setAllowSleeping(false);
   const slope = -degrees * Math.PI / 180;
+  const heightAt = x => Math.tan(slope) * x +
+    roughness * (0.7 * Math.sin(0.65 * x + phaseA) + 0.3 * Math.sin(1.7 * x + phaseB));
   const ground = world.createBody();
-  ground.createFixture({
-    shape: new planck.Box(30, 0.05, Vec2(0, -0.05), slope),
-    friction: 2.5,
-    restitution: 0
-  });
-  return { world, slope };
+  const step = 0.25;
+  for (let x = -30; x < 30; x += step) {
+    ground.createFixture({
+      shape: new planck.Edge(Vec2(x, heightAt(x)), Vec2(x + step, heightAt(x + step))),
+      friction: 2.5,
+      restitution: 0
+    });
+  }
+  return { world, slope, heightAt };
 }
 
 function createWalker(world, slope, startX, random = () => 0.5) {
@@ -240,7 +245,7 @@ function walkerController(walker) {
   return { movingContact, supportingContact, actions };
 }
 
-function runSlopeCase(degrees, seed = 12345, duration = 3) {
+function runSlopeCase(degrees, seed = 12345, duration = 3, roughness = 0) {
   const random = seededRandom(seed);
   const { world, slope } = makeWorld(degrees);
   const startX = (random() - 0.5) * 0.5;
@@ -267,7 +272,7 @@ function runSlopeCase(degrees, seed = 12345, duration = 3) {
       walker.maxAirTime = Math.max(walker.maxAirTime, walker.airTime);
     }
     if (grounded && relativeTilt < Math.PI / 4) walker.stableTime += FIXED_DT;
-    const relativeHeight = walker.hull.getPosition().y - Math.tan(slope) * walker.hull.getPosition().x;
+    const relativeHeight = walker.hull.getPosition().y - heightAt(walker.hull.getPosition().x);
     if (angle > Math.PI * 0.61 || relativeHeight < -0.5) {
       walker.everFallen = true;
     }
