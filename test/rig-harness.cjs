@@ -306,10 +306,13 @@ function stepRig(world, rig, slopeRadians, dt = STEP) {
 
   const supported = contacts > 0;
   const torsoTilt = Math.abs(wrapAngle(rig.torso.getAngle()));
-  const badSupport = worstNormalAngle > 50 * Math.PI / 180 ||
-    rig.outsideTime > 0.25 ||
-    (!supported && rig.elapsed > 0.3) ||
-    torsoTilt > 60 * Math.PI / 180;
+  const badReasons = [];
+  if (worstNormalAngle > 50 * Math.PI / 180) badReasons.push("contact-normal");
+  if (rig.outsideTime > 0.25) badReasons.push("outside-support");
+  if (!supported && rig.elapsed > 0.3) badReasons.push("no-foot-contact");
+  if (torsoTilt > 60 * Math.PI / 180) badReasons.push("torso-tilt");
+  rig.badReasons = badReasons;
+  const badSupport = badReasons.length > 0;
   rig.stiffness = badSupport
     ? Math.max(0, rig.stiffness - dt / 0.1)
     : Math.min(1, rig.stiffness + dt / 0.5);
@@ -367,7 +370,7 @@ function runSlopeCase(degrees, seed = 12345) {
   for (let i = 0; i < frames; i++) {
     stepRig(world, rig, radians);
     world.step(STEP, 8, 3);
-    if (i % 30 === 0) {
+    if (i % 6 === 0 && i <= 36) {
       trace.push({
         time: Number((i * STEP).toFixed(2)),
         x: Number(rig.torso.getPosition().x.toFixed(3)),
@@ -378,7 +381,15 @@ function runSlopeCase(degrees, seed = 12345) {
         contacts: rig.legs.filter(leg => footContact(leg.foot)).length,
         hips: rig.legs.map(leg => Number(leg.hipJoint.getJointAngle().toFixed(2))),
         knees: rig.legs.map(leg => Number(leg.kneeJoint.getJointAngle().toFixed(2))),
-        ankles: rig.legs.map(leg => Number(leg.ankleJoint.getJointAngle().toFixed(2)))
+        ankles: rig.legs.map(leg => Number(leg.ankleJoint.getJointAngle().toFixed(2))),
+        badReasons: rig.badReasons,
+        feet: rig.legs.map(leg => ({
+          x: Number(leg.foot.getPosition().x.toFixed(3)),
+          y: Number(leg.foot.getPosition().y.toFixed(3)),
+          angle: Number((leg.foot.getAngle() * 180 / Math.PI).toFixed(1)),
+          vx: Number(leg.foot.getLinearVelocity().x.toFixed(3)),
+          vy: Number(leg.foot.getLinearVelocity().y.toFixed(3))
+        }))
       });
     }
   }
