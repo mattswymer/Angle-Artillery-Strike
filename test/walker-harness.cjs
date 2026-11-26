@@ -495,7 +495,23 @@ function createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidt
     stanceHalfWidth,
     pelvisRatio,
     terrainTiltBlend,
-    stanceCenterBlend
+    stanceCenterBlend,
+    mode: "active",
+    stiffness: 1,
+    limpElapsed: 0,
+    noContactTime: 0,
+    outsideSupportTime: 0,
+    fallReason: null,
+    hit(dv = Vec2(0, 0)) {
+      this.mode = "limp";
+      this.stiffness = 0;
+      this.fallReason = "hit";
+      this.hull.applyLinearImpulse(
+        Vec2(dv.x * this.hull.getMass(), dv.y * this.hull.getMass()),
+        this.hull.getWorldCenter(),
+        true
+      );
+    }
   };
 }
 
@@ -508,6 +524,83 @@ function isGroundContact(body) {
     }
   }
   return false;
+}
+
+function footContactNormals(foot) {
+  const normals = [];
+  for (let edge = foot.getContactList(); edge; edge = edge.next) {
+    const contact = edge.contact;
+    if (!contact.isTouching()) continue;
+    const fixtureA = contact.getFixtureA();
+    const fixtureB = contact.getFixtureB();
+    const bodyA = fixtureA.getBody();
+    const bodyB = fixtureB.getBody();
+    if (bodyA !== foot && bodyB !== foot) continue;
+    const other = bodyA === foot ? bodyB : bodyA;
+    if (!other.isStatic()) continue;
+    const manifold = contact.getWorldManifold(null);
+    if (!manifold?.normal) continue;
+    const sign = bodyA === foot ? -1 : 1;
+    normals.push(Vec2(manifold.normal.x * sign, manifold.normal.y * sign));
+  }
+  return normals;
+}
+
+function rigSupportBounds(walker) {
+  const planted = walker.legs.filter(leg => isGroundContact(leg.foot));
+  if (!planted.length) return null;
+  const bounds = planted.map(leg => {
+    const foot = leg.foot;
+    const angle = foot.getAngle();
+    const halfSpan = Math.abs(Math.cos(angle)) * FOOT_HALF_LENGTH +
+      Math.abs(Math.sin(angle)) * FOOT_HALF_HEIGHT;
+    return {
+      min: foot.getPosition().x - halfSpan,
+      max: foot.getPosition().x + halfSpan
+    };
+  });
+  return {
+    min: Math.min(...bounds.map(bound => bound.min)),
+    max: Math.max(...bounds.map(bound => bound.max))
+  };
+}
+
+function updateRigFallState(walker, deltaTime = FIXED_DT, jumping = false) {
+  if (walker.mode === "limp") {
+    walker.limpElapsed += deltaTime;
+    walker.stiffness = 0;
+    return { mode: walker.mode, stiffness: walker.stiffness, reason: walker.fallReason };
+  }
+
+  const normals = walker.legs.flatMap(leg => footContactNormals(leg.foot));
+  const badContact = normals.some(normal => {
+    const angleFromVertical = Math.atan2(Math.abs(normal.x), normal.y);
+    return normal.y <= 0 || angleFromVertical > 50 * Math.PI / 180;
+  });
+  const contacts = walker.legs.map(leg => isGroundContact(leg.foot));
+  const anyContact = contacts.some(Boolean);
+  walker.noContactTime = anyContact ? 0 : walker.noContactTime + deltaTime;
+
+  const support = rigSupportBounds(walker);
+  const centerX = getRigCenterOfMassX(walker);
+  const outsideSupport = support !== null && (centerX < support.min - 0.04 || centerX > support.max + 0.04);
+  walker.outsideSupportTime = outsideSupport ? walker.outsideSupportTime + deltaTime : 0;
+
+  const torsoTilt = Math.abs(wrapAngle(walker.hull.getAngle()));
+  let reason = null;
+  if (badContact) reason = "foot-normal";
+  else if (torsoTilt > Math.PI / 3) reason = "torso-tilt";
+  else if (walker.outsideSupportTime > 0.25) reason = "outside-support";
+  else if (!jumping && walker.noContactTime > 0.3) reason = "no-foot-contact";
+
+  if (reason) {
+    walker.fallReason = reason;
+    walker.mode = "limp";
+    walker.limpElapsed = 0;
+  } else {
+    walker.stiffness = Math.max(0, walker.stiffness - deltaTime / 0.1);
+  }
+  return { mode: walker.mode, stiffness: walker.stiffness, reason: walker.fallReason };
 }
 
 function jointPD(joint, target, kp, speedScale) {
