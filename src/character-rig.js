@@ -350,11 +350,11 @@ function rigSupportBounds(walker) {
       max: foot.getPosition().x + halfSpan
     };
   });
-  // During a commanded step, include the swing foot's committed landing
-  // patch in the recoverable support envelope. The foot target is held until
-  // contact, so this is a real planned corrective step, not a chasing target.
-  if (walker.swingIndex !== undefined && walker.swingIndex !== null) {
-    const targetX = walker.stanceTargets[walker.swingIndex];
+  // The two committed stance targets define the support envelope while a
+  // foot is transferring. They are fixed landing/stance locations, not a
+  // continuously chasing COM target; include them alongside actual contact
+  // patches so single-support gait phases are not mistaken for a fall.
+  for (const targetX of walker.stanceTargets) {
     bounds.push({ min: targetX - FOOT_HALF_LENGTH, max: targetX + FOOT_HALF_LENGTH });
   }
   return {
