@@ -584,6 +584,12 @@ test("production walking uses alternating physical steps and capped tangent forc
     if (rig.mode === "limp") break;
   }
   rig.walkDirection = 0;
+  console.log("walking diagnostic", JSON.stringify({
+    startX, endX: rig.hull.getPosition().x, velocity: rig.hull.getLinearVelocity(),
+    mode: rig.mode, fallReason: rig.fallReason, completedAlternations,
+    swingIndex: rig.swingIndex, nextSwingIndex: rig.nextSwingIndex,
+    feet: rig.legs.map(leg => ({ x: leg.foot.getPosition().x, contact: productionRig.isGroundContact(leg.foot) }))
+  }));
   assert.ok(rig.hull.getPosition().x > startX + 0.4,
     `walking displacement was ${rig.hull.getPosition().x - startX}`);
   assert.ok(completedAlternations >= 2, `only ${completedAlternations} alternating steps began`);
@@ -615,6 +621,11 @@ test("production jump crouches, extends, leaves the ground, tucks, and lands sof
     maxY = Math.max(maxY, rig.hull.getPosition().y);
     if (rig.jumpPhase === "idle" && i > 20) break;
   }
+  console.log("jump diagnostic", JSON.stringify({
+    startY, maxY, finalY: rig.hull.getPosition().y,
+    velocity: rig.hull.getLinearVelocity(), phases: [...phases],
+    mode: rig.mode, fallReason: rig.fallReason, jumping: rig.jumping
+  }));
   assert.ok(phases.has("crouch"));
   assert.ok(phases.has("extend"));
   assert.ok(phases.has("air"));
