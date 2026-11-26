@@ -347,7 +347,7 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1) {
     target.y = surfaceY + 0.06;
     const hipWorld = hull.getWorldPoint(Vec2(0, LEG_DOWN));
     const ankleTarget = Vec2(target.x, target.y);
-    const solution = legIK(hipWorld, ankleTarget, LEG_H, LEG_H, 1);
+    const solution = legIK(hipWorld, ankleTarget, LEG_H, LEG_H, leg.side);
 
     // Box long axes point down at body angle zero. Convert the IK's
     // mathematical +X segment direction into Planck body/joint angles.
