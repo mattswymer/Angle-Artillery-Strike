@@ -319,6 +319,54 @@ function createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidt
     filterGroupIndex: -1
   });
 
+  const makeUpperBodyPart = (name, localCenter, halfWidth, halfHeight, density, circle = false, sensor = false) => {
+    const center = hull.getWorldPoint(Vec2(localCenter[0], localCenter[1]));
+    const body = world.createDynamicBody({
+      position: center,
+      angle: initialTerrainAngle,
+      linearDamping: 0.08,
+      angularDamping: 0.08,
+      allowSleep: false,
+      userData: { part: name }
+    });
+    body.createFixture({
+      shape: circle ? new planck.Circle(halfWidth) : new planck.Box(halfWidth, halfHeight),
+      density,
+      friction: sensor ? 0.18 : 0.35,
+      restitution: 0,
+      isSensor: sensor,
+      filterGroupIndex: -1
+    });
+    return body;
+  };
+  const head = makeUpperBodyPart("head", [0, 0.47], 0.135, 0.135, 1.05, true);
+  const leftUpperArm = makeUpperBodyPart("left-upper-arm", [-0.17, 0.03], 0.065, 0.19, 0.8);
+  const leftLowerArm = makeUpperBodyPart("left-lower-arm", [-0.17, -0.33], 0.055, 0.17, 0.8, false, true);
+  const rightUpperArm = makeUpperBodyPart("right-upper-arm", [0.17, 0.03], 0.065, 0.19, 0.8);
+  const rightLowerArm = makeUpperBodyPart("right-lower-arm", [0.17, -0.33], 0.055, 0.17, 0.8, false, true);
+
+  const makeUpperJoint = (bodyA, bodyB, anchorA, anchorB, lowerAngle, upperAngle, maxTorque) => {
+    const joint = world.createJoint(planck.RevoluteJoint({
+      localAnchorA: Vec2(anchorA[0], anchorA[1]),
+      localAnchorB: Vec2(anchorB[0], anchorB[1]),
+      enableMotor: true,
+      enableLimit: true,
+      lowerAngle,
+      upperAngle,
+      maxMotorTorque: maxTorque,
+      referenceAngle: 0,
+      collideConnected: false
+    }, bodyA, bodyB));
+    return joint;
+  };
+  const upperJoints = {
+    neck: makeUpperJoint(hull, head, [0, 0.29], [0, -0.18], -0.8, 0.8, 1),
+    leftShoulder: makeUpperJoint(hull, leftUpperArm, [-0.17, 0.22], [0, 0.19], -2.35, 1.5, 1),
+    leftElbow: makeUpperJoint(leftUpperArm, leftLowerArm, [0, -0.19], [0, 0.17], -2.45, 2.45, 0.8),
+    rightShoulder: makeUpperJoint(hull, rightUpperArm, [0.17, 0.22], [0, 0.19], -1.5, 2.35, 1),
+    rightElbow: makeUpperJoint(rightUpperArm, rightLowerArm, [0, -0.19], [0, 0.17], -2.45, 2.45, 0.8)
+  };
+
   const legs = [];
   const highSide = heightAt(startX - stanceHalfWidth) >= heightAt(startX + stanceHalfWidth) ? -1 : 1;
   for (const side of [-1, 1]) {
@@ -428,8 +476,20 @@ function createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidt
     });
   }
 
+  const bodies = [
+    hull, head, leftUpperArm, leftLowerArm, rightUpperArm, rightLowerArm,
+    ...legs.flatMap(leg => [leg.upper, leg.lower, leg.foot])
+  ];
+  const joints = [
+    ...Object.values(upperJoints),
+    ...legs.flatMap(leg => [leg.hip, leg.knee, leg.ankle])
+  ];
   return {
     hull,
+    head,
+    upperJoints,
+    bodies,
+    joints,
     legs,
     stanceTargets: [stanceCenterX - stanceHalfWidth, stanceCenterX + stanceHalfWidth],
     stanceHalfWidth,
