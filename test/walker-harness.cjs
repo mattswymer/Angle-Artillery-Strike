@@ -74,12 +74,22 @@ function createWalker(world, slope, startX, random = () => 0.5, heightAt = x => 
   const joints = [];
   for (const side of [-1, 1]) {
     const hipOffset = options.separatedHips ? side * 0.16 : 0;
+    const stanceTargetX = startX + side * 0.12;
+    const stanceTarget = Vec2(stanceTargetX, heightAt(stanceTargetX) + 0.03);
+    const hipWorld = hull.getWorldPoint(Vec2(hipOffset, LEG_DOWN));
+    const initialIK = options.alignToTerrain
+      ? legIK(hipWorld, stanceTarget, LEG_H, LEG_H, 1)
+      : null;
+    const upperAngle = options.alignToTerrain
+      ? initialIK.thighDir + Math.PI / 2
+      : initialAngle + side * 0.05 + (random() - 0.5) * 0.08;
+    const upperOffset = rotateLocal(Vec2(0, LEG_H / 2), upperAngle);
     const upperPosition = options.alignToTerrain
-      ? hull.getWorldPoint(Vec2(hipOffset, LEG_DOWN - LEG_H / 2))
+      ? Vec2(hipWorld.x - upperOffset.x, hipWorld.y - upperOffset.y)
       : Vec2(startX, initY - LEG_H / 2 - LEG_DOWN);
     const upper = world.createDynamicBody({
       position: upperPosition,
-      angle: initialAngle + side * 0.05 + (random() - 0.5) * 0.08,
+      angle: upperAngle,
       linearDamping: 0.05,
       angularDamping: 0.05,
       allowSleep: false,
@@ -107,13 +117,16 @@ function createWalker(world, slope, startX, random = () => 0.5, heightAt = x => 
     }, hull, upper));
 
     const kneeWorld = upper.getWorldPoint(Vec2(0, -LEG_H / 2));
-    const lowerOffset = rotateLocal(Vec2(0, LEG_H / 2), initialAngle);
+    const lowerAngle = options.alignToTerrain
+      ? upperAngle - initialIK.kneeRel
+      : initialAngle + side * 0.05;
+    const lowerOffset = rotateLocal(Vec2(0, LEG_H / 2), lowerAngle);
     const lowerPosition = options.alignToTerrain
       ? Vec2(kneeWorld.x - lowerOffset.x, kneeWorld.y - lowerOffset.y)
       : Vec2(startX, initY - LEG_H * 1.5 - LEG_DOWN);
     const lower = world.createDynamicBody({
       position: lowerPosition,
-      angle: initialAngle + side * 0.05,
+      angle: lowerAngle,
       linearDamping: 0.05,
       angularDamping: 0.05,
       allowSleep: false,
@@ -143,7 +156,7 @@ function createWalker(world, slope, startX, random = () => 0.5, heightAt = x => 
     // A separate short, high-friction foot gives the rig a real ankle and
     // a contact surface that can conform to terrain instead of using the shin.
     const FOOT_HALF_HEIGHT = 0.03;
-    const footAngle = terrainAngleAt(startX);
+    const footAngle = terrainAngleAt(options.alignToTerrain ? stanceTargetX : startX);
     const ankleAnchor = lower.getWorldPoint(Vec2(0, -LEG_H / 2));
     const foot = world.createDynamicBody({
       position: Vec2(
