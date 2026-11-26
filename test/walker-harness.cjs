@@ -225,7 +225,7 @@ function applyMotor(joint, action, speed, kp) {
   // bounded target-angle error. All six joints now pass through driveJoint;
   // preserving this mapping keeps the proven hip/knee gait behavior intact.
   const target = joint.getJointAngle() + (amount * speed) / kp;
-  driveJoint(joint, target, kp, speed, MAX_TORQUE, Math.abs(amount));
+  driveJoint(joint, target, kp, speed, MAX_TORQUE, Math.min(1, Math.abs(amount) * 2));
 }
 
 function walkerController(walker, terrainAngleAt = () => 0) {
