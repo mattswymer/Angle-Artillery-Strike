@@ -618,6 +618,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0) {
   let maxAirTime = 0;
   let airTime = 0;
   let finite = true;
+  const trace = [];
 
   for (let i = 0; i < steps; i++) {
     const control = stanceController(walker, heightAt, terrainAngleAt);
@@ -632,6 +633,18 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0) {
     }
     maxRelativeTilt = Math.max(maxRelativeTilt, Math.abs(wrapAngle(walker.hull.getAngle() - slope)));
     maxSpeed = Math.max(maxSpeed, walker.hull.getLinearVelocity().length());
+    if (i % 10 === 0 || i === steps - 1) {
+      trace.push({
+        t: Number((i * FIXED_DT).toFixed(2)),
+        x: Number(walker.hull.getPosition().x.toFixed(3)),
+        y: Number(walker.hull.getPosition().y.toFixed(3)),
+        angle: Number((walker.hull.getAngle() * 180 / Math.PI).toFixed(1)),
+        hip: walker.legs.map(leg => Number(leg.hip.getJointAngle().toFixed(2))),
+        knee: walker.legs.map(leg => Number(leg.knee.getJointAngle().toFixed(2))),
+        ankle: walker.legs.map(leg => Number(leg.ankle.getJointAngle().toFixed(2))),
+        contacts: walker.legs.map(leg => isGroundContact(leg.foot))
+      });
+    }
     finite = finite &&
       Number.isFinite(walker.hull.getAngle()) &&
       Number.isFinite(walker.hull.getPosition().x) &&
@@ -645,6 +658,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0) {
     maxSpeed: Number(maxSpeed.toFixed(3)),
     maxAirTime: Number(maxAirTime.toFixed(3)),
     finite,
+    trace,
     finalPosition: {
       x: Number(walker.hull.getPosition().x.toFixed(4)),
       y: Number(walker.hull.getPosition().y.toFixed(4))
