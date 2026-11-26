@@ -164,14 +164,15 @@ test("stance swing foot target preserves its lift instead of being flattened to 
     `swing target should clear the planted ankle height: ${JSON.stringify(result)}`);
 });
 
-test("character-proportion rig starts and remains mirror-symmetric for one flat-ground step", () => {
-  const result = runRigSymmetryCase();
-  assert.ok(result.initialError < 1e-6,
-    `initial rig geometry is not symmetric: ${JSON.stringify(result)}`);
-  assert.ok(result.oneStepError < 1e-3,
-    `one-step controller/physics response is not symmetric: ${JSON.stringify(result)}`);
-  assert.equal(result.contacts[0], result.contacts[1],
-    `left/right foot contacts differ on flat ground: ${JSON.stringify(result)}`);
+test("character-proportion rig remains symmetric on a continuous flat ground edge", () => {
+  const segmented = runRigSymmetryCase(false);
+  const continuous = runRigSymmetryCase(true);
+  assert.ok(segmented.initialError < 1e-6 && continuous.initialError < 1e-6,
+    `initial rig geometry is not symmetric: ${JSON.stringify({ segmented, continuous })}`);
+  assert.ok(continuous.oneStepError < 1e-3,
+    `one-step response is not symmetric even on a continuous ground edge: ${JSON.stringify({ segmented, continuous })}`);
+  assert.equal(continuous.contacts[0], continuous.contacts[1],
+    `left/right foot contacts differ on continuous flat ground: ${JSON.stringify(continuous)}`);
 });
 
 test("shared joint driver moves a revolute joint toward a positive target angle", () => {
