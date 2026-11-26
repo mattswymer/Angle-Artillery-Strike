@@ -612,6 +612,8 @@ test("production articulated walking maintains support while climbing a 20 degre
     world.step(1 / 50, 180, 60);
   }
   const startX = rig.hull.getPosition().x;
+  const startContacts = rig.legs.map(leg => productionRig.isGroundContact(leg.foot));
+  const startSwing = rig.swingIndex ?? null;
   rig.walkDirection = 1;
   let steps = 0;
   let previousSwing = rig.nextSwingIndex;
@@ -628,7 +630,9 @@ test("production articulated walking maintains support while climbing a 20 degre
   console.log("uphill walking diagnostic", JSON.stringify({
     displacement: rig.hull.getPosition().x - startX,
     position: rig.hull.getPosition(), angle: rig.hull.getAngle(),
-    mode: rig.mode, fallReason: rig.fallReason, steps,
+    mode: rig.mode, fallReason: rig.fallReason, steps, startContacts, startSwing,
+    swingIndex: rig.swingIndex ?? null, swingAirborne: rig.swingAirborne,
+    swingTime: rig.swingTime,
     contacts: rig.legs.map(leg => productionRig.isGroundContact(leg.foot)),
     velocity: rig.hull.getLinearVelocity(),
     knees: rig.legs.map(leg => leg.knee.getJointAngle()),
