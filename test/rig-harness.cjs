@@ -242,6 +242,9 @@ function stepRig(world, rig, slopeRadians, dt = STEP) {
 
   const torsoAngle = rig.torso.getAngle();
   const slope = Math.tan(slopeRadians);
+  const pelvisTargetY = Math.min(...rig.legs.map(leg =>
+    slope * leg.targetX + 0.035 + 0.95 * (SEGMENT.thigh + SEGMENT.shin)
+  ));
   const footTargets = rig.legs.map(leg => {
     const x = leg.targetX;
     const lift = leg.step
@@ -254,8 +257,8 @@ function stepRig(world, rig, slopeRadians, dt = STEP) {
   });
 
   rig.legs.forEach((leg, index) => {
-    const hip = rig.torso.getWorldPoint(V(leg.side * 0.105, -0.22));
-    const ik = legIK(hip, footTargets[index], SEGMENT.thigh, SEGMENT.shin, leg.side);
+    const desiredHip = V(torsoPosition.x + leg.side * 0.105, pelvisTargetY);
+    const ik = legIK(desiredHip, footTargets[index], SEGMENT.thigh, SEGMENT.shin, leg.side);
     const thighTarget = ik.thighDirection + Math.PI / 2 - torsoAngle;
     driveJoint(leg.hipJoint, thighTarget, 13, 8, 4, rig.stiffness);
     driveJoint(leg.kneeJoint, ik.kneeRelative, 13, 8, 4, rig.stiffness);
