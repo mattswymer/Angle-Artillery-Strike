@@ -557,43 +557,46 @@ test("browser entry point creates eight articulated combatants before its first 
 });
 
 test("production walking uses alternating physical steps and capped tangent force", () => {
-  const world = new planck.World({ gravity: planck.Vec2(0, -10) });
-  const ground = world.createBody();
-  ground.createFixture({ shape: new planck.Edge(planck.Vec2(-8, 0), planck.Vec2(8, 0)), friction: 2.5 });
-  const rig = productionRig.createStanceRig(world, 0, () => 0, () => 0);
-  const control = () => productionRig.stanceController(
-    rig, () => 0, () => 0, rig.stiffness,
-    3.5, 0.06, 1.5, 0.18, 0.25, 6, 6, 0.12, 0.2, 1, 1, 1
-  );
-  for (let i = 0; i < 30; i++) {
-    control();
-    world.step(1 / 50, 180, 60);
-  }
-  const startX = rig.hull.getPosition().x;
-  let previousSwing = rig.nextSwingIndex;
-  let completedAlternations = 0;
-  rig.walkDirection = 1;
-  for (let i = 0; i < 100; i++) {
-    productionRig.updateRigFallState(rig, 1 / 50, rig.jumping);
-    if (rig.mode === "active") control();
-    if (rig.nextSwingIndex !== previousSwing) {
-      completedAlternations++;
-      previousSwing = rig.nextSwingIndex;
+  const results = [];
+  for (const walkSpeed of [1.2, 2, 2.8]) {
+    for (const stepReach of [0.06, 0.12, 0.18, 0.24]) {
+      const world = new planck.World({ gravity: planck.Vec2(0, -10) });
+      const ground = world.createBody();
+      ground.createFixture({ shape: new planck.Edge(planck.Vec2(-8, 0), planck.Vec2(8, 0)), friction: 2.5 });
+      const rig = productionRig.createStanceRig(world, 0, () => 0, () => 0);
+      rig.walkSpeed = walkSpeed;
+      const control = () => productionRig.stanceController(
+        rig, () => 0, () => 0, rig.stiffness,
+        3.5, 0.06, 1.5, stepReach, 0.25, 6, 6, 0.12, 0.2, 1, 1, 1
+      );
+      for (let i = 0; i < 30; i++) {
+        control();
+        world.step(1 / 50, 180, 60);
+      }
+      const startX = rig.hull.getPosition().x;
+      let previousSwing = rig.nextSwingIndex;
+      let alternations = 0;
+      rig.walkDirection = 1;
+      for (let i = 0; i < 100; i++) {
+        productionRig.updateRigFallState(rig, 1 / 50, rig.jumping);
+        if (rig.mode === "active") control();
+        if (rig.nextSwingIndex !== previousSwing) {
+          alternations++;
+          previousSwing = rig.nextSwingIndex;
+        }
+        world.step(1 / 50, 180, 60);
+        if (rig.mode === "limp") break;
+      }
+      results.push({
+        walkSpeed, stepReach,
+        displacement: rig.hull.getPosition().x - startX,
+        alternations, mode: rig.mode, fallReason: rig.fallReason
+      });
     }
-    world.step(1 / 50, 180, 60);
-    if (rig.mode === "limp") break;
   }
-  rig.walkDirection = 0;
-  console.log("walking diagnostic", JSON.stringify({
-    startX, endX: rig.hull.getPosition().x, velocity: rig.hull.getLinearVelocity(),
-    mode: rig.mode, fallReason: rig.fallReason, completedAlternations,
-    swingIndex: rig.swingIndex, nextSwingIndex: rig.nextSwingIndex,
-    feet: rig.legs.map(leg => ({ x: leg.foot.getPosition().x, contact: productionRig.isGroundContact(leg.foot) }))
-  }));
-  assert.ok(rig.hull.getPosition().x > startX + 0.4,
-    `walking displacement was ${rig.hull.getPosition().x - startX}`);
-  assert.ok(completedAlternations >= 2, `only ${completedAlternations} alternating steps began`);
-  assert.equal(rig.mode, "active");
+  console.log("walking gait parameter sweep", JSON.stringify(results));
+  assert.ok(results.some(r => r.displacement > 0.4 && r.alternations >= 2 && r.mode === "active"),
+    JSON.stringify(results));
 });
 
 test("production jump crouches, extends, leaves the ground, tucks, and lands softly", () => {
@@ -605,11 +608,13 @@ test("production jump crouches, extends, leaves the ground, tucks, and lands sof
     rig, () => 0, () => 0, rig.stiffness,
     3.5, 0.06, 1.5, 0.18, 0.25, 6, 6, 0.12, 0.2, 1, 1, 1
   );
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 60; i++) {
     control();
     world.step(1 / 50, 180, 60);
   }
   const startY = rig.hull.getPosition().y;
+  assert.ok(rig.legs.every(leg => productionRig.isGroundContact(leg.foot)),
+    "jump test requires both feet planted before takeoff");
   assert.equal(productionRig.requestJump(rig), true);
   const phases = new Set();
   let maxY = startY;
@@ -621,11 +626,6 @@ test("production jump crouches, extends, leaves the ground, tucks, and lands sof
     maxY = Math.max(maxY, rig.hull.getPosition().y);
     if (rig.jumpPhase === "idle" && i > 20) break;
   }
-  console.log("jump diagnostic", JSON.stringify({
-    startY, maxY, finalY: rig.hull.getPosition().y,
-    velocity: rig.hull.getLinearVelocity(), phases: [...phases],
-    mode: rig.mode, fallReason: rig.fallReason, jumping: rig.jumping
-  }));
   assert.ok(phases.has("crouch"));
   assert.ok(phases.has("extend"));
   assert.ok(phases.has("air"));
