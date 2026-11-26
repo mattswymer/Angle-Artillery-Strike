@@ -51,6 +51,10 @@
   let tapMoveDirection = 0;
   let tapMoveRemaining = 0;
   let activeAction = null;
+  let pendingTurnChange = false;
+  let turnTransitionElapsed = 0;
+  let blockedTurnTime = 0;
+  let activeCanActLastFrame = false;
   let jumpQueued = false;
   let jumpBufferTime = 0;
   let coyoteTime = 0;
@@ -246,7 +250,7 @@
   }
 
   function canAct(character) {
-    return Boolean(character && !character.eliminated &&
+    return Boolean(!pendingTurnChange && character && !character.eliminated &&
       character.rig.mode === "active" && character.rig.stableTime >= 0.3);
   }
 
@@ -282,6 +286,10 @@
     damagePopups = [];
     activeIndex = 0;
     activeAction = null;
+    pendingTurnChange = false;
+    turnTransitionElapsed = 0;
+    blockedTurnTime = 0;
+    activeCanActLastFrame = false;
     projectile = null;
     projectilePrevious = null;
     impactPoint = null;
@@ -701,7 +709,7 @@
 
   function drawAim(scale, offsetX) {
     const character = activeCharacter();
-    if (!character || character.eliminated || projectile || activeAction === "attack") return;
+    if (!canAct(character) || projectile || activeAction === "attack") return;
 
     const p = character.body.getPosition();
     const angle = Number(angleInput.value) * Math.PI / 180;
@@ -825,6 +833,7 @@
       }
       checkBoundaries();
       updateRigStability();
+      updateTurnTransition();
       accumulator -= FIXED_STEP;
     }
     render();
@@ -872,8 +881,24 @@
     setAimLabels();
   }
 
+  function finishTurnChange() {
+    for (let offset = 1; offset <= characters.length; offset++) {
+      const nextIndex = (activeIndex + offset) % characters.length;
+      if (!characters[nextIndex].eliminated) {
+        activeIndex = nextIndex;
+        break;
+      }
+    }
+    pendingTurnChange = false;
+    turnTransitionElapsed = 0;
+    blockedTurnTime = 0;
+    activeCanActLastFrame = canAct(activeCharacter());
+    restoreActiveAim();
+    updateHud();
+  }
+
   function changeTurn() {
-    if (projectile) return;
+    if (projectile || pendingTurnChange) return;
     saveActiveAim();
     held = { left: false, right: false, jump: false };
     jumpBufferTime = 0;
@@ -882,15 +907,44 @@
     tapMoveRemaining = 0;
     jumpQueued = false;
     activeAction = null;
-    for (let offset = 1; offset <= characters.length; offset++) {
-      const nextIndex = (activeIndex + offset) % characters.length;
-      if (!characters[nextIndex].eliminated) {
-        activeIndex = nextIndex;
-        break;
-      }
-    }
-    restoreActiveAim();
+    pendingTurnChange = true;
+    turnTransitionElapsed = 0;
+    blockedTurnTime = 0;
+    statusEl.textContent = "Turn transition — waiting for the combatants to settle";
     updateHud();
+  }
+
+  function updateTurnTransition() {
+    if (pendingTurnChange) {
+      turnTransitionElapsed += FIXED_STEP;
+      const allSlow = characters.every(character => {
+        if (character.eliminated) return true;
+        const rig = character.rig;
+        const averageSpeed = rig.bodies.reduce(
+          (sum, body) => sum + body.getLinearVelocity().length(), 0
+        ) / rig.bodies.length;
+        const averageSpin = rig.bodies.reduce(
+          (sum, body) => sum + Math.abs(body.getAngularVelocity()), 0
+        ) / rig.bodies.length;
+        return averageSpeed < 1 && averageSpin < 2.8;
+      });
+      if (allSlow || turnTransitionElapsed >= 4) finishTurnChange();
+      return;
+    }
+
+    const active = activeCharacter();
+    if (active && !canAct(active) && !projectile) {
+      blockedTurnTime += FIXED_STEP;
+      if (blockedTurnTime >= 3) changeTurn();
+    } else {
+      blockedTurnTime = 0;
+    }
+
+    const activeReady = canAct(active);
+    if (activeReady !== activeCanActLastFrame) {
+      activeCanActLastFrame = activeReady;
+      updateHud();
+    }
   }
 
   function bindHoldButton(id, key) {
