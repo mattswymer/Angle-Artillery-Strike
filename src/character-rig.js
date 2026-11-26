@@ -779,6 +779,7 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
     );
     let kneeTarget = wrapAngle(lowerBodyAngle - upperBodyAngle);
     let kneeTorque = kneeTorqueMax;
+    let hipTorque = hipTorqueMax;
     if (walker.jumpPhase === "crouch") {
       kneeTarget = wrapAngle(kneeTarget + leg.bend * 0.5);
     } else if (walker.jumpPhase === "extend") {
@@ -790,10 +791,11 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
       // Recover to the normal IK extension after the first contact rather
       // than holding the knees in a permanently deep landing crouch.
       kneeTorque = kneeTorqueMax * 1.5;
+      hipTorque = hipTorqueMax * 2;
     }
     hipTargets.push(hipTarget);
     kneeTargets.push(kneeTarget);
-    driveJoint(leg.hip, hipTarget, 13, 4, hipTorqueMax, legStiffness);
+    driveJoint(leg.hip, hipTarget, 13, 4, hipTorque, legStiffness);
     driveJoint(leg.knee, kneeTarget, 15, 5, kneeTorque, legStiffness);
 
     const desiredFootAngle = terrainAngle;
