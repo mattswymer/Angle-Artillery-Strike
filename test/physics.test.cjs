@@ -477,12 +477,12 @@ test("recovery assist never exceeds 1.3 times body weight and requires foot cont
   assert.equal(recoveryAssistForce(mass, 100, gravity, true), 65);
 });
 
-test("production rig module builds the same eleven-body, eleven-joint character", () => {
+test("production rig module builds the same twelve-body, eleven-joint character", () => {
   const world = new planck.World({ gravity: planck.Vec2(0, -10) });
   const ground = world.createBody();
   ground.createFixture({ shape: new planck.Edge(planck.Vec2(-5, 0), planck.Vec2(5, 0)), friction: 2.5 });
   const rig = productionRig.createStanceRig(world, 0, () => 0, () => 0);
-  assert.equal(rig.bodies.length, 11);
+  assert.equal(rig.bodies.length, 12);
   assert.equal(rig.joints.length, 11);
   assert.equal(rig.hull, rig.bodies[0]);
   assert.equal(rig.mode, "active");
