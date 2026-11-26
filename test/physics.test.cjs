@@ -276,6 +276,30 @@ test("upright stance initial foot geometry exposes contact gaps on slopes", () =
   assert.equal(cases.length, 2);
 });
 
+test("common-bend upright stance sweeps torso balance gains on 20 degree terrain", () => {
+  const results = [];
+  for (const balanceKp of [0, 1.5, 3.5, 6]) {
+    for (const balanceKd of [0.02, 0.1, 0.25]) {
+      const r = runStanceCase(
+        20, 1, 3, 0, 0, "chain", true, balanceKp, balanceKd, 0.25,
+        0.05, 0.95, 0, 0, 0.6, 1.5, "same-positive"
+      );
+      results.push({
+        balanceKp, balanceKd,
+        support: r.supportedTime, bothFeet: r.bothFeetContactTime,
+        tilt: r.maxAbsoluteTiltDegrees, air: r.maxAirTime, speed: r.maxSpeed,
+        trace: r.trace.slice(0, 5).map(point => ({
+          t: point.t, x: point.x, angle: point.angle, vx: point.velocity.x,
+          angular: point.velocity.angular, contacts: point.contacts,
+          center: point.centerOfMassX, swing: point.swingIndex
+        }))
+      });
+    }
+  }
+  console.log("upright balance gain sweep", JSON.stringify(results));
+  assert.equal(results.length, 12);
+});
+
 test("common-bend upright stance records the loss-of-balance sequence", () => {
   const results = [20, 35].map(degrees => {
     const r = runStanceCase(
