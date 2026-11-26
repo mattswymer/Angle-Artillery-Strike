@@ -147,6 +147,7 @@
       driveJoint(joint, targets[name] ?? 0, leg ? 14 : ankle ? 10 : 8,
         leg ? 8 : 6, leg ? 4 : ankle ? 1.5 : 1, rig.stiffness);
     }
+    rig.lastJointTargets = { ...targets };
     rig.lastTerrainSamples = samples;
   }
 
