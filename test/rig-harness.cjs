@@ -82,13 +82,13 @@ function createRig(world, degrees, x = 0) {
       allowSleep: false,
       userData: { kind: "rig-part", name }
     });
-    body.createFixture({ shape: new planck.Box(hx, hy), density, friction: 0.85 });
+    body.createFixture({ shape: new planck.Box(hx, hy), density, friction: 0.85, filterGroupIndex: -1 });
     return body;
   };
 
   const torso = makeBox("torso", x, torsoY, 0.15, 0.27, 1.5);
   const head = world.createDynamicBody({ position: V(x, torsoY + 0.40), allowSleep: false });
-  head.createFixture({ shape: new planck.Circle(0.12), density: 0.7, friction: 0.5 });
+  head.createFixture({ shape: new planck.Circle(0.12), density: 0.7, friction: 0.5, filterGroupIndex: -1 });
 
   const parts = { torso, head, legs: [] };
   const revolute = (bodyA, bodyB, anchor, lower, upper, torque) => {
@@ -151,7 +151,14 @@ function stepRig(world, rig, slopeRadians, dt = STEP) {
     const contact = footContact(leg.foot);
     if (contact) {
       contacts++;
-      const angle = Math.acos(Math.max(-1, Math.min(1, contact.normal.y)));
+      const fixtureAIsFoot = contact.contact.getFixtureA().getBody() === leg.foot;
+      const upwardNormal = fixtureAIsFoot
+        ? V(-contact.normal.x, -contact.normal.y)
+        : contact.normal;
+      const slopeNormal = V(-Math.sin(slopeRadians), Math.cos(slopeRadians));
+      const alignment = Math.max(-1, Math.min(1,
+        upwardNormal.x * slopeNormal.x + upwardNormal.y * slopeNormal.y));
+      const angle = Math.acos(alignment);
       worstNormalAngle = Math.max(worstNormalAngle, angle);
     }
     minFootX = Math.min(minFootX, leg.foot.getPosition().x);
