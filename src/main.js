@@ -347,7 +347,7 @@
       if (blocked) direction = 0;
     }
 
-    if ((requestedDirection || held.jump || jumpQueued) && activeAction !== "move") {
+    if ((requestedDirection || jumpBufferTime > 0) && activeAction !== "move") {
       activeAction = "move";
       statusEl.textContent = "Movement action — firing is locked until the next turn";
       updateHud();
