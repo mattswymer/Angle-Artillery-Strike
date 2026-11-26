@@ -349,6 +349,55 @@ test("upright common-bend stance sweeps predictive COM lookahead for balance ste
   assert.equal(results.length, 20);
 });
 
+test("upright 35 degree stance tunes stance width and pelvis height at the best step timing", () => {
+  const results = [];
+  for (const stanceHalfWidth of [0.05, 0.1, 0.15]) {
+    for (const pelvisRatio of [0.85, 0.95, 1.05]) {
+      const r = runStanceCase(
+        35, 1, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25,
+        stanceHalfWidth, pelvisRatio, 0, 0, 0.6, 1.5, "same-positive", 0.3, 0.35, 6, 6
+      );
+      results.push({
+        stanceHalfWidth, pelvisRatio,
+        support: r.supportedTime, bothFeet: r.bothFeetContactTime,
+        tilt: r.maxAbsoluteTiltDegrees, air: r.maxAirTime, speed: r.maxSpeed
+      });
+    }
+  }
+  console.log("upright 35 degree width pelvis fine sweep", JSON.stringify(results));
+  assert.equal(results.length, 9);
+});
+
+test("upright 20 and 35 degree candidate settings are repeated across eight seeds", () => {
+  const candidates = [
+    {
+      degrees: 20, stanceHalfWidth: 0.25, pelvisRatio: 0.85,
+      stepReach: 0.12, stepLookahead: 0.41
+    },
+    {
+      degrees: 35, stanceHalfWidth: 0.05, pelvisRatio: 0.95,
+      stepReach: 0.3, stepLookahead: 0.35
+    }
+  ];
+  const results = candidates.map(candidate => ({
+    ...candidate,
+    runs: SEEDS.map(seed => {
+      const r = runStanceCase(
+        candidate.degrees, seed, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25,
+        candidate.stanceHalfWidth, candidate.pelvisRatio, 0, 0, 0.6, 1.5,
+        "same-positive", candidate.stepReach, candidate.stepLookahead, 6, 6
+      );
+      return {
+        seed, support: r.supportedTime, bothFeet: r.bothFeetContactTime,
+        tilt: r.maxAbsoluteTiltDegrees, air: r.maxAirTime, speed: r.maxSpeed
+      };
+    })
+  }));
+  console.log("upright 20 and 35 degree seed validation", JSON.stringify(results));
+  assert.equal(results.length, 2);
+  assert.ok(results.every(candidate => candidate.runs.length === 8));
+});
+
 test("upright near-pass candidates fine-tune predictive timing", () => {
   const twenty = [];
   for (const stepLookahead of [0.38, 0.39, 0.4, 0.41, 0.42]) {
