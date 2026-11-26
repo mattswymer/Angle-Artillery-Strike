@@ -607,10 +607,14 @@ test("production jump crouches, extends, leaves the ground, tucks, and lands sof
   const ground = world.createBody();
   ground.createFixture({ shape: new planck.Edge(planck.Vec2(-8, 0), planck.Vec2(8, 0)), friction: 2.5 });
   const rig = productionRig.createStanceRig(world, 0, () => 0, () => 0);
-  const control = () => productionRig.stanceController(
-    rig, () => 0, () => 0, rig.stiffness,
-    3.5, 0.06, 1.5, 0.18, 0.25, 6, 6, 0.12, 0.2, 1, 1, 1
-  );
+  let lastDiagnostics;
+  const control = () => {
+    lastDiagnostics = productionRig.stanceController(
+      rig, () => 0, () => 0, rig.stiffness,
+      3.5, 0.06, 1.5, 0.18, 0.25, 6, 6, 0.12, 0.2, 1, 1, 1
+    );
+    return lastDiagnostics;
+  };
   for (let i = 0; i < 60; i++) {
     control();
     world.step(1 / 50, 180, 60);
@@ -639,7 +643,10 @@ test("production jump crouches, extends, leaves the ground, tucks, and lands sof
     kneeAngles: rig.legs.map(leg => leg.knee.getJointAngle()),
     hipAngles: rig.legs.map(leg => leg.hip.getJointAngle()),
     stiffness: rig.stiffness,
-    fallReason: rig.fallReason
+    fallReason: rig.fallReason,
+    hipTargets: lastDiagnostics?.hipTargets,
+    kneeTargets: lastDiagnostics?.kneeTargets,
+    ankleTargets: lastDiagnostics?.ankleTargets
   }));
   assert.ok(phases.has("crouch"));
   assert.ok(phases.has("extend"));
