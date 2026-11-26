@@ -308,7 +308,7 @@
 
   function fire() {
     const character = activeCharacter();
-    if (!character || character.eliminated || (character.ragdoll && !character.ragdoll.standing) || projectile || activeAction === "move" || activeAction === "attack") return;
+    if (!character || character.eliminated || (character.rig.mode !== "active") || projectile || activeAction === "move" || activeAction === "attack") return;
     activeAction = "attack";
     updateHud();
     const angle = Number(angleInput.value) * Math.PI / 180;
@@ -816,7 +816,7 @@
   canvas.addEventListener("pointerdown", event => {
     if (aimMode !== "pullback" || projectile || activeAction === "move" || activeAction === "attack") return;
     const character = activeCharacter();
-    if (!character || character.eliminated || (character.ragdoll && !character.ragdoll.standing)) return;
+    if (!character || character.eliminated || (character.rig.mode !== "active")) return;
     event.preventDefault();
     const rect = canvas.getBoundingClientRect();
     pullbackOrigin = { x: event.clientX - rect.left, y: event.clientY - rect.top };
