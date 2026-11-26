@@ -13,8 +13,8 @@ function makeSlopeWorld(angleDegrees) {
   const angle = angleDegrees * Math.PI / 180;
   const ground = world.createBody();
   ground.createFixture(new Planck.Edge(
-    V(-8, -8 * Math.tan(angle)),
-    V(8, 8 * Math.tan(angle))
+    V(8, 8 * Math.tan(angle)),
+    V(-8, -8 * Math.tan(angle))
   ), { friction: 0.9 });
   const groundY = x => Math.tan(angle) * x;
   const normal = { x: -Math.sin(angle), y: Math.cos(angle) };
