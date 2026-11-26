@@ -1,0 +1,15 @@
+{
+  "name": "angle-artillery-strike",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Physics-first artillery game prototype",
+  "scripts": {
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "planck": "1.5.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
