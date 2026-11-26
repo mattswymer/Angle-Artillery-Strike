@@ -3,6 +3,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const planck = require("planck");
+const fs = require("node:fs");
+const vm = require("node:vm");
 const { runSlopeCase, runStanceCase, runSwingTargetCase, runRigSymmetryCase, seededRandom, legIK, driveJoint, createStanceRig, updateRigFallState, updateRigRecovery, recoveryAssistForce, footContactNormals, stanceController } = require("./walker-harness.cjs");
 const productionRig = require("../src/character-rig.js").create(planck);
 
@@ -477,6 +479,13 @@ test("recovery assist never exceeds 1.3 times body weight and requires foot cont
   assert.equal(recoveryAssistForce(mass, 100, gravity, true), 65);
 });
 
+test("production browser scripts parse without syntax errors", () => {
+  for (const path of ["src/main.js", "src/character-rig.js"]) {
+    const source = fs.readFileSync(path, "utf8");
+    assert.doesNotThrow(() => new vm.Script(source, { filename: path }));
+  }
+});
+
 test("production rig module builds the same twelve-body, eleven-joint character", () => {
   const world = new planck.World({ gravity: planck.Vec2(0, -10) });
   const ground = world.createBody();
@@ -484,6 +493,9 @@ test("production rig module builds the same twelve-body, eleven-joint character"
   const rig = productionRig.createStanceRig(world, 0, () => 0, () => 0);
   assert.equal(rig.bodies.length, 12);
   assert.equal(rig.joints.length, 11);
+  assert.equal(rig.pieces.length, 12);
+  assert.ok(rig.jointMap.leftHip && rig.jointMap.rightHip);
+  assert.ok(rig.byName["left-lower-arm"].body);
   assert.equal(rig.hull, rig.bodies[0]);
   assert.equal(rig.mode, "active");
   assert.equal(rig.stiffness, 1);
