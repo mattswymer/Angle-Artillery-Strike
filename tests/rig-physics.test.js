@@ -53,7 +53,8 @@ for (const slope of [0, 20, 35]) {
       rig.updateFallState(STEP);
     }
 
-    assert.equal(rig.mode, "active", "a supported slope must not release the rig");
+    assert.equal(rig.mode, "active", "a supported slope must not release the rig: " +
+      JSON.stringify({ reason: rig.limpReason, metrics: rig.lastFallMetrics }));
     assert.equal(rig.getFootContacts().filter(Boolean).length, 2, "both feet must contact terrain");
     assert.ok(rig.stableTime >= 2.8, `stable duration was ${rig.stableTime.toFixed(2)}s`);
   });
