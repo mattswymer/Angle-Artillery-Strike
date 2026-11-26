@@ -205,6 +205,25 @@ test("character-proportion stance rig stands for three seconds on flat terrain a
     `flat stance must remain stable for three seconds: ${JSON.stringify(failures)}`);
 });
 
+test("upright 20 degree stance checks spawn ankle limits across pelvis heights", () => {
+  const results = [];
+  for (const pelvisRatio of [0.85, 0.9, 0.95, 1.0]) {
+    const r = runStanceCase(
+      20, 1, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25,
+      0.25, pelvisRatio, 0, 0, 0.6, 1.5, "same-positive", 0.12, 0.41, 6, 6,
+      0.12, 0.2, 1, 1
+    );
+    results.push({
+      pelvisRatio,
+      initialAnkles: r.initialPose.map(leg => leg.ankleAngle),
+      support: r.supportedTime, bothFeet: r.bothFeetContactTime,
+      tilt: r.maxAbsoluteTiltDegrees, air: r.maxAirTime, speed: r.maxSpeed
+    });
+  }
+  console.log("upright 20 degree pelvis ankle feasibility", JSON.stringify(results));
+  assert.equal(results.length, 4);
+});
+
 test("upright 20 and 35 degree stance remains controlled for three seconds across eight seeds", () => {
   const candidates = [
     {
