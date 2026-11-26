@@ -775,10 +775,11 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
     // Keep balance feedback corrective but bounded. Large torso angles
     // during a jump landing must not rotate the thighs sideways and prevent
     // the feet from reaching the ground.
-    const balanceCorrection = Math.max(
-      -0.35,
-      Math.min(0.35, balanceKp * torsoTilt + balanceKd * hull.getAngularVelocity())
-    );
+    const rawBalanceCorrection =
+      balanceKp * torsoTilt + balanceKd * hull.getAngularVelocity();
+    const balanceCorrection = walker.jumpPhase === "idle"
+      ? rawBalanceCorrection
+      : Math.max(-0.35, Math.min(0.35, rawBalanceCorrection));
     const hipTarget = wrapAngle(
       upperBodyAngle - hull.getAngle() + balanceCorrection
     );
