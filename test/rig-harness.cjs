@@ -201,11 +201,11 @@ function createRig(world, degrees, x = 0) {
       torso, arm.upper, V(x + arm.side * 0.17, torsoY + 0.22),
       arm.side < 0 ? -2.35 : -1.5,
       arm.side < 0 ? 1.5 : 2.35,
-      1.2
+      0
     ),
     elbow: revolute(
       arm.upper, arm.lower, V(x + arm.side * 0.17, torsoY - 0.16),
-      -2.45, 2.45, 1.0
+      -2.45, 2.45, 0
     )
   }));
 
@@ -433,10 +433,8 @@ function stepRig(world, rig, slopeRadians, dt = STEP, allowSteps = true) {
   });
 
   driveJoint(rig.neck, -rig.torso.getAngle(), 10, 5, 1, rig.stiffness);
-  rig.armJoints.forEach(joints => {
-    driveJoint(joints.shoulder, -rig.torso.getAngle(), 10, 5, 1.2, rig.stiffness);
-    driveJoint(joints.elbow, 0, 10, 5, 1.0, rig.stiffness);
-  });
+  // Arms remain articulated but passive during stance; leg and neck motors
+  // provide active support instead of arm motors fighting the balance loop.
 
   if (rig.stiffness > 0.8 && supported && torsoTilt < 35 * Math.PI / 180) {
     rig.stableFor += dt;
