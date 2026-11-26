@@ -205,6 +205,30 @@ test("character-proportion stance rig stands for three seconds on flat terrain a
     `flat stance must remain stable for three seconds: ${JSON.stringify(failures)}`);
 });
 
+test("one slope-adaptive knee-bend policy works at 20 and 35 degrees", () => {
+  const results = [];
+  for (const degrees of [0, 20, 35]) {
+    const r = degrees === 0
+      ? runStanceCase(0, 1, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25,
+          0.1, 0.95, 0, 0, 0.6, 1.5, "slope-adaptive", 0.12, 0.41, 6, 6,
+          0.12, 0.2, 1, 0.8, 0.4, 1)
+      : degrees === 20
+        ? runStanceCase(20, 1, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25,
+            0.1, 0.85, 0, 0, 0.6, 1.5, "slope-adaptive", 0.12, 0.41, 6, 6,
+            0.12, 0.2, 1, 1, 0.4, 1)
+        : runStanceCase(35, 1, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25,
+            0.1, 0.95, 0, 0, 0.6, 1.5, "slope-adaptive", 0.34, 0.36, 6, 6,
+            0.08, 0.2, 1, 0.8, 0.4, 1);
+    results.push({
+      degrees, initialAnkles: r.initialPose.map(leg => leg.ankleAngle),
+      support: r.supportedTime, bothFeet: r.bothFeetContactTime,
+      tilt: r.maxAbsoluteTiltDegrees, air: r.maxAirTime, speed: r.maxSpeed
+    });
+  }
+  console.log("universal slope-adaptive bend diagnostic", JSON.stringify(results));
+  assert.equal(results.length, 3);
+});
+
 test("upright 20 and 35 degree stance remains controlled for three seconds across eight seeds", () => {
   const candidates = [
     {
