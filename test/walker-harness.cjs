@@ -96,7 +96,7 @@ function createWalker(world, slope, startX) {
 
     const lower = world.createDynamicBody({
       position: Vec2(startX, initY - LEG_H * 1.5 - LEG_DOWN),
-      angle: side * 0.05 - 0.2,
+      angle: side * 0.05,
       linearDamping: 0.05,
       angularDamping: 0.05,
       allowSleep: false,
@@ -197,7 +197,7 @@ function walkerController(walker) {
     if (movingContact) {
       gait.phase = "PUSH_OFF";
       gait.supportingKneeAngle = Math.min(
-        moving.knee.getJointAngle(),
+        moving.knee.getJointAngle() + 1,
         SUPPORT_KNEE_ANGLE
       );
     }
