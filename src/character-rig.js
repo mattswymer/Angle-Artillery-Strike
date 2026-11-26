@@ -675,23 +675,6 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
       walker.swingIndex = null;
       walker.swingTime = 0;
       walker.swingAirborne = false;
-      walker.swingRetargeted = false;
-    } else if (walker.swingTime > swingDuration + 0.3) {
-      if (walker.swingAirborne && !contacts[walker.swingIndex] && !walker.swingRetargeted) {
-        // A step that cannot reach its original landing point must not hang
-        // in the air forever. Re-target once directly beneath its hip, then
-        // lower it without another lift so the leg can regain support.
-        const leg = legs[walker.swingIndex];
-        walker.stanceTargets[walker.swingIndex] =
-          hull.getWorldPoint(Vec2(leg.side * HIP_X, HIP_Y)).x;
-        walker.swingTime = swingDuration;
-        walker.swingRetargeted = true;
-      } else if (!walker.swingAirborne && contacts[walker.swingIndex]) {
-        walker.swingIndex = null;
-        walker.swingTime = 0;
-        walker.swingAirborne = false;
-        walker.swingRetargeted = false;
-      }
     }
   }
   if (walker.swingIndex === undefined || walker.swingIndex === null) {
@@ -707,7 +690,6 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
         walker.swingIndex = swingIndex;
         walker.swingTime = 0;
         walker.swingAirborne = false;
-        walker.swingRetargeted = false;
         walker.stanceTargets[swingIndex] = predictedCenterX + walkDirection * stride;
         walker.nextSwingIndex = 1 - swingIndex;
       }
@@ -731,14 +713,12 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
           walker.swingIndex = 0;
           walker.swingTime = 0;
           walker.swingAirborne = false;
-          walker.swingRetargeted = false;
-          walker.stanceTargets[0] = predictedCenterX - stepReach;
+            walker.stanceTargets[0] = predictedCenterX - stepReach;
         } else if (predictedCenterX > maxFootX + 0.04) {
           walker.swingIndex = 1;
           walker.swingTime = 0;
           walker.swingAirborne = false;
-          walker.swingRetargeted = false;
-          walker.stanceTargets[1] = predictedCenterX + stepReach;
+            walker.stanceTargets[1] = predictedCenterX + stepReach;
         }
       }
     }
@@ -807,7 +787,6 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
     let kneeTarget = wrapAngle(lowerBodyAngle - upperBodyAngle);
     let kneeTorque = kneeTorqueMax;
     let hipTorque = hipTorqueMax;
-    let ankleTorque = ankleTorqueMax;
     if (walker.jumpPhase === "crouch") {
       kneeTarget = wrapAngle(kneeTarget + leg.bend * 0.5);
     } else if (walker.jumpPhase === "extend") {
@@ -821,11 +800,6 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
       kneeTorque = kneeTorqueMax * 1.5;
       hipTorque = hipTorqueMax * 2;
     }
-    if (walker.swingRetargeted && walker.swingIndex === i) {
-      hipTorque *= 2;
-      kneeTorque *= 2;
-      ankleTorque *= 2;
-    }
     hipTargets.push(hipTarget);
     kneeTargets.push(kneeTarget);
     driveJoint(leg.hip, hipTarget, 13, 4, hipTorque, legStiffness);
@@ -834,7 +808,7 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
     const desiredFootAngle = terrainAngle;
     const ankleTargetAngle = wrapAngle(desiredFootAngle - leg.lower.getAngle());
     ankleTargets.push(ankleTargetAngle);
-    driveJoint(leg.ankle, ankleTargetAngle, 12, 3, ankleTorque, legStiffness);
+    driveJoint(leg.ankle, ankleTargetAngle, 12, 3, ankleTorqueMax, legStiffness);
   }
 
   // Keep the head and arms in a neutral, articulated carry pose. These joints
