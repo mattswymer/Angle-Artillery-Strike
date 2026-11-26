@@ -275,6 +275,7 @@ const FOOT_HALF_HEIGHT = 0.03;
     stanceCenterBlend,
     mode: "active",
     stiffness: 1,
+    stableTime: 0,
     limpElapsed: 0,
     falling: false,
     recovering: false,
