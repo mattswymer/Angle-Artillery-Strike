@@ -500,6 +500,10 @@ function createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidt
     stiffness: 1,
     limpElapsed: 0,
     falling: false,
+    recovering: false,
+    recoveryElapsed: 0,
+    recoveryStableTime: 0,
+    recoverySettleTime: 0,
     noContactTime: 0,
     outsideSupportTime: 0,
     fallReason: null,
@@ -621,6 +625,90 @@ function updateRigFallState(walker, deltaTime = FIXED_DT, jumping = false) {
     if (walker.stiffness <= 0) walker.mode = "limp";
   }
   return { mode: walker.mode, stiffness: walker.stiffness, reason: walker.fallReason };
+}
+
+function hasRigGroundContact(walker) {
+  return walker.bodies.some(body => {
+    for (let edge = body.getContactList(); edge; edge = edge.next) {
+      if (!edge.contact.isTouching()) continue;
+      const a = edge.contact.getFixtureA().getBody();
+      const b = edge.contact.getFixtureB().getBody();
+      if ((a === body && b.isStatic()) || (b === body && a.isStatic())) return true;
+    }
+    return false;
+  });
+}
+
+function rigIsStable(walker) {
+  const support = rigSupportBounds(walker);
+  if (!support || !walker.legs.some(leg => isGroundContact(leg.foot))) return false;
+  if (Math.abs(wrapAngle(walker.hull.getAngle())) > 0.22) return false;
+  const centerX = getRigCenterOfMassX(walker);
+  if (centerX < support.min - 0.04 || centerX > support.max + 0.04) return false;
+  return walker.bodies.every(body =>
+    body.getLinearVelocity().length() < 0.55 &&
+    Math.abs(body.getAngularVelocity()) < 1.5
+  );
+}
+
+function recoveryAssistForce(mass, heightError, gravity = GRAVITY, hasFootContact = true) {
+  if (!hasFootContact) return 0;
+  return Math.max(0, Math.min(1.3 * mass * gravity, heightError * mass * 8));
+}
+
+function updateRigRecovery(walker, deltaTime = FIXED_DT, heightAt = () => 0) {
+  if (walker.mode !== "limp") {
+    return { mode: walker.mode, recovering: false, stiffness: walker.stiffness, stable: rigIsStable(walker) };
+  }
+
+  if (!walker.recovering) {
+    const averageSpeed = walker.bodies.reduce(
+      (sum, body) => sum + body.getLinearVelocity().length(), 0
+    ) / walker.bodies.length;
+    const grounded = hasRigGroundContact(walker);
+    walker.recoverySettleTime = averageSpeed < 1 && grounded
+      ? walker.recoverySettleTime + deltaTime
+      : 0;
+    if (walker.recoverySettleTime >= 0.2) {
+      walker.recovering = true;
+      walker.recoveryElapsed = 0;
+      walker.recoveryStableTime = 0;
+    }
+    return {
+      mode: walker.mode, recovering: walker.recovering,
+      stiffness: walker.stiffness, stable: false
+    };
+  }
+
+  walker.recoveryElapsed += deltaTime;
+  walker.stiffness = Math.min(1, walker.recoveryElapsed / 0.5);
+  const stable = rigIsStable(walker);
+  walker.recoveryStableTime = stable ? walker.recoveryStableTime + deltaTime : 0;
+  if (walker.recoveryStableTime >= 0.3) {
+    walker.mode = "active";
+    walker.stiffness = 1;
+    walker.recovering = false;
+    walker.falling = false;
+    walker.fallReason = null;
+    walker.noContactTime = 0;
+    walker.outsideSupportTime = 0;
+  } else if (walker.recoveryElapsed > 3 && !stable) {
+    const footContact = walker.legs.some(leg => isGroundContact(leg.foot));
+    if (footContact) {
+      const lowestFootY = Math.min(
+        ...walker.legs.map(leg => heightAt(walker.stanceTargets[walker.legs.indexOf(leg)]))
+      );
+      const targetY = lowestFootY + FOOT_HALF_HEIGHT * 2 +
+        walker.pelvisRatio * (UPPER_LENGTH + LOWER_LENGTH) - HIP_Y;
+      const heightError = targetY - walker.hull.getPosition().y;
+      const force = recoveryAssistForce(walker.hull.getMass(), heightError, GRAVITY, footContact);
+      if (force > 0) walker.hull.applyForceToCenter(Vec2(0, force), true);
+    }
+  }
+  return {
+    mode: walker.mode, recovering: walker.recovering,
+    stiffness: walker.stiffness, stable
+  };
 }
 
 function jointPD(joint, target, kp, speedScale) {
@@ -1298,4 +1386,4 @@ function runSlopeCase(degrees, seed = 12345, duration = 3, roughness = 0) {
   };
 }
 
-module.exports = { runSlopeCase, runStanceCase, runPostureCase, runSwingTargetCase, runRigSymmetryCase, seededRandom, walkerController, stanceController, postureController, createWalker, createStanceRig, getRigCenterOfMassX, updateRigFallState, footContactNormals, legIK, driveJoint };
+module.exports = { runSlopeCase, runStanceCase, runPostureCase, runSwingTargetCase, runRigSymmetryCase, seededRandom, walkerController, stanceController, postureController, createWalker, createStanceRig, getRigCenterOfMassX, updateRigFallState, updateRigRecovery, rigIsStable, recoveryAssistForce, hasRigGroundContact, footContactNormals, legIK, driveJoint };
