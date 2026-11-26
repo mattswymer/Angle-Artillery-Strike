@@ -237,6 +237,29 @@ test("upright-torso slope geometry sweep records stance feasibility without terr
   assert.equal(results.length, 24);
 });
 
+test("upright slope stance compares mirrored and common knee-bend directions", () => {
+  const results = [];
+  for (const degrees of [20, 35]) {
+    for (const bendMode of ["side", "same-positive", "same-negative"]) {
+      const r = runStanceCase(
+        degrees, 1, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25,
+        0.05, 0.95, 0, 0, 0.6, 1.5, bendMode
+      );
+      results.push({
+        degrees, bendMode,
+        initialAnkles: r.initialPose.map(leg => leg.ankleAngle),
+        initialKnees: r.initialPose.map(leg => leg.ankleAngle),
+        support: r.supportedTime, bothFeet: r.bothFeetContactTime,
+        absoluteTilt: r.maxAbsoluteTiltDegrees, air: r.maxAirTime,
+        speed: r.maxSpeed,
+        firstContacts: r.trace.slice(0, 3).map(point => point.contacts)
+      });
+    }
+  }
+  console.log("upright knee bend sweep", JSON.stringify(results));
+  assert.equal(results.length, 6);
+});
+
 test("upright stance initial foot geometry exposes contact gaps on slopes", () => {
   const cases = [20, 35].map(degrees => {
     const r = runStanceCase(degrees, 1, 0.5, 0, 0, "chain", true, 3.5, 0.02, 0.25, 0.05, 0.95, 0, 0, 0.6);
