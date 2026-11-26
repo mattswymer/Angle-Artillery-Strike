@@ -52,7 +52,7 @@ function makeWorld(degrees, roughness = 0, phaseA = 0, phaseB = 0) {
 
 function createWalker(world, slope, startX, random = () => 0.5, heightAt = x => Math.tan(slope) * x, terrainAngleAt = () => -slope, options = {}) {
   const surfaceY = heightAt(startX);
-  const initY = surfaceY + 2 * LEG_H;
+  const initY = surfaceY + 2 * LEG_H - (options.alignToTerrain ? LEG_DOWN : 0);
   const initialAngle = options.alignToTerrain ? terrainAngleAt(startX) : 0;
   const hull = world.createDynamicBody({
     position: Vec2(startX, initY),
