@@ -648,6 +648,7 @@ function runPostureCase(degrees, seed = 12345, duration = 3, roughness = 0) {
   }
   return {
     degrees,
+    warmupSteps,
     supportedTime: Number(supportedTime.toFixed(3)),
     maxRelativeTiltDegrees: Number((maxRelativeTilt * 180 / Math.PI).toFixed(2)),
     maxSpeed: Number(maxSpeed.toFixed(3)),
@@ -735,13 +736,17 @@ function runRigSymmetryCase(continuousGround = false, runController = true) {
   };
 }
 
-function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0) {
+function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmupSteps = 0) {
   const random = seededRandom(seed);
   const phaseA = random() * Math.PI * 2;
   const phaseB = random() * Math.PI * 2;
   const { world, slope, heightAt, terrainAngleAt } = makeWorld(degrees, roughness, phaseA, phaseB);
   const startX = (random() - 0.5) * 0.2;
   const walker = createStanceRig(world, startX, heightAt, terrainAngleAt);
+  for (let i = 0; i < warmupSteps; i++) {
+    stanceController(walker, heightAt, terrainAngleAt);
+    world.step(FIXED_DT, 180, 60);
+  }
   const steps = Math.ceil(duration / FIXED_DT);
   let supportedTime = 0;
   let maxRelativeTilt = 0;
