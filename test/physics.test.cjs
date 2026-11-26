@@ -350,6 +350,42 @@ test("terrain-chain resolution sweep isolates multi-child foot contacts", () => 
   assert.equal(results.length, 14);
 });
 
+for (const degrees of [0, 20, 35]) {
+  test(`character-proportion stance rig stands for three seconds on ${degrees} degree terrain across eight seeds`, () => {
+    const results = SEEDS.map(seed => runStanceCase(degrees, seed, 3));
+    console.log(`stance acceptance ${degrees} degrees`, JSON.stringify(results.map((r, i) => ({
+      seed: SEEDS[i],
+      support: r.supportedTime,
+      tilt: r.maxRelativeTiltDegrees,
+      air: r.maxAirTime,
+      speed: r.maxSpeed
+    }))));
+    const failures = results.map((result, i) => ({
+      seed: SEEDS[i],
+      result: {
+        support: result.supportedTime,
+        tilt: result.maxRelativeTiltDegrees,
+        air: result.maxAirTime,
+        speed: result.maxSpeed
+      }
+    })).filter(({ result }) =>
+      result.support < 2.9 || result.tilt > 15 || result.air > 0.1 || result.speed > 1.5
+    );
+    assert.deepEqual(failures, [],
+      `stance rig must remain upright and supported for 3 seconds: ${JSON.stringify(failures)}`);
+  });
+}
+
+test("50 degree terrain exceeds the character stance rig's stable envelope", () => {
+  const results = SEEDS.slice(0, 4).map(seed => runStanceCase(50, seed, 3));
+  console.log("50 degree stance boundary", JSON.stringify(results.map((r, i) => ({
+    seed: SEEDS[i], support: r.supportedTime, tilt: r.maxRelativeTiltDegrees,
+    air: r.maxAirTime, speed: r.maxSpeed
+  }))));
+  assert.ok(results.some(r => r.maxRelativeTiltDegrees > 60 || r.maxAirTime > 0.5),
+    "steep terrain should exceed the stance controller's stability envelope");
+});
+
 test("shared joint driver moves a revolute joint toward a positive target angle", () => {
   const world = new planck.World({ gravity: planck.Vec2(0, 0) });
   const base = world.createBody();
