@@ -50,11 +50,13 @@ function makeWorld(degrees, roughness = 0, phaseA = 0, phaseB = 0) {
   return { world, slope, heightAt, terrainAngleAt };
 }
 
-function createWalker(world, slope, startX, random = () => 0.5, heightAt = x => Math.tan(slope) * x, terrainAngleAt = () => -slope) {
+function createWalker(world, slope, startX, random = () => 0.5, heightAt = x => Math.tan(slope) * x, terrainAngleAt = () => -slope, options = {}) {
   const surfaceY = heightAt(startX);
   const initY = surfaceY + 2 * LEG_H;
+  const initialAngle = options.alignToTerrain ? terrainAngleAt(startX) : 0;
   const hull = world.createDynamicBody({
     position: Vec2(startX, initY),
+    angle: initialAngle,
     linearDamping: 0.05,
     angularDamping: 0.05,
     allowSleep: false,
@@ -71,9 +73,10 @@ function createWalker(world, slope, startX, random = () => 0.5, heightAt = x => 
   const legs = [];
   const joints = [];
   for (const side of [-1, 1]) {
+    const hipOffset = options.separatedHips ? side * 0.16 : 0;
     const upper = world.createDynamicBody({
-      position: Vec2(startX, initY - LEG_H / 2 - LEG_DOWN),
-      angle: side * 0.05 + (random() - 0.5) * 0.08,
+      position: hull.getWorldPoint(Vec2(hipOffset, LEG_DOWN - LEG_H / 2)),
+      angle: initialAngle + side * 0.05 + (random() - 0.5) * 0.08,
       linearDamping: 0.05,
       angularDamping: 0.05,
       allowSleep: false,
@@ -88,7 +91,7 @@ function createWalker(world, slope, startX, random = () => 0.5, heightAt = x => 
     });
 
     const hip = world.createJoint(planck.RevoluteJoint({
-      localAnchorA: Vec2(0, LEG_DOWN),
+      localAnchorA: Vec2(hipOffset, LEG_DOWN),
       localAnchorB: Vec2(0, LEG_H / 2),
       enableMotor: true,
       enableLimit: true,
@@ -100,9 +103,10 @@ function createWalker(world, slope, startX, random = () => 0.5, heightAt = x => 
       collideConnected: false
     }, hull, upper));
 
+    const kneeWorld = upper.getWorldPoint(Vec2(0, -LEG_H / 2));
     const lower = world.createDynamicBody({
-      position: Vec2(startX, initY - LEG_H * 1.5 - LEG_DOWN),
-      angle: side * 0.05,
+      position: Vec2(kneeWorld.x, kneeWorld.y) - rotateLocal(Vec2(0, LEG_H / 2), initialAngle),
+      angle: initialAngle + side * 0.05,
       linearDamping: 0.05,
       angularDamping: 0.05,
       allowSleep: false,
@@ -189,6 +193,13 @@ function createWalker(world, slope, startX, random = () => 0.5, heightAt = x => 
     maxAnkleAngle: 0,
     trace: []
   };
+}
+
+function rotateLocal(point, angle) {
+  return Vec2(
+    point.x * Math.cos(angle) - point.y * Math.sin(angle),
+    point.x * Math.sin(angle) + point.y * Math.cos(angle)
+  );
 }
 
 function isGroundContact(body) {
@@ -351,7 +362,7 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1) {
     const surfaceY = heightAt(target.x);
     const terrainAngle = terrainAngleAt(target.x);
     target.y = surfaceY + 0.03;
-    const hipWorld = hull.getWorldPoint(Vec2(0, LEG_DOWN));
+    const hipWorld = hull.getWorldPoint(Vec2(leg.side * (walker.separatedHips ? 0.16 : 0), LEG_DOWN));
     const ankleTarget = Vec2(target.x, target.y);
     const solution = legIK(hipWorld, ankleTarget, LEG_H, LEG_H, leg.side);
 
@@ -382,7 +393,8 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0) {
   const phaseB = random() * Math.PI * 2;
   const { world, slope, heightAt, terrainAngleAt } = makeWorld(degrees, roughness, phaseA, phaseB);
   const startX = (random() - 0.5) * 0.2;
-  const walker = createWalker(world, slope, startX, random, heightAt, terrainAngleAt);
+  const walker = createWalker(world, slope, startX, random, heightAt, terrainAngleAt, { alignToTerrain: true, separatedHips: true });
+  walker.separatedHips = true;
   const steps = Math.ceil(duration / FIXED_DT);
   let supportedTime = 0;
   let maxRelativeTilt = 0;
