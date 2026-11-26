@@ -615,6 +615,14 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
     } else if (walker.jumpPhase === "air") {
       if (!contacts.some(Boolean)) walker.jumpAirborne = true;
       if (walker.jumpAirborne && contacts.some(Boolean)) {
+        // Preserve the first planted foot's actual landing point and bring the
+        // other foot underneath the moving pelvis. Reusing takeoff coordinates
+        // can leave both feet reaching behind the body after a long jump.
+        walker.stanceTargets = walker.legs.map((leg, index) =>
+          contacts[index]
+            ? leg.foot.getPosition().x
+            : hull.getPosition().x + leg.side * (walker.stanceHalfWidth ?? 0.12)
+        );
         walker.jumpPhase = "land";
         walker.jumpElapsed = 0;
         walker.jumpLandContactTime = 0;
