@@ -276,6 +276,12 @@ const FOOT_HALF_HEIGHT = 0.03;
     mode: "active",
     stiffness: 1,
     stableTime: 0,
+    walkDirection: 0,
+    walkSpeed: 3.4,
+    nextSwingIndex: 0,
+    jumpPhase: "idle",
+    jumpElapsed: 0,
+    jumping: false,
     limpElapsed: 0,
     falling: false,
     recovering: false,
@@ -291,6 +297,9 @@ const FOOT_HALF_HEIGHT = 0.03;
       this.falling = false;
       this.recovering = false;
       this.recoverySettleTime = 0;
+      this.walkDirection = 0;
+      this.jumpPhase = "idle";
+      this.jumping = false;
       this.fallReason = "hit";
       for (const joint of this.joints) {
         joint.setMotorSpeed(0);
@@ -551,6 +560,16 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
   return totalMass > 0 ? weightedX / totalMass : walker.hull.getPosition().x;
 }
 
+    function requestJump(walker) {
+      if (walker.mode !== "active" || walker.jumpPhase !== "idle") return false;
+      if (!walker.legs.some(leg => isGroundContact(leg.foot))) return false;
+      walker.jumpPhase = "crouch";
+      walker.jumpElapsed = 0;
+      walker.jumping = true;
+      walker.walkDirection = 0;
+      return true;
+    }
+
     function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1, balanceKp = 1.5, balanceKd = 0.06, ankleTorqueMax = 1.5, stepReach = 0.18, stepLookahead = 0.25, hipTorqueMax = 4, kneeTorqueMax = 4, swingHeight = 0.12, swingDuration = 0.2, stanceTorqueScale = 1, hipHeightBlend = 1, upperBodyTorqueScale = 1) {
   const { hull, legs } = walker;
   const centerX = getRigCenterOfMassX(walker);
@@ -563,6 +582,37 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
   // not by planned foot locations. A swing target is assigned once and held
   // until that foot lands, so it cannot chase the torso every physics step.
   const contacts = legs.map(leg => isGroundContact(leg.foot));
+  if (walker.jumpPhase !== "idle") {
+    walker.jumpElapsed += FIXED_DT;
+    if (walker.jumpPhase === "crouch" && walker.jumpElapsed >= 0.12) {
+      walker.jumpPhase = "extend";
+      walker.jumpElapsed = 0;
+    } else if (walker.jumpPhase === "extend" && walker.jumpElapsed >= 0.1) {
+      walker.jumpPhase = "air";
+      walker.jumpElapsed = 0;
+    } else if (walker.jumpPhase === "air" && contacts.some(Boolean)) {
+      walker.jumpPhase = "land";
+      walker.jumpElapsed = 0;
+    } else if (walker.jumpPhase === "land" && walker.jumpElapsed >= 0.2) {
+      walker.jumpPhase = "idle";
+      walker.jumpElapsed = 0;
+      walker.jumping = false;
+    }
+  }
+
+  const walkDirection = Math.sign(walker.walkDirection || 0);
+  if (walkDirection && contacts.some(Boolean) && walker.jumpPhase === "idle") {
+    const terrainAngle = terrainAngleAt(hull.getPosition().x);
+    const tangent = Vec2(Math.cos(terrainAngle), Math.sin(terrainAngle));
+    const velocity = hull.getLinearVelocity();
+    const tangentSpeed = velocity.x * tangent.x + velocity.y * tangent.y;
+    const targetSpeed = walkDirection * (walker.walkSpeed || 3.4);
+    const desiredForce = (targetSpeed - tangentSpeed) * hull.getMass() * 4;
+    const maxForce = hull.getMass() * GRAVITY * 0.3;
+    const force = Math.max(-maxForce, Math.min(maxForce, desiredForce));
+    hull.applyForceToCenter(Vec2(tangent.x * force, tangent.y * force), true);
+  }
+
   if (walker.swingIndex !== undefined && walker.swingIndex !== null) {
     walker.swingTime = (walker.swingTime || 0) + FIXED_DT;
     if (!contacts[walker.swingIndex]) walker.swingAirborne = true;
@@ -573,39 +623,58 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
     }
   }
   if (walker.swingIndex === undefined || walker.swingIndex === null) {
-    const planted = legs
-      .map((leg, i) => contacts[i] ? leg.foot : null)
-      .filter(foot => foot !== null);
-    if (planted.length) {
-      const bounds = planted.map(foot => {
-        const angle = foot.getAngle();
-        const halfSpan = Math.abs(Math.cos(angle)) * FOOT_HALF_LENGTH +
-          Math.abs(Math.sin(angle)) * FOOT_HALF_HEIGHT;
-        return {
-          min: foot.getPosition().x - halfSpan,
-          max: foot.getPosition().x + halfSpan
-        };
-      });
-      const minFootX = Math.min(...bounds.map(bound => bound.min));
-      const maxFootX = Math.max(...bounds.map(bound => bound.max));
-      if (predictedCenterX < minFootX - 0.04) {
-        walker.swingIndex = 0;
+    if (walkDirection && walker.jumpPhase === "idle" && contacts.some(Boolean)) {
+      let swingIndex = walker.nextSwingIndex ?? 0;
+      if (!contacts[swingIndex]) swingIndex = 1 - swingIndex;
+      if (contacts[swingIndex]) {
+        const tangent = terrainAngleAt(hull.getPosition().x);
+        const velocity = hull.getLinearVelocity();
+        const tangentSpeed = Math.abs(velocity.x * Math.cos(tangent) + velocity.y * Math.sin(tangent));
+        const speedRatio = Math.max(0.25, Math.min(1, tangentSpeed / (walker.walkSpeed || 3.4)));
+        const stride = stepReach * (0.35 + 0.65 * speedRatio);
+        walker.swingIndex = swingIndex;
         walker.swingTime = 0;
         walker.swingAirborne = false;
-        const hipMidX = hull.getPosition().x - HIP_Y * Math.sin(hull.getAngle());
-        const stanceCenterX = centerX + (hipMidX - centerX) * (walker.stanceCenterBlend ?? 0);
-        walker.stanceTargets[0] = predictedCenterX - stepReach;
-      } else if (predictedCenterX > maxFootX + 0.04) {
-        walker.swingIndex = 1;
-        walker.swingTime = 0;
-        walker.swingAirborne = false;
-        const hipMidX = hull.getPosition().x - HIP_Y * Math.sin(hull.getAngle());
-        const stanceCenterX = centerX + (hipMidX - centerX) * (walker.stanceCenterBlend ?? 0);
-        walker.stanceTargets[1] = predictedCenterX + stepReach;
+        walker.stanceTargets[swingIndex] = predictedCenterX + walkDirection * stride;
+        walker.nextSwingIndex = 1 - swingIndex;
+      }
+    } else if (!walkDirection && walker.jumpPhase === "idle") {
+      const planted = legs
+        .map((leg, i) => contacts[i] ? leg.foot : null)
+        .filter(foot => foot !== null);
+      if (planted.length) {
+        const bounds = planted.map(foot => {
+          const angle = foot.getAngle();
+          const halfSpan = Math.abs(Math.cos(angle)) * FOOT_HALF_LENGTH +
+            Math.abs(Math.sin(angle)) * FOOT_HALF_HEIGHT;
+          return {
+            min: foot.getPosition().x - halfSpan,
+            max: foot.getPosition().x + halfSpan
+          };
+        });
+        const minFootX = Math.min(...bounds.map(bound => bound.min));
+        const maxFootX = Math.max(...bounds.map(bound => bound.max));
+        if (predictedCenterX < minFootX - 0.04) {
+          walker.swingIndex = 0;
+          walker.swingTime = 0;
+          walker.swingAirborne = false;
+          walker.stanceTargets[0] = predictedCenterX - stepReach;
+        } else if (predictedCenterX > maxFootX + 0.04) {
+          walker.swingIndex = 1;
+          walker.swingTime = 0;
+          walker.swingAirborne = false;
+          walker.stanceTargets[1] = predictedCenterX + stepReach;
+        }
       }
     }
   }
   const footTargets = walker.stanceTargets.map((x, i) => {
+    if (walker.jumpPhase === "air") {
+      return {
+        x: hull.getPosition().x + legs[i].side * 0.12,
+        y: hull.getPosition().y - 0.42
+      };
+    }
     const swing = walker.swingIndex === i;
     const progress = swing ? Math.min(1, (walker.swingTime || 0) / swingDuration) : 0;
     const lift = swing ? Math.sin(progress * Math.PI) * swingHeight : 0;
@@ -650,11 +719,22 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
       balanceKp * torsoTilt +
       balanceKd * hull.getAngularVelocity()
     );
-    const kneeTarget = wrapAngle(lowerBodyAngle - upperBodyAngle);
+    let kneeTarget = wrapAngle(lowerBodyAngle - upperBodyAngle);
+    let kneeTorque = kneeTorqueMax;
+    if (walker.jumpPhase === "crouch") {
+      kneeTarget = wrapAngle(kneeTarget + leg.bend * 0.3);
+    } else if (walker.jumpPhase === "extend") {
+      kneeTarget = leg.bend * 0.02;
+      kneeTorque = kneeTorqueMax * 2;
+    } else if (walker.jumpPhase === "air") {
+      kneeTarget = wrapAngle(kneeTarget + leg.bend * 0.4);
+    } else if (walker.jumpPhase === "land") {
+      kneeTarget = wrapAngle(kneeTarget + leg.bend * 0.25);
+    }
     hipTargets.push(hipTarget);
     kneeTargets.push(kneeTarget);
     driveJoint(leg.hip, hipTarget, 13, 4, hipTorqueMax, legStiffness);
-    driveJoint(leg.knee, kneeTarget, 15, 5, kneeTorqueMax, legStiffness);
+    driveJoint(leg.knee, kneeTarget, 15, 5, kneeTorque, legStiffness);
 
     const desiredFootAngle = terrainAngle;
     const ankleTargetAngle = wrapAngle(desiredFootAngle - leg.lower.getAngle());
@@ -682,6 +762,7 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
     return {
       createStanceRig,
       stanceController,
+      requestJump,
       updateRigFallState,
       updateRigRecovery,
       rigIsStable,
