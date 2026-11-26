@@ -42,7 +42,7 @@ The headless Planck suite runs three-second locomotion cases on 0°, 20°, 35°,
 
 The 50° test currently measures loss of controlled gait across all eight seeds using excessive downhill speed or prolonged airtime, not a completed knockdown animation. Physical fall detection and ragdoll response are separate integration work. The uneven-terrain cases use a smooth analytic profile represented by short Planck edge segments; they are not yet a test of abrupt cliffs, craters, or terrain destruction.
 
-GitHub Actions is the authoritative execution environment when local dependency installation is unavailable. The current headless Planck run result is reported by the latest GitHub Actions workflow.
+GitHub Actions is the authoritative execution environment when local dependency installation is unavailable. The current headless Planck run passes all 11 tests.
 
 ## Scope
 
