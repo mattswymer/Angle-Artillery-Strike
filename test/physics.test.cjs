@@ -237,6 +237,22 @@ test("upright-torso slope geometry sweep records stance feasibility without terr
   assert.equal(results.length, 24);
 });
 
+test("upright stance initial foot geometry exposes contact gaps on slopes", () => {
+  const cases = [20, 35].map(degrees => {
+    const r = runStanceCase(degrees, 1, 0.5, 0, 0, "chain", true, 3.5, 0.02, 0.25, 0.05, 0.95, 0, 0, 0.6);
+    return {
+      degrees,
+      initialPose: r.initialPose,
+      firstFrames: r.trace.slice(0, 3).map(point => ({
+        t: point.t, angle: point.angle, contacts: point.contacts,
+        hips: point.hip, knees: point.knee, ankles: point.ankle
+      }))
+    };
+  });
+  console.log("upright initial foot geometry", JSON.stringify(cases));
+  assert.equal(cases.length, 2);
+});
+
 test("upright stance candidate checks repeatability and simultaneous foot support", () => {
   const flatSlopeCandidate = SEEDS.map(seed => {
     const r = runStanceCase(20, seed, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25, 0.05, 1.05, 0, 0, 0.6);
