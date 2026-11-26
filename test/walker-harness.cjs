@@ -587,7 +587,7 @@ function getRigCenterOfMassX(walker) {
   return totalMass > 0 ? weightedX / totalMass : walker.hull.getPosition().x;
 }
 
-function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1, balanceKp = 1.5, balanceKd = 0.06) {
+function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1, balanceKp = 1.5, balanceKd = 0.06, ankleTorqueMax = 1.5) {
   const { hull, legs } = walker;
   const centerX = getRigCenterOfMassX(walker);
   const halfStance = walker.stanceHalfWidth ?? 0.12;
@@ -694,7 +694,7 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1, balan
     const desiredFootAngle = terrainAngle;
     const ankleTargetAngle = wrapAngle(desiredFootAngle - leg.lower.getAngle());
     ankleTargets.push(ankleTargetAngle);
-    driveJoint(leg.ankle, ankleTargetAngle, 12, 3, 1.5, stiffness);
+    driveJoint(leg.ankle, ankleTargetAngle, 12, 3, ankleTorqueMax, stiffness);
   }
 
   return {
@@ -837,7 +837,7 @@ function runRigSymmetryCase(continuousGround = false, runController = true) {
   };
 }
 
-function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmupSteps = 0, groundStyle = "chain", controllerEnabled = true, balanceKp = 3.5, balanceKd = 0.02, chainStep = 0.25, stanceHalfWidth = 0.12, pelvisRatio = 0.95, terrainTiltBlend = 0, stanceCenterBlend = 0, ankleLimit = 0.6) {
+function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmupSteps = 0, groundStyle = "chain", controllerEnabled = true, balanceKp = 3.5, balanceKd = 0.02, chainStep = 0.25, stanceHalfWidth = 0.12, pelvisRatio = 0.95, terrainTiltBlend = 0, stanceCenterBlend = 0, ankleLimit = 0.6, ankleTorqueMax = 1.5) {
   const random = seededRandom(seed);
   const phaseA = random() * Math.PI * 2;
   const phaseB = random() * Math.PI * 2;
@@ -856,7 +856,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
     }
   }
   for (let i = 0; i < warmupSteps; i++) {
-    if (controllerEnabled) stanceController(walker, heightAt, terrainAngleAt, 1, balanceKp, balanceKd);
+    if (controllerEnabled) stanceController(walker, heightAt, terrainAngleAt, 1, balanceKp, balanceKd, ankleTorqueMax);
     world.step(FIXED_DT, 180, 60);
   }
   const steps = Math.ceil(duration / FIXED_DT);
@@ -870,7 +870,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
 
   for (let i = 0; i < steps; i++) {
     const control = controllerEnabled
-      ? stanceController(walker, heightAt, terrainAngleAt, 1, balanceKp, balanceKd)
+      ? stanceController(walker, heightAt, terrainAngleAt, 1, balanceKp, balanceKd, ankleTorqueMax)
       : { targets: walker.stanceTargets.map(x => Vec2(x, heightAt(x) + FOOT_HALF_HEIGHT * 2)) };
     world.step(FIXED_DT, 180, 60);
     const contacts = walker.legs.map(leg => isGroundContact(leg.foot));
@@ -965,6 +965,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
     terrainTiltBlend,
     stanceCenterBlend,
     ankleLimit,
+    ankleTorqueMax,
     supportedTime: Number(supportedTime.toFixed(3)),
     maxRelativeTiltDegrees: Number((maxRelativeTilt * 180 / Math.PI).toFixed(2)),
     maxSpeed: Number(maxSpeed.toFixed(3)),
