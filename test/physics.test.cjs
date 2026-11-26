@@ -91,3 +91,9 @@ test("each leg has a separate foot and ankle joints configured with ±0.6 radian
   assert.ok(result.maxAnkleAngle < 0.9,
     `ankle angle excursion exceeded the diagnostic safety bound: ${result.maxAnkleAngle}`);
 });
+
+test("all six hip, knee, and ankle joints are routed through the shared motor driver", () => {
+  const result = runSlopeCase(20, 20261125, 3);
+  assert.equal(result.jointCount, 6);
+  assert.equal(result.motorJointCount, 6);
+});
