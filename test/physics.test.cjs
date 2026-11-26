@@ -3,7 +3,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const planck = require("planck");
-const { runSlopeCase, runStanceCase, runSwingTargetCase, runRigSymmetryCase, seededRandom, legIK, driveJoint, createStanceRig, updateRigFallState, footContactNormals } = require("./walker-harness.cjs");
+const { runSlopeCase, runStanceCase, runSwingTargetCase, runRigSymmetryCase, seededRandom, legIK, driveJoint, createStanceRig, updateRigFallState, updateRigRecovery, recoveryAssistForce, footContactNormals } = require("./walker-harness.cjs");
 
 const SEEDS = [1, 7, 42, 99, 314, 1337, 481516, 8675309];
 
@@ -435,6 +435,43 @@ test("intentional jump airtime does not accumulate toward the no-contact fall tr
     assert.equal(state.reason, null);
   }
   assert.equal(rig.noContactTime, 0);
+});
+
+test("limp recovery waits for low speed and ground contact, then ramps stiffness over 500 ms", () => {
+  const world = new planck.World({ gravity: planck.Vec2(0, -10) });
+  const ground = world.createBody();
+  ground.createFixture({ shape: new planck.Edge(planck.Vec2(-5, 0), planck.Vec2(5, 0)), friction: 2.5 });
+  const rig = createStanceRig(world, 0, () => 0, () => 0);
+  for (let i = 0; i < 10; i++) world.step(1 / 50, 180, 60);
+  rig.hit(planck.Vec2(0, 0));
+
+  for (let i = 0; i < 9; i++) {
+    const state = updateRigRecovery(rig, 0.02, () => 0);
+    assert.equal(state.recovering, false);
+  }
+  const started = updateRigRecovery(rig, 0.02, () => 0);
+  assert.equal(started.recovering, true);
+  assert.equal(started.stiffness, 0);
+
+  for (let i = 0; i < 25 && rig.mode === "limp"; i++) {
+    const state = updateRigRecovery(rig, 0.02, () => 0);
+    if (rig.recovering) {
+      stanceController(rig, () => 0, () => 0, state.stiffness,
+        3.5, 0.02, 1.5, 0.12, 0.41, 6, 6, 0.12, 0.2, 1, 1, 0.1);
+    }
+    world.step(1 / 50, 180, 60);
+  }
+  assert.equal(rig.mode, "active");
+  assert.equal(rig.stiffness, 1);
+  assert.equal(rig.recovering, false);
+});
+
+test("recovery assist never exceeds 1.3 times body weight and requires foot contact", () => {
+  const mass = 5;
+  const gravity = 10;
+  assert.equal(recoveryAssistForce(mass, 10, gravity, false), 0);
+  assert.ok(recoveryAssistForce(mass, 100, gravity, true) <= 1.3 * mass * gravity);
+  assert.equal(recoveryAssistForce(mass, 100, gravity, true), 65);
 });
 
 test("50 degree terrain exceeds the character stance rig's stable envelope", () => {
