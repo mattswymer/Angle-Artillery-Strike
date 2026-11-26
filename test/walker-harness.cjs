@@ -257,7 +257,8 @@ function runSlopeCase(degrees, seed = 12345, duration = 3) {
     const grounded = contacts.some(Boolean);
     if (grounded && angle < 0.9) walker.stableTime += FIXED_DT;
     else walker.stableTime = 0;
-    if (angle > Math.PI * 0.65 || walker.hull.getPosition().y < -2) {
+    const relativeHeight = walker.hull.getPosition().y - Math.tan(slope) * walker.hull.getPosition().x;
+    if (angle > Math.PI * 0.65 || relativeHeight < -2) {
       walker.everFallen = true;
     }
 
