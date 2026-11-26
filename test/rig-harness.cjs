@@ -354,19 +354,17 @@ function stepRig(world, rig, slopeRadians, dt = STEP, allowSteps = true) {
       steppingLeg = rig.legs[0];
     }
 
-    const stepDistance = Math.max(0.18, Math.min(0.26,
-      0.18 + Math.abs(centerOfMass.vx) * 0.06
+    const duration = 0.18;
+    const stepDistance = Math.max(0.18, Math.min(0.32,
+      0.18 + Math.abs(centerOfMass.vx) * 0.08
     ));
     const fromX = steppingLeg.foot.getPosition().x;
-    const toX = centerOfMass.x + (left ? -stepDistance : stepDistance);
-    // Even a nearly-under-COM airborne foot must complete a swing/plant cycle.
-    // Skipping short horizontal steps left the foot suspended indefinitely.
-    steppingLeg.step = {
-      fromX,
-      toX: Math.abs(toX - fromX) < 0.12 ? fromX : toX,
-      elapsed: 0,
-      duration: 0.18
-    };
+    const predictedComX = centerOfMass.x + centerOfMass.vx * duration;
+    const requestedX = predictedComX + (left ? -stepDistance : stepDistance);
+    const toX = Math.max(fromX - 0.45, Math.min(fromX + 0.45, requestedX));
+    // Land ahead of the predicted COM, not behind where it will be when the
+    // swing completes. Keep the step within the leg's reachable horizontal span.
+    steppingLeg.step = { fromX, toX, elapsed: 0, duration };
   }
 
   for (const leg of rig.legs) {
