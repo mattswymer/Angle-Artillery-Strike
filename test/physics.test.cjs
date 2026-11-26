@@ -205,6 +205,27 @@ test("character-proportion stance rig stands for three seconds on flat terrain a
     `flat stance must remain stable for three seconds: ${JSON.stringify(failures)}`);
 });
 
+test("upright 20 degree adaptive knee bend tunes stance width and knee flex", () => {
+  const results = [];
+  for (const stanceHalfWidth of [0.1, 0.15, 0.2, 0.25]) {
+    for (const highSideBend of [0.4, 0.5, 0.6]) {
+      const r = runStanceCase(
+        20, 1, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25,
+        stanceHalfWidth, 0.85, 0, 0, 0.6, 1.5, "slope-adaptive", 0.12, 0.41, 6, 6,
+        0.12, 0.2, 1, 1, highSideBend, 1
+      );
+      results.push({
+        stanceHalfWidth, highSideBend,
+        initialAnkles: r.initialPose.map(leg => leg.ankleAngle),
+        support: r.supportedTime, bothFeet: r.bothFeetContactTime,
+        tilt: r.maxAbsoluteTiltDegrees, air: r.maxAirTime, speed: r.maxSpeed
+      });
+    }
+  }
+  console.log("upright 20 adaptive geometry sweep", JSON.stringify(results));
+  assert.equal(results.length, 12);
+});
+
 test("upright 20 degree stance adapts high-side knee bend to keep ankle within limits", () => {
   const results = [];
   for (const highSideBend of [0, 0.2, 0.4, 0.6, 0.8, 1]) {
