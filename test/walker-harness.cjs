@@ -240,8 +240,8 @@ function createWalker(world, slope, startX, random = () => 0.5, heightAt = x => 
       localAnchorB: Vec2(0, FOOT_HALF_HEIGHT),
       enableMotor: true,
       enableLimit: true,
-      lowerAngle: -0.6,
-      upperAngle: 0.6,
+      lowerAngle: -ankleLimit,
+      upperAngle: ankleLimit,
       maxMotorTorque: 1.5,
       motorSpeed: 0,
       referenceAngle: ankleReferenceAngle,
@@ -292,7 +292,7 @@ const LOWER_HALF_WIDTH = 0.06;
 const FOOT_HALF_LENGTH = 0.09;
 const FOOT_HALF_HEIGHT = 0.03;
 
-function createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidth = 0.12, pelvisRatio = 0.95, terrainTiltBlend = 0, stanceCenterBlend = 0) {
+function createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidth = 0.12, pelvisRatio = 0.95, terrainTiltBlend = 0, stanceCenterBlend = 0, ankleLimit = 0.6) {
   // Start the torso aligned with the local terrain frame; the feet independently
   // align to the surface normal through their ankle joints.
   const initialTerrainAngle = terrainAngleAt(startX) * terrainTiltBlend;
@@ -837,7 +837,7 @@ function runRigSymmetryCase(continuousGround = false, runController = true) {
   };
 }
 
-function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmupSteps = 0, groundStyle = "chain", controllerEnabled = true, balanceKp = 3.5, balanceKd = 0.02, chainStep = 0.25, stanceHalfWidth = 0.12, pelvisRatio = 0.95, terrainTiltBlend = 0, stanceCenterBlend = 0) {
+function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmupSteps = 0, groundStyle = "chain", controllerEnabled = true, balanceKp = 3.5, balanceKd = 0.02, chainStep = 0.25, stanceHalfWidth = 0.12, pelvisRatio = 0.95, terrainTiltBlend = 0, stanceCenterBlend = 0, ankleLimit = 0.6) {
   const random = seededRandom(seed);
   const phaseA = random() * Math.PI * 2;
   const phaseB = random() * Math.PI * 2;
@@ -847,7 +847,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
       ? makeSegmentedWorld(degrees, roughness, phaseA, phaseB)
       : makeWorld(degrees, roughness, phaseA, phaseB, chainStep);
   const startX = (random() - 0.5) * 0.2;
-  const walker = createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidth, pelvisRatio, terrainTiltBlend, stanceCenterBlend);
+  const walker = createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidth, pelvisRatio, terrainTiltBlend, stanceCenterBlend, ankleLimit);
   if (!controllerEnabled) {
     for (const leg of walker.legs) {
       leg.hip.enableMotor(false);
@@ -964,6 +964,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
     pelvisRatio,
     terrainTiltBlend,
     stanceCenterBlend,
+    ankleLimit,
     supportedTime: Number(supportedTime.toFixed(3)),
     maxRelativeTiltDegrees: Number((maxRelativeTilt * 180 / Math.PI).toFixed(2)),
     maxSpeed: Number(maxSpeed.toFixed(3)),
