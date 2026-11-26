@@ -588,7 +588,7 @@ function getRigCenterOfMassX(walker) {
   return totalMass > 0 ? weightedX / totalMass : walker.hull.getPosition().x;
 }
 
-function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1, balanceKp = 1.5, balanceKd = 0.06, ankleTorqueMax = 1.5, stepReach = 0.18, stepLookahead = 0.25, hipTorqueMax = 4, kneeTorqueMax = 4, swingHeight = 0.12, swingDuration = 0.2, stanceTorqueScale = 1) {
+function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1, balanceKp = 1.5, balanceKd = 0.06, ankleTorqueMax = 1.5, stepReach = 0.18, stepLookahead = 0.25, hipTorqueMax = 4, kneeTorqueMax = 4, swingHeight = 0.12, swingDuration = 0.2, stanceTorqueScale = 1, hipHeightBlend = 1) {
   const { hull, legs } = walker;
   const centerX = getRigCenterOfMassX(walker);
   const predictedCenterX = centerX + hull.getLinearVelocity().x * stepLookahead;
@@ -667,9 +667,10 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1, balan
     // anchor (the top of the foot), so its planted height is surface + 2h.
     const actualHip = hull.getWorldPoint(Vec2(leg.side * HIP_X, HIP_Y));
     // Keep the IK target tied to the stance pelvis-height reference.
+    const virtualHipY = pelvisTargetY + leg.side * HIP_X * Math.sin(hull.getAngle());
     const hipWorld = Vec2(
       actualHip.x,
-      pelvisTargetY + leg.side * HIP_X * Math.sin(hull.getAngle())
+      actualHip.y + (virtualHipY - actualHip.y) * hipHeightBlend
     );
     const ankleTarget = Vec2(target.x, target.y);
     const solution = legIK(hipWorld, ankleTarget, leg.upperLength, leg.lowerLength, leg.bend);
@@ -841,7 +842,7 @@ function runRigSymmetryCase(continuousGround = false, runController = true) {
   };
 }
 
-function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmupSteps = 0, groundStyle = "chain", controllerEnabled = true, balanceKp = 3.5, balanceKd = 0.02, chainStep = 0.25, stanceHalfWidth = 0.12, pelvisRatio = 0.95, terrainTiltBlend = 0, stanceCenterBlend = 0, ankleLimit = 0.6, ankleTorqueMax = 1.5, bendMode = "side", stepReach = 0.18, stepLookahead = 0.25, hipTorqueMax = 4, kneeTorqueMax = 4, swingHeight = 0.12, swingDuration = 0.2, stanceTorqueScale = 1) {
+function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmupSteps = 0, groundStyle = "chain", controllerEnabled = true, balanceKp = 3.5, balanceKd = 0.02, chainStep = 0.25, stanceHalfWidth = 0.12, pelvisRatio = 0.95, terrainTiltBlend = 0, stanceCenterBlend = 0, ankleLimit = 0.6, ankleTorqueMax = 1.5, bendMode = "side", stepReach = 0.18, stepLookahead = 0.25, hipTorqueMax = 4, kneeTorqueMax = 4, swingHeight = 0.12, swingDuration = 0.2, stanceTorqueScale = 1, hipHeightBlend = 1) {
   const random = seededRandom(seed);
   const phaseA = random() * Math.PI * 2;
   const phaseB = random() * Math.PI * 2;
@@ -883,7 +884,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
     }
   }
   for (let i = 0; i < warmupSteps; i++) {
-    if (controllerEnabled) stanceController(walker, heightAt, terrainAngleAt, 1, balanceKp, balanceKd, ankleTorqueMax, stepReach, stepLookahead, hipTorqueMax, kneeTorqueMax, swingHeight, swingDuration, stanceTorqueScale);
+    if (controllerEnabled) stanceController(walker, heightAt, terrainAngleAt, 1, balanceKp, balanceKd, ankleTorqueMax, stepReach, stepLookahead, hipTorqueMax, kneeTorqueMax, swingHeight, swingDuration, stanceTorqueScale, hipHeightBlend);
     world.step(FIXED_DT, 180, 60);
   }
   const steps = Math.ceil(duration / FIXED_DT);
@@ -1007,6 +1008,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
     swingHeight,
     swingDuration,
     stanceTorqueScale,
+    hipHeightBlend,
     initialPose,
     supportedTime: Number(supportedTime.toFixed(3)),
     bothFeetContactTime: Number(bothFeetContactTime.toFixed(3)),
