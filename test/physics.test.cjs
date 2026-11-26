@@ -190,6 +190,19 @@ test("spawn settling phase records physical stability after 60 physics steps", (
   }
 });
 
+test("stance contact-load trace captures the first second of flat-ground behavior", () => {
+  const result = runStanceCase(0, 1, 1);
+  console.log("flat stance load trace", JSON.stringify(result.trace));
+  assert.equal(result.trace.length, 6);
+  for (const sample of result.trace) {
+    for (const leg of sample.legs) {
+      assert.ok(Number.isFinite(leg.ankleTorque));
+      assert.ok(Number.isFinite(leg.hipTorque));
+      assert.ok(Number.isFinite(leg.kneeTorque));
+    }
+  }
+});
+
 test("shared joint driver moves a revolute joint toward a positive target angle", () => {
   const world = new planck.World({ gravity: planck.Vec2(0, 0) });
   const base = world.createBody();
