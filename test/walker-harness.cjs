@@ -637,8 +637,7 @@ function walkerController(walker, terrainAngleAt = () => 0) {
 
 
 function getRigCenterOfMassX(walker) {
-  const bodies = [walker.hull];
-  for (const leg of walker.legs) bodies.push(leg.upper, leg.lower, leg.foot);
+  const bodies = walker.bodies ?? [walker.hull, ...walker.legs.flatMap(leg => [leg.upper, leg.lower, leg.foot])];
   let weightedX = 0;
   let totalMass = 0;
   for (const body of bodies) {
@@ -758,6 +757,13 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1, balan
     const ankleTargetAngle = wrapAngle(desiredFootAngle - leg.lower.getAngle());
     ankleTargets.push(ankleTargetAngle);
     driveJoint(leg.ankle, ankleTargetAngle, 12, 3, ankleTorqueMax, legStiffness);
+  }
+
+  // Keep the head and arms in a neutral, articulated carry pose. These joints
+  // use the same bounded motor driver as the lower body.
+  for (const [name, joint] of Object.entries(walker.upperJoints ?? {})) {
+    const torque = name === "neck" ? 1 : name.includes("Shoulder") ? 0.9 : 0.7;
+    driveJoint(joint, 0, 8, 4, torque, stiffness);
   }
 
   return {
@@ -938,11 +944,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
     };
   });
   if (!controllerEnabled) {
-    for (const leg of walker.legs) {
-      leg.hip.enableMotor(false);
-      leg.knee.enableMotor(false);
-      leg.ankle.enableMotor(false);
-    }
+    for (const joint of walker.joints) joint.enableMotor(false);
   }
   for (let i = 0; i < warmupSteps; i++) {
     if (controllerEnabled) stanceController(walker, heightAt, terrainAngleAt, 1, balanceKp, balanceKd, ankleTorqueMax, stepReach, stepLookahead, hipTorqueMax, kneeTorqueMax, swingHeight, swingDuration, stanceTorqueScale, hipHeightBlend);
