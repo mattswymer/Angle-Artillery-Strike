@@ -2,7 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { runSlopeCase, seededRandom, legIK } = require("./rig-harness.cjs");
+const { runSlopeCase, seededRandom, solveLegIK } = require("./rig-harness.cjs");
 
 test("seeded random positions are reproducible", () => {
   const a = seededRandom(481516);
@@ -12,9 +12,10 @@ test("seeded random positions are reproducible", () => {
 
 test("two-bone IK returns finite targets at reachable and clamped distances", () => {
   for (const foot of [{ x: 0.1, y: -0.6 }, { x: 4, y: -2 }, { x: -0.3, y: -0.5 }]) {
-    const result = legIK({ x: 0, y: 0 }, foot, 0.4, 0.36, 1);
-    assert.ok(Number.isFinite(result.thighDirection));
+    const result = solveLegIK({ x: 0, y: 0 }, foot, 0.4, 0.36, 1);
+    assert.ok(Number.isFinite(result.thighAngle));
     assert.ok(Number.isFinite(result.kneeRelative));
+    assert.ok(Number.isFinite(result.shinAngle));
   }
 });
 
