@@ -515,7 +515,7 @@ test("eight production rigs settle on a seeded uneven map without self-collision
   const ground = world.createBody();
   ground.createFixture({ shape: new planck.Chain(points, false), friction: 2.5 });
 
-  const positions = [1.5, 4, 6.5, 9, 15, 17.5, 20, 22.5];
+  const positions = [1.5, 4, 6.5, 9, 15, 17.5, 20, 21.5];
   const rigs = positions.map((x, index) => {
     const angle = terrainAngleAt(x);
     const slope = Math.abs(angle) * 180 / Math.PI;
