@@ -22,7 +22,6 @@ test("two-bone IK returns finite targets at reachable and clamped distances", ()
 for (const degrees of [0, 20, 35, 50]) {
   test(`active rig diagnostic on ${degrees} degree slope`, () => {
     const result = runSlopeCase(degrees);
-    console.log(JSON.stringify(result));
     assert.ok(Number.isFinite(result.finalAngle), "torso angle must remain finite");
     assert.ok(Number.isFinite(result.finalPosition.x) && Number.isFinite(result.finalPosition.y),
       "torso position must remain finite");
@@ -48,13 +47,3 @@ for (const degrees of [0, 20, 35, 50]) {
     }
   });
 }
-
-test("diagnostic: flat and 20-degree stance without protective stepping", () => {
-  const flat = runSlopeCase(0, 12345, false);
-  const slope = runSlopeCase(20, 12345, false);
-  console.log("NO_STEP_DIAGNOSTIC", JSON.stringify({
-    flat: { stable: flat.stable, stableFor: flat.stableFor, everLimp: flat.everLimp, finalAngle: flat.finalAngle, trace: flat.trace },
-    slope20: { stable: slope.stable, stableFor: slope.stableFor, everLimp: slope.everLimp, finalAngle: slope.finalAngle, trace: slope.trace }
-  }));
-  assert.ok(Number.isFinite(flat.finalAngle) && Number.isFinite(slope.finalAngle));
-});
