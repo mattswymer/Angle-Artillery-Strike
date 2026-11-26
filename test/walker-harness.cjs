@@ -31,7 +31,7 @@ function seededRandom(seed) {
 function makeWorld(degrees) {
   const world = new planck.World({ gravity: Vec2(0, -GRAVITY) });
   world.setAllowSleeping(false);
-  const slope = degrees * Math.PI / 180;
+  const slope = -degrees * Math.PI / 180;
   const ground = world.createBody();
   ground.createFixture({
     shape: new planck.Box(30, 0.05, Vec2(0, -0.05), slope),
@@ -43,7 +43,7 @@ function makeWorld(degrees) {
 
 function createWalker(world, slope, startX) {
   const surfaceY = Math.tan(slope) * startX;
-  const initY = surfaceY + 2.55;
+  const initY = surfaceY + 2.406;
   const hull = world.createDynamicBody({
     position: Vec2(startX, initY),
     linearDamping: 0.05,
