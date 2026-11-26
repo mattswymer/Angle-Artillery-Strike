@@ -897,7 +897,7 @@
       if (isDirectTarget || ragdollDeltaV > 3.5) {
         if (!character.ragdoll) createRagdoll(character, point, isDirectTarget ? directHit.location : "chest");
         if (character.ragdoll.standing || character.ragdoll.gettingUp) {
-          if (character.ragdoll.gettingUp) setRecoveryHandContacts(character.ragdoll, false);
+          setRecoveryHandContacts(character.ragdoll, false);
           character.ragdoll.standing = false;
           character.ragdoll.gettingUp = false;
           character.ragdoll.elapsedTime = 0;
