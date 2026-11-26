@@ -303,7 +303,7 @@ function getRigCenterOfMass(rig) {
   return { x: x / totalMass, y: y / totalMass, vx: vx / totalMass, vy: vy / totalMass };
 }
 
-function stepRig(world, rig, slopeRadians, dt = STEP) {
+function stepRig(world, rig, slopeRadians, dt = STEP, allowSteps = true) {
   rig.elapsed += dt;
   const torsoPosition = rig.torso.getPosition();
   const centerOfMass = getRigCenterOfMass(rig);
@@ -336,7 +336,7 @@ function stepRig(world, rig, slopeRadians, dt = STEP) {
     centerOfMass.x > maxFootX + 0.04;
   rig.outsideTime = outsideSupport ? rig.outsideTime + dt : 0;
 
-  if (outsideSupport && !rig.legs.some(leg => leg.step)) {
+  if (allowSteps && outsideSupport && !rig.legs.some(leg => leg.step)) {
     let steppingLeg;
     let left;
     if (supportingLegs.length === 1) {
@@ -435,7 +435,7 @@ function stepRig(world, rig, slopeRadians, dt = STEP) {
   }
 }
 
-function runSlopeCase(degrees, seed = 12345) {
+function runSlopeCase(degrees, seed = 12345, allowSteps = true) {
   const random = seededRandom(seed);
   const { world, radians } = makeSlopeWorld(degrees);
   const startX = (random() - 0.5) * 0.04;
@@ -450,7 +450,7 @@ function runSlopeCase(degrees, seed = 12345) {
   // Production also settles the spawned rig for 90 fixed steps before render.
   const warmupSteps = 90;
   for (let i = 0; i < warmupSteps; i++) {
-    stepRig(world, rig, radians);
+    stepRig(world, rig, radians, STEP, allowSteps);
     world.step(STEP, 8, 3);
   }
 
