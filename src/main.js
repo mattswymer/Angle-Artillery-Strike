@@ -216,7 +216,7 @@
     const rig = character.rig;
     const settings = rig.settings;
     if (rig.mode === "active") {
-      CharacterRig.updateRigFallState(rig, FIXED_STEP, false);
+      CharacterRig.updateRigFallState(rig, FIXED_STEP, rig.jumping);
       if (rig.mode !== "active") return;
       CharacterRig.stanceController(
         rig, heightAt, terrainAngleAt, rig.stiffness,
@@ -343,7 +343,7 @@
   function moveActive() {
     const character = activeCharacter();
     if (!canAct(character) || projectile || activeAction === "attack") return;
-    const velocity = character.body.getLinearVelocity();
+    const rig = character.rig;
     const heldDirection = (held.right ? 1 : 0) - (held.left ? 1 : 0);
     let direction = heldDirection || (tapMoveRemaining > 0 ? tapMoveDirection : 0);
     const requestedDirection = direction;
@@ -352,48 +352,39 @@
       if (tapMoveRemaining === 0) tapMoveDirection = 0;
     }
 
-    // Other combatants are solid obstacles, but ordinary walking cannot shove them.
-    let blockedByCharacter = false;
     if (direction) {
-      const position = character.body.getPosition();
-      blockedByCharacter = characters.some(other => {
+      const position = rig.hull.getPosition();
+      const blocked = characters.some(other => {
         if (other === character || other.eliminated) return false;
         const otherPosition = other.body.getPosition();
         const dx = otherPosition.x - position.x;
         const dy = Math.abs(otherPosition.y - position.y);
         return dx * direction > 0 && Math.abs(dx) < 0.58 && dy < 1.25;
       });
-      if (blockedByCharacter) direction = 0;
+      if (blocked) direction = 0;
     }
+
     if ((requestedDirection || held.jump || jumpQueued) && activeAction !== "move") {
       activeAction = "move";
       statusEl.textContent = "Movement action — firing is locked until the next turn";
       updateHud();
     }
 
-    let verticalVelocity = velocity.y;
+    rig.walkDirection = direction;
     const grounded = isGrounded(character);
     character.grounded = grounded;
     if (grounded) coyoteTime = 0.12;
     else coyoteTime = Math.max(0, coyoteTime - FIXED_STEP);
+
     if (held.jump || jumpQueued) jumpBufferTime = 0.16;
     else jumpBufferTime = Math.max(0, jumpBufferTime - FIXED_STEP);
-    if (direction && grounded) {
-      const stepHeight = stepHeightAhead(character, direction);
-      if (stepHeight > 0.07 && stepHeight <= 0.4) {
-        verticalVelocity = Math.max(verticalVelocity, 2.8);
+
+    if (jumpBufferTime > 0 && coyoteTime > 0 && !rig.jumping) {
+      if (CharacterRig.requestJump(rig)) {
+        jumpBufferTime = 0;
+        coyoteTime = 0;
+        jumpQueued = false;
       }
-    }
-
-    if (direction) character.body.setLinearVelocity(V(direction * 3.4, verticalVelocity));
-    else if (blockedByCharacter) character.body.setLinearVelocity(V(0, verticalVelocity));
-    else character.body.setLinearVelocity(V(velocity.x * 0.78, verticalVelocity));
-
-    if (jumpBufferTime > 0 && coyoteTime > 0) {
-      character.body.setLinearVelocity(V(character.body.getLinearVelocity().x, 3.9));
-      jumpBufferTime = 0;
-      coyoteTime = 0;
-      jumpQueued = false;
     }
   }
 
