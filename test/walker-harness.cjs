@@ -13,7 +13,7 @@ const LEG_H = 34 / 30;
 const LEG_DOWN = -8 / 30;
 const HIP_SPEED = 4;
 const KNEE_SPEED = 6;
-const MAX_TORQUE = 16;
+const MAX_TORQUE = 80;
 const SUPPORT_KNEE_ANGLE = 0.1;
 const WALK_SPEED = 0.29;
 
@@ -245,7 +245,7 @@ function runSlopeCase(degrees, seed = 12345, duration = 3) {
   for (let i = 0; i < warmup + steps; i++) {
     const contacts = walker.legs.map(leg => isGroundContact(leg.lower));
     const control = walkerController(walker);
-    world.step(FIXED_DT, 8, 3);
+    world.step(FIXED_DT, 180, 60);
 
     const angle = Math.abs(walker.hull.getAngle());
     walker.maxTilt = Math.max(walker.maxTilt, angle);
