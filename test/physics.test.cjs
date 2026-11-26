@@ -25,6 +25,6 @@ for (const degrees of [0, 20, 35]) {
 
 test("reference biped loses its stance on a 50 degree slope", () => {
   const result = runSlopeCase(50, 12345, 3);
-  assert.equal(result.everFallen, true,
-    `50 degree slope should exceed the walker's support envelope: ${JSON.stringify(result)}`);
+  assert.equal(result.lostControl, true,
+    `50 degree slope should exceed the walker's controlled locomotion envelope: ${JSON.stringify(result)}`);
 });
