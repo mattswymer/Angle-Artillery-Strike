@@ -5,7 +5,7 @@ const planck = require("planck");
 const GRAVITY = 10;
 const STEP = 1 / 60;
 const DURATION = 3;
-const SEGMENT = { thigh: 0.40, shin: 0.36 };
+const SEGMENT = { thigh: 0.41, shin: 0.34 };
 const V = planck.Vec2;
 
 function seededRandom(seed) {
@@ -100,57 +100,94 @@ function solveLegIK(hip, ankle, upperLength, lowerLength, bend = 1) {
 
 function createRig(world, degrees, x = 0) {
   const slope = degrees * Math.PI / 180;
-  const tangent = V(Math.cos(slope), Math.sin(slope));
   const normal = V(-Math.sin(slope), Math.cos(slope));
   const surfaceAt = px => Math.tan(slope) * px;
   const footXs = [x - 0.19, x + 0.19];
   const pelvisY = Math.min(...footXs.map(px => surfaceAt(px))) +
     0.035 + 0.95 * (SEGMENT.thigh + SEGMENT.shin);
-  const torsoY = pelvisY + 0.22;
-  const torso = world.createDynamicBody({
-    position: V(x, torsoY),
+  const torsoY = pelvisY + 0.25;
+
+  const addBox = (name, position, angle, hx, hy, density, options = {}) => {
+    const body = world.createDynamicBody({
+      position,
+      angle,
+      linearDamping: 0.35,
+      angularDamping: 0.75,
+      allowSleep: false,
+      userData: { kind: "rig-part", name }
+    });
+    body.createFixture({
+      shape: new planck.Box(hx, hy),
+      density,
+      friction: options.friction ?? 0.9,
+      restitution: 0.04,
+      isSensor: options.sensor ?? false,
+      filterGroupIndex: -1
+    });
+    return body;
+  };
+
+  const torso = addBox("torso", V(x, torsoY), 0, 0.17, 0.29, 1.5);
+  const head = world.createDynamicBody({
+    position: V(x, torsoY + 0.425),
     linearDamping: 0.35,
     angularDamping: 0.75,
-    allowSleep: false,
-    userData: { kind: "rig-part", name: "torso" }
-  });
-  torso.createFixture({
-    shape: new planck.Box(0.15, 0.27),
-    density: 1.5,
-    friction: 0.8,
-    filterGroupIndex: -1
-  });
-
-  const head = world.createDynamicBody({
-    position: V(x, torsoY + 0.40),
     allowSleep: false,
     userData: { kind: "rig-part", name: "head" }
   });
   head.createFixture({
-    shape: new planck.Circle(0.12),
-    density: 0.7,
+    shape: new planck.Circle(0.135),
+    density: 1.05,
     friction: 0.5,
+    restitution: 0.04,
     filterGroupIndex: -1
   });
 
-  const revolute = (bodyA, bodyB, anchor, lower, upper, torque) => {
-    // Planck joint angles are measured relative to this construction-time pose.
-    // Preserve that reference so world-space IK targets can be converted correctly.
-    const referenceAngle = bodyB.getAngle() - bodyA.getAngle();
-    const joint = world.createJoint(planck.RevoluteJoint({
+  // The complete articulated character is present from frame zero:
+  // torso, head, two upper/lower arms, two upper/lower legs, and two feet.
+  const arms = [-1, 1].map(side => {
+    const upper = addBox(
+      side < 0 ? "left-upper-arm" : "right-upper-arm",
+      V(x + side * 0.17, torsoY + 0.03), 0, 0.065, 0.19, 0.8
+    );
+    const lower = addBox(
+      side < 0 ? "left-lower-arm" : "right-lower-arm",
+      V(x + side * 0.17, torsoY - 0.33), 0, 0.055, 0.17, 0.8,
+      { sensor: true, friction: 0.18 }
+    );
+    return { side, upper, lower };
+  });
+
+  const revolute = (bodyA, bodyB, anchor, lower, upper, torque) => world.createJoint(
+    planck.RevoluteJoint({
       enableLimit: true,
       lowerAngle: lower,
       upperAngle: upper,
+      referenceAngle: 0,
       enableMotor: true,
       motorSpeed: 0,
       maxMotorTorque: torque,
       collideConnected: false
-    }, bodyA, bodyB, anchor));
-    return { joint, referenceAngle };
-  };
-  const neckHinge = revolute(torso, head, V(x, torsoY + 0.27), -0.65, 0.65, 1);
+    }, bodyA, bodyB, anchor)
+  );
+
+  const neck = revolute(torso, head, V(x, torsoY + 0.29), -0.8, 0.8, 1);
+  const armJoints = arms.map(arm => ({
+    side: arm.side,
+    shoulder: revolute(
+      torso, arm.upper, V(x + arm.side * 0.17, torsoY + 0.22),
+      arm.side < 0 ? -2.35 : -1.5,
+      arm.side < 0 ? 1.5 : 2.35,
+      1.2
+    ),
+    elbow: revolute(
+      arm.upper, arm.lower, V(x + arm.side * 0.17, torsoY - 0.16),
+      -2.45, 2.45, 1.0
+    )
+  }));
 
   const legs = footXs.map((footX, index) => {
+    const side = index === 0 ? -1 : 1;
     const surfaceY = surfaceAt(footX);
     const footCenter = V(
       footX + normal.x * 0.035,
@@ -160,79 +197,44 @@ function createRig(world, degrees, x = 0) {
       footCenter.x + normal.x * 0.035,
       footCenter.y + normal.y * 0.035
     );
-    const foot = world.createDynamicBody({
-      position: footCenter,
-      angle: slope,
-      linearDamping: 0.35,
-      angularDamping: 0.75,
-      allowSleep: false,
-      userData: { kind: "rig-part", name: "foot" }
-    });
-    foot.createFixture({
-      shape: new planck.Box(0.11, 0.035),
-      density: 0.25,
-      friction: 1.0,
-      filterGroupIndex: -1
-    });
+    const foot = addBox(
+      "foot", footCenter, slope, 0.11, 0.035, 0.25,
+      { friction: 0.9 }
+    );
 
-    const hip = V(x + (index === 0 ? -0.105 : 0.105), pelvisY);
-    const ik = solveLegIK(hip, ankle, SEGMENT.thigh, SEGMENT.shin, index === 0 ? 1 : -1);
+    const hip = V(x + side * 0.105, pelvisY);
+    const ik = solveLegIK(hip, ankle, SEGMENT.thigh, SEGMENT.shin, -side);
     const thighCenter = V((hip.x + ik.knee.x) / 2, (hip.y + ik.knee.y) / 2);
     const shinCenter = V((ik.knee.x + ankle.x) / 2, (ik.knee.y + ankle.y) / 2);
+    const thigh = addBox(
+      side < 0 ? "left-upper-leg" : "right-upper-leg",
+      thighCenter, ik.thighAngle, 0.075, SEGMENT.thigh / 2, 1.15
+    );
+    const shin = addBox(
+      side < 0 ? "left-lower-leg" : "right-lower-leg",
+      shinCenter, ik.shinAngle, 0.06, SEGMENT.shin / 2, 1.1
+    );
 
-    const thigh = world.createDynamicBody({
-      position: thighCenter,
-      angle: ik.thighAngle,
-      linearDamping: 0.35,
-      angularDamping: 0.75,
-      allowSleep: false,
-      userData: { kind: "rig-part", name: "thigh" }
-    });
-    thigh.createFixture({
-      shape: new planck.Box(0.07, SEGMENT.thigh / 2),
-      density: 0.85,
-      friction: 0.9,
-      filterGroupIndex: -1
-    });
-
-    const shin = world.createDynamicBody({
-      position: shinCenter,
-      angle: ik.shinAngle,
-      linearDamping: 0.35,
-      angularDamping: 0.75,
-      allowSleep: false,
-      userData: { kind: "rig-part", name: "shin" }
-    });
-    shin.createFixture({
-      shape: new planck.Box(0.055, SEGMENT.shin / 2),
-      density: 0.75,
-      friction: 0.9,
-      filterGroupIndex: -1
-    });
-
-    const hipHinge = revolute(torso, thigh, hip, -1.5, 1.5, 4);
-    const kneeHinge = revolute(thigh, shin, ik.knee, -2.4, 2.4, 4);
-    const ankleHinge = revolute(shin, foot, ankle, -0.7, 0.7, 1.5);
+    const hipJoint = revolute(torso, thigh, hip, -1.5, 1.5, 4);
+    const kneeJoint = revolute(thigh, shin, ik.knee, -2.4, 2.4, 4);
+    const ankleJoint = revolute(shin, foot, ankle, -0.7, 0.7, 1.5);
     return {
-      side: index === 0 ? -1 : 1,
+      side,
       footX,
       targetX: footX,
       foot,
       thigh,
       shin,
-      hipJoint: hipHinge.joint,
-      kneeJoint: kneeHinge.joint,
-      ankleJoint: ankleHinge.joint,
-      hipReference: hipHinge.referenceAngle,
-      kneeReference: kneeHinge.referenceAngle,
-      ankleReference: ankleHinge.referenceAngle,
+      hipJoint,
+      kneeJoint,
+      ankleJoint,
       initialIK: ik,
       step: null
     };
   });
 
   return {
-    torso, head, neck: neckHinge.joint, neckReference: neckHinge.referenceAngle, legs,
+    torso, head, neck, arms, armJoints, legs,
     mode: "active",
     stiffness: 1,
     stableFor: 0,
@@ -257,6 +259,7 @@ function footContact(foot) {
 function getRigCenterOfMass(rig) {
   const bodies = [
     rig.torso, rig.head,
+    ...rig.arms.flatMap(arm => [arm.upper, arm.lower]),
     ...rig.legs.flatMap(leg => [leg.thigh, leg.shin, leg.foot])
   ];
   let totalMass = 0;
@@ -380,15 +383,19 @@ function stepRig(world, rig, slopeRadians, dt = STEP) {
     const actualHipAnchor = rig.torso.getWorldPoint(V(leg.side * 0.105, -0.22));
     const hip = V(actualHipAnchor.x, pelvisTargetY);
     const ik = solveLegIK(hip, ankle, SEGMENT.thigh, SEGMENT.shin, -leg.side);
-    const hipTarget = ik.thighAngle - rig.torso.getAngle() - leg.hipReference;
-    const kneeTarget = ik.kneeRelative - leg.kneeReference;
-    const ankleTarget = slopeRadians - ik.shinAngle - leg.ankleReference;
+    const hipTarget = ik.thighAngle - rig.torso.getAngle();
+    const kneeTarget = ik.kneeRelative;
+    const ankleTarget = slopeRadians - ik.shinAngle;
     driveJoint(leg.hipJoint, hipTarget, 13, 5, 4, rig.stiffness);
     driveJoint(leg.kneeJoint, kneeTarget, 13, 5, 4, rig.stiffness);
     driveJoint(leg.ankleJoint, ankleTarget, 12, 4, 1.5, rig.stiffness);
   });
 
-  driveJoint(rig.neck, -rig.torso.getAngle() - rig.neckReference, 10, 5, 1, rig.stiffness);
+  driveJoint(rig.neck, -rig.torso.getAngle(), 10, 5, 1, rig.stiffness);
+  rig.armJoints.forEach(joints => {
+    driveJoint(joints.shoulder, -rig.torso.getAngle(), 10, 5, 1.2, rig.stiffness);
+    driveJoint(joints.elbow, 0, 10, 5, 1.0, rig.stiffness);
+  });
 
   if (rig.stiffness > 0.8 && supported && torsoTilt < 35 * Math.PI / 180) {
     rig.stableFor += dt;
