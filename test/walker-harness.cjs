@@ -575,8 +575,11 @@ function updateRigFallState(walker, deltaTime = FIXED_DT, jumping = false) {
 
   const normals = walker.legs.flatMap(leg => footContactNormals(leg.foot));
   const badContact = normals.some(normal => {
+    // Only upward-facing normals represent a foot supporting the character.
+    // Toe/heel side contacts against terrain edges are not support normals.
+    if (normal.y <= 0.2) return false;
     const angleFromVertical = Math.atan2(Math.abs(normal.x), normal.y);
-    return normal.y <= 0 || angleFromVertical > 50 * Math.PI / 180;
+    return angleFromVertical > 50 * Math.PI / 180;
   });
   const contacts = walker.legs.map(leg => isGroundContact(leg.foot));
   const anyContact = contacts.some(Boolean);
