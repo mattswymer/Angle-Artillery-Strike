@@ -74,8 +74,11 @@ function createWalker(world, slope, startX, random = () => 0.5, heightAt = x => 
   const joints = [];
   for (const side of [-1, 1]) {
     const hipOffset = options.separatedHips ? side * 0.16 : 0;
+    const upperPosition = options.alignToTerrain
+      ? hull.getWorldPoint(Vec2(hipOffset, LEG_DOWN - LEG_H / 2))
+      : Vec2(startX, initY - LEG_H / 2 - LEG_DOWN);
     const upper = world.createDynamicBody({
-      position: hull.getWorldPoint(Vec2(hipOffset, LEG_DOWN - LEG_H / 2)),
+      position: upperPosition,
       angle: initialAngle + side * 0.05 + (random() - 0.5) * 0.08,
       linearDamping: 0.05,
       angularDamping: 0.05,
@@ -105,8 +108,11 @@ function createWalker(world, slope, startX, random = () => 0.5, heightAt = x => 
 
     const kneeWorld = upper.getWorldPoint(Vec2(0, -LEG_H / 2));
     const lowerOffset = rotateLocal(Vec2(0, LEG_H / 2), initialAngle);
+    const lowerPosition = options.alignToTerrain
+      ? Vec2(kneeWorld.x - lowerOffset.x, kneeWorld.y - lowerOffset.y)
+      : Vec2(startX, initY - LEG_H * 1.5 - LEG_DOWN);
     const lower = world.createDynamicBody({
-      position: Vec2(kneeWorld.x - lowerOffset.x, kneeWorld.y - lowerOffset.y),
+      position: lowerPosition,
       angle: initialAngle + side * 0.05,
       linearDamping: 0.05,
       angularDamping: 0.05,
