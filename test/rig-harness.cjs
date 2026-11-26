@@ -190,8 +190,8 @@ function createRig(world, degrees, x = 0) {
     const side = index === 0 ? -1 : 1;
     const surfaceY = surfaceAt(footX);
     const footCenter = V(
-      footX + normal.x * 0.035,
-      surfaceY + normal.y * 0.035
+      footX + normal.x * 0.032,
+      surfaceY + normal.y * 0.032
     );
     const ankle = V(
       footCenter.x + normal.x * 0.035,
@@ -381,8 +381,8 @@ function stepRig(world, rig, slopeRadians, dt = STEP) {
       ? Math.sin(Math.PI * leg.step.elapsed / leg.step.duration) * 0.12
       : 0;
     const footCenter = V(
-      footX - Math.sin(slopeRadians) * (0.035 - lift),
-      terrainSlope * footX + Math.cos(slopeRadians) * (0.035 - lift)
+      footX - Math.sin(slopeRadians) * (0.032 - lift),
+      terrainSlope * footX + Math.cos(slopeRadians) * (0.032 - lift)
     );
     const ankle = V(
       footCenter.x - Math.sin(slopeRadians) * 0.035,
