@@ -494,6 +494,26 @@ test("COM-to-hip stance-center blend sweep finds slope-compatible foot placement
   assert.equal(results.length, 10);
 });
 
+test("ankle-limit sensitivity sweep measures the additional range required at 35 degrees", () => {
+  const results = [];
+  for (const ankleLimit of [0.6, 0.65, 0.7, 0.8, 0.9, 1.0]) {
+    const result = runStanceCase(
+      35, 1, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25,
+      0.05, 1.0, 1.0, 0, ankleLimit
+    );
+    results.push({
+      ankleLimit,
+      support: result.supportedTime,
+      tilt: result.maxRelativeTiltDegrees,
+      air: result.maxAirTime,
+      speed: result.maxSpeed,
+      maxAnkle: Math.max(...result.trace.flatMap(p => p.legs.map(leg => Math.abs(leg.ankle))))
+    });
+  }
+  console.log("35 degree ankle-limit sweep", JSON.stringify(results));
+  assert.equal(results.length, 6);
+});
+
 test("shared joint driver moves a revolute joint toward a positive target angle", () => {
   const world = new planck.World({ gravity: planck.Vec2(0, 0) });
   const base = world.createBody();
