@@ -673,8 +673,22 @@ function runSwingTargetCase() {
   };
 }
 
-function runRigSymmetryCase() {
-  const { world, heightAt, terrainAngleAt } = makeWorld(0, 0, 0, 0);
+function runRigSymmetryCase(continuousGround = false) {
+  let world, heightAt, terrainAngleAt;
+  if (continuousGround) {
+    world = new planck.World({ gravity: Vec2(0, -GRAVITY) });
+    world.setAllowSleeping(false);
+    const ground = world.createBody();
+    ground.createFixture({
+      shape: new planck.Edge(Vec2(-30, 0), Vec2(30, 0)),
+      friction: 2.5,
+      restitution: 0
+    });
+    heightAt = () => 0;
+    terrainAngleAt = () => 0;
+  } else {
+    ({ world, heightAt, terrainAngleAt } = makeWorld(0, 0, 0, 0));
+  }
   const walker = createStanceRig(world, 0, heightAt, terrainAngleAt);
   const measure = () => {
     const left = walker.legs[0];
@@ -712,6 +726,7 @@ function runRigSymmetryCase() {
     initial: initial.details,
     afterStep: afterStep.details,
     contacts: walker.legs.map(leg => isGroundContact(leg.foot)),
+    continuousGround,
     torsoAngle: walker.hull.getAngle(),
     torsoVelocity: walker.hull.getLinearVelocity()
   };
