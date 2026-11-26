@@ -293,7 +293,8 @@ const FOOT_HALF_LENGTH = 0.09;
 const FOOT_HALF_HEIGHT = 0.03;
 
 function createStanceRig(world, startX, heightAt, terrainAngleAt) {
-  const initialTerrainAngle = terrainAngleAt(startX);
+  // Torso remains gravity-upright at spawn; only the articulated feet align to terrain.
+  const initialTerrainAngle = 0;
   const initialFootY = Math.min(
     heightAt(startX - 0.12) + FOOT_HALF_HEIGHT * 2,
     heightAt(startX + 0.12) + FOOT_HALF_HEIGHT * 2
