@@ -237,6 +237,33 @@ test("upright-torso slope geometry sweep records stance feasibility without terr
   assert.equal(results.length, 24);
 });
 
+test("upright stance candidate checks repeatability and simultaneous foot support", () => {
+  const flatSlopeCandidate = SEEDS.map(seed => {
+    const r = runStanceCase(20, seed, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25, 0.05, 1.05, 0, 0, 0.6);
+    return {
+      seed, support: r.supportedTime, bothFeet: r.bothFeetContactTime,
+      oneFoot: r.oneFootContactTime, absoluteTilt: r.maxAbsoluteTiltDegrees,
+      air: r.maxAirTime, speed: r.maxSpeed
+    };
+  });
+  const steepSlopeSweep = [];
+  for (const ankleLimit of [0.6, 0.8, 1.0]) {
+    for (const pelvisRatio of [1.05, 1.15, 1.25]) {
+      const r = runStanceCase(35, 1, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25, 0.05, pelvisRatio, 0, 0, ankleLimit);
+      steepSlopeSweep.push({
+        ankleLimit, pelvisRatio, support: r.supportedTime,
+        bothFeet: r.bothFeetContactTime, oneFoot: r.oneFootContactTime,
+        absoluteTilt: r.maxAbsoluteTiltDegrees, air: r.maxAirTime,
+        speed: r.maxSpeed
+      });
+    }
+  }
+  console.log("upright stance repeatability", JSON.stringify(flatSlopeCandidate));
+  console.log("upright 35 degree ankle and pelvis sweep", JSON.stringify(steepSlopeSweep));
+  assert.equal(flatSlopeCandidate.length, 8);
+  assert.equal(steepSlopeSweep.length, 9);
+});
+
 test("35 degree stance remains outside the stable envelope with the current ±0.6 ankle limits", () => {
   const results = SEEDS.slice(0, 4).map(seed =>
     runStanceCase(35, seed, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25, 0.05, 1.0, 1.0)
