@@ -568,7 +568,12 @@ test("eight production rigs settle on a seeded uneven map without self-collision
 
   assert.equal(rigs.length, 8);
   assert.ok(rigs.every(rig => rig.bodies.length === 12 && rig.joints.length === 11));
-  assert.deepEqual(rigs.map(rig => rig.mode), Array(8).fill("active"));
+  assert.deepEqual(rigs.map(rig => rig.mode), Array(8).fill("active"),
+    JSON.stringify(rigs.map(rig => ({
+      mode: rig.mode, fallReason: rig.fallReason, stableTime: rig.stableTime,
+      tilt: rig.hull.getAngle(), speed: rig.hull.getLinearVelocity().length(),
+      contacts: rig.legs.filter(leg => productionRig.isGroundContact(leg.foot)).length
+    }))));
   assert.ok(rigs.every(rig => rig.stableTime >= 0.3),
     JSON.stringify(rigs.map(rig => ({
       mode: rig.mode, stableTime: rig.stableTime, fallReason: rig.fallReason,
