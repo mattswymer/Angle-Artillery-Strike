@@ -266,7 +266,7 @@
     rebuildTerrain();
 
     const bluePositions = randomTeamPositions(random, 0.9, 11.1, 4);
-    const redPositions = randomTeamPositions(random, 12.9, 23.1, 4);
+    const redPositions = randomTeamPositions(random, 12.9, 22.0, 4);
     const blueTeam = bluePositions.map((x, index) => makeCharacter(0, index + 1, x));
     const redTeam = redPositions.map((x, index) => makeCharacter(1, index + 1, x));
     const firstTeam = random() < 0.5 ? 0 : 1;
