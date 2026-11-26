@@ -934,6 +934,7 @@
     const stop = event => {
       event.preventDefault();
       held[key] = false;
+      if (key === "jump") jumpQueued = false;
       if ((key === "left" || key === "right") && Date.now() - pressedAt < 180) {
         tapMoveDirection = key === "right" ? 1 : -1;
         tapMoveRemaining = 0.28;
@@ -1017,6 +1018,13 @@
   window.addEventListener("keyup", event => {
     if (event.key.toLowerCase() === "a" || event.key === "ArrowLeft") held.left = false;
     if (event.key.toLowerCase() === "d" || event.key === "ArrowRight") held.right = false;
+    if (event.key.toLowerCase() === "w" || event.key === "ArrowUp" || event.key === " ") jumpQueued = false;
+  });
+  window.addEventListener("blur", () => {
+    held = { left: false, right: false, jump: false };
+    jumpQueued = false;
+    tapMoveDirection = 0;
+    tapMoveRemaining = 0;
   });
   document.addEventListener("selectstart", event => {
     if (event.target.closest?.(".touch-control")) event.preventDefault();
