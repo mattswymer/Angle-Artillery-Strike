@@ -56,8 +56,9 @@ for (const slope of [0, 20, 35]) {
         trace.push({
           t: Number(((i + 1) * STEP).toFixed(2)),
           mode: rig.mode,
-          torso: rig.torso.getPosition(),
-          feet: rig.footBodies.map(body => body.getPosition()),
+          torso: (() => { const p = rig.torso.getPosition(); return { x: p.x, y: p.y, angle: rig.torso.getAngle() }; })(),
+          com: rig.getCenterOfMass(),
+          feet: rig.footBodies.map(body => { const p = body.getPosition(); return { x: p.x, y: p.y, angle: body.getAngle() }; }),
           targets: rig.footTargets.map(target => target.x),
           joints: Object.fromEntries(["leftHip", "leftKnee", "leftAnkle", "rightHip", "rightKnee", "rightAnkle"]
             .map(name => [name, Number(rig.jointMap[name].getJointAngle().toFixed(2))]))
