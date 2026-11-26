@@ -763,9 +763,18 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
   const random = seededRandom(seed);
   const phaseA = random() * Math.PI * 2;
   const phaseB = random() * Math.PI * 2;
-  const { world, slope, heightAt, terrainAngleAt } = makeWorld(degrees, roughness, phaseA, phaseB);
+  const { world, slope, heightAt, terrainAngleAt } = groundStyle === "continuous"
+    ? makeContinuousWorld(degrees)
+    : makeWorld(degrees, roughness, phaseA, phaseB);
   const startX = (random() - 0.5) * 0.2;
   const walker = createStanceRig(world, startX, heightAt, terrainAngleAt);
+  if (!controllerEnabled) {
+    for (const leg of walker.legs) {
+      leg.hip.enableMotor(false);
+      leg.knee.enableMotor(false);
+      leg.ankle.enableMotor(false);
+    }
+  }
   for (let i = 0; i < warmupSteps; i++) {
     if (controllerEnabled) stanceController(walker, heightAt, terrainAngleAt);
     world.step(FIXED_DT, 180, 60);
@@ -849,6 +858,8 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
   return {
     degrees,
     warmupSteps,
+    groundStyle,
+    controllerEnabled,
     groundStyle,
     controllerEnabled,
     supportedTime: Number(supportedTime.toFixed(3)),
