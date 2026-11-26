@@ -276,6 +276,31 @@ test("upright stance initial foot geometry exposes contact gaps on slopes", () =
   assert.equal(cases.length, 2);
 });
 
+test("common-bend upright stance records the loss-of-balance sequence", () => {
+  const results = [20, 35].map(degrees => {
+    const r = runStanceCase(
+      degrees, 1, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25,
+      0.05, 0.95, 0, 0, 0.6, 1.5, "same-positive"
+    );
+    return {
+      degrees,
+      metrics: {
+        support: r.supportedTime, bothFeet: r.bothFeetContactTime,
+        tilt: r.maxAbsoluteTiltDegrees, air: r.maxAirTime, speed: r.maxSpeed
+      },
+      trace: r.trace.map(point => ({
+        t: point.t, angle: point.angle, contacts: point.contacts,
+        center: point.centerOfMassX, swing: point.swingIndex,
+        hip: point.hip, knee: point.knee, ankle: point.ankle,
+        torque: point.motorTorque,
+        feet: point.legs.map(leg => leg.foot)
+      }))
+    };
+  });
+  console.log("common-bend balance trace", JSON.stringify(results));
+  assert.equal(results.length, 2);
+});
+
 test("upright stance candidate checks repeatability and simultaneous foot support", () => {
   const flatSlopeCandidate = SEEDS.map(seed => {
     const r = runStanceCase(20, seed, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25, 0.05, 1.05, 0, 0, 0.6);
