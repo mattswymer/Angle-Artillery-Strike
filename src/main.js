@@ -128,7 +128,7 @@
     let attempts = 0;
     while (positions.length < count && attempts++ < 1600) {
       const candidate = minX + random() * (maxX - minX);
-      const slope = Math.atan2(heightAt(candidate + 0.105) - heightAt(candidate - 0.105), 0.21);
+      const slope = Math.atan2(heightAt(candidate + 0.18) - heightAt(candidate - 0.18), 0.36);
       if (Math.abs(slope) > maxSlope) continue;
       if (positions.every(x => Math.abs(x - candidate) >= 1.35)) positions.push(candidate);
     }
@@ -136,7 +136,7 @@
       const candidates = [];
       for (let i = 0; i < 240; i++) {
         const x = minX + (i + 0.5) / 240 * (maxX - minX);
-        const slope = Math.atan2(heightAt(x + 0.105) - heightAt(x - 0.105), 0.21);
+        const slope = Math.atan2(heightAt(x + 0.18) - heightAt(x - 0.18), 0.36);
         if (Math.abs(slope) <= maxSlope) candidates.push({ x, slope: Math.abs(slope) });
       }
       candidates.sort((a, b) => a.slope - b.slope);
@@ -149,10 +149,19 @@
   }
 
   function makeCharacter(team, number, x) {
-    const leftGround = heightAt(x - 0.105);
-    const rightGround = heightAt(x + 0.105);
-    const origin = { x, y: (leftGround + rightGround) * 0.5 + 1.02 };
-    const rig = window.CharacterRig.buildRig(P, world, team, number, origin);
+    const leftX = x - 0.18;
+    const rightX = x + 0.18;
+    const leftY = heightAt(leftX) + 0.06;
+    const rightY = heightAt(rightX) + 0.06;
+    const leftAngle = Math.atan2(heightAt(leftX + 0.025) - heightAt(leftX - 0.025), 0.05);
+    const rightAngle = Math.atan2(heightAt(rightX + 0.025) - heightAt(rightX - 0.025), 0.05);
+    const pelvisY = Math.min(leftY, rightY) + 0.95 * (0.41 + 0.34);
+    const origin = { x, y: pelvisY + 0.25 };
+    const footTargets = [
+      { x: leftX, y: leftY, angle: leftAngle },
+      { x: rightX, y: rightY, angle: rightAngle }
+    ];
+    const rig = window.CharacterRig.buildRig(P, world, team, number, origin, { footTargets });
     return {
       body: rig.torso, rig, team, number, color: COLORS[team],
       grounded: true, eliminated: false,
@@ -518,8 +527,10 @@
     for (const [name, joint] of Object.entries(rig.jointMap)) points[name] = jointPoint(joint);
     const leftHand = rig.byName["left-lower-arm"].body.getWorldPoint(V(0, -0.17));
     const rightHand = rig.byName["right-lower-arm"].body.getWorldPoint(V(0, -0.17));
-    const leftFoot = rig.byName["left-lower-leg"].body.getWorldPoint(V(0, -0.17));
-    const rightFoot = rig.byName["right-lower-leg"].body.getWorldPoint(V(0, -0.17));
+    const leftAnkle = jointPoint(rig.jointMap.leftAnkle);
+    const rightAnkle = jointPoint(rig.jointMap.rightAnkle);
+    const leftToe = rig.byName["left-foot"].body.getWorldPoint(V(0.08, 0));
+    const rightToe = rig.byName["right-foot"].body.getWorldPoint(V(0.08, 0));
     const head = rig.byName.head.body.getPosition();
     const shoulderCenter = V((points.leftShoulder.x + points.rightShoulder.x) * 0.5,
       (points.leftShoulder.y + points.rightShoulder.y) * 0.5);
@@ -546,9 +557,11 @@
     drawBone(points.rightShoulder, points.rightElbow);
     drawBone(points.rightElbow, rightHand);
     drawBone(points.leftHip, points.leftKnee);
-    drawBone(points.leftKnee, leftFoot);
+    drawBone(points.leftKnee, leftAnkle);
+    drawBone(leftAnkle, leftToe);
     drawBone(points.rightHip, points.rightKnee);
-    drawBone(points.rightKnee, rightFoot);
+    drawBone(points.rightKnee, rightAnkle);
+    drawBone(rightAnkle, rightToe);
 
     ctx.fillStyle = "#17232b";
     for (const point of Object.values(points)) {
