@@ -557,48 +557,36 @@ test("browser entry point creates eight articulated combatants before its first 
 });
 
 test("production walking uses alternating physical steps and capped tangent force", () => {
-  const results = [];
-  for (const walkSpeed of [1.2, 2]) {
-    for (const stepReach of [0.12, 0.24]) {
-      for (const walkingPelvisRatio of [0.72, 0.78, 0.84]) {
-      const world = new planck.World({ gravity: planck.Vec2(0, -10) });
-      const ground = world.createBody();
-      ground.createFixture({ shape: new planck.Edge(planck.Vec2(-8, 0), planck.Vec2(8, 0)), friction: 2.5 });
-      const rig = productionRig.createStanceRig(world, 0, () => 0, () => 0);
-      rig.walkSpeed = walkSpeed;
-      rig.walkingPelvisRatio = walkingPelvisRatio;
-      const control = () => productionRig.stanceController(
-        rig, () => 0, () => 0, rig.stiffness,
-        3.5, 0.06, 1.5, stepReach, 0.25, 6, 6, 0.12, 0.2, 1, 1, 1
-      );
-      for (let i = 0; i < 30; i++) {
-        control();
-        world.step(1 / 50, 180, 60);
-      }
-      const startX = rig.hull.getPosition().x;
-      let previousSwing = rig.nextSwingIndex;
-      let alternations = 0;
-      rig.walkDirection = 1;
-      for (let i = 0; i < 100; i++) {
-        productionRig.updateRigFallState(rig, 1 / 50, rig.jumping);
-        if (rig.mode === "active") control();
-        if (rig.nextSwingIndex !== previousSwing) {
-          alternations++;
-          previousSwing = rig.nextSwingIndex;
-        }
-        world.step(1 / 50, 180, 60);
-        if (rig.mode === "limp") break;
-      }
-      results.push({
-        walkSpeed, stepReach, walkingPelvisRatio,
-        displacement: rig.hull.getPosition().x - startX,
-        alternations, mode: rig.mode, fallReason: rig.fallReason
-      });
-      }
-    }
+  const world = new planck.World({ gravity: planck.Vec2(0, -10) });
+  const ground = world.createBody();
+  ground.createFixture({ shape: new planck.Edge(planck.Vec2(-8, 0), planck.Vec2(8, 0)), friction: 2.5 });
+  const rig = productionRig.createStanceRig(world, 0, () => 0, () => 0);
+  const control = () => productionRig.stanceController(
+    rig, () => 0, () => 0, rig.stiffness,
+    3.5, 0.06, 1.5, 0.12, 0.25, 6, 6, 0.12, 0.2, 1, 1, 1
+  );
+  for (let i = 0; i < 30; i++) {
+    control();
+    world.step(1 / 50, 180, 60);
   }
-  assert.ok(results.some(r => r.displacement > 0.4 && r.alternations >= 2 && r.mode === "active"),
-    JSON.stringify(results));
+  const startX = rig.hull.getPosition().x;
+  let previousSwing = rig.nextSwingIndex;
+  let alternations = 0;
+  rig.walkDirection = 1;
+  for (let i = 0; i < 100; i++) {
+    productionRig.updateRigFallState(rig, 1 / 50, rig.jumping);
+    if (rig.mode === "active") control();
+    if (rig.nextSwingIndex !== previousSwing) {
+      alternations++;
+      previousSwing = rig.nextSwingIndex;
+    }
+    world.step(1 / 50, 180, 60);
+    if (rig.mode === "limp") break;
+  }
+  assert.ok(rig.hull.getPosition().x > startX + 0.8,
+    `walking displacement was ${rig.hull.getPosition().x - startX}`);
+  assert.ok(alternations >= 3, `only ${alternations} alternating steps began`);
+  assert.equal(rig.mode, "active");
 });
 
 test("production jump crouches, extends, leaves the ground, tucks, and lands softly", () => {
