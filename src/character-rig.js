@@ -428,12 +428,17 @@ function hasRigGroundContact(walker) {
 function rigIsStable(walker) {
   const support = rigSupportBounds(walker);
   if (!support || !walker.legs.some(leg => isGroundContact(leg.foot))) return false;
-  if (Math.abs(wrapAngle(walker.hull.getAngle())) > 0.22) return false;
+  // Stable means the main mass is upright, supported, and no longer moving
+  // fast enough to make a turn unsafe. Arms and free limbs may still settle;
+  // requiring every segment to be nearly motionless caused false lockouts.
+  if (Math.abs(wrapAngle(walker.hull.getAngle())) > 0.35) return false;
+  const hullVelocity = walker.hull.getLinearVelocity();
+  if (hullVelocity.length() > 1.3 || Math.abs(walker.hull.getAngularVelocity()) > 2) return false;
   const centerX = getRigCenterOfMassX(walker);
   if (centerX < support.min - 0.04 || centerX > support.max + 0.04) return false;
-  return walker.bodies.every(body =>
-    body.getLinearVelocity().length() < 0.55 &&
-    Math.abs(body.getAngularVelocity()) < 1.5
+  return walker.legs.some(leg => isGroundContact(leg.foot) &&
+    leg.foot.getLinearVelocity().length() < 1.5 &&
+    Math.abs(leg.foot.getAngularVelocity()) < 2.5
   );
 }
 
