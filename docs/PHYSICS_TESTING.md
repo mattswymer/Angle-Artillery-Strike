@@ -35,6 +35,20 @@ The headless Planck acceptance tests now cover eight fixed seeds on flat, 20°, 
 
 The 35° full-body case maintains an upright torso (under 10° maximum tilt) and at least 2.9 seconds of support in each three-second run. Its tested configuration uses 0.1× upper-body motor torque while the hips and knees retain 6 Nm limits; this avoids the head and arms overpowering the stance controller. Brief contact-transfer gaps total no more than 0.06 seconds in a run, below the 0.3-second no-contact threshold intended to trigger limp. This is a controlled dynamic stance, not a perfectly motionless two-foot pose.
 
+## Fall detection and recovery
+
+The headless rig now has an explicit `active` / `limp` mode and a stiffness value shared by every joint motor.
+
+- A direct hit immediately sets stiffness to zero and applies the requested velocity change to the torso.
+- An upward-facing foot support normal steeper than 50° from vertical begins a 100 ms stiffness fade.
+- Predicted COM outside the support envelope for more than 250 ms begins the same fade. A committed corrective swing-foot landing patch is included during a step so normal single-support transfers are not mistaken for a fall.
+- No foot contact for more than 300 ms triggers a fall only when the rig is not intentionally jumping.
+- Torso tilt beyond 60° triggers the fall fade.
+- Recovery waits until average body speed is below 1 m/s and some part of the rig has ground contact. It then ramps stiffness from 0 to 1 over 500 ms and returns to active only after the upright, low-motion, supported stability test remains satisfied for 300 ms.
+- If recovery has not succeeded after three seconds, an upward assist is applied only while a foot is touching terrain and is capped at 1.3 times torso body weight.
+
+The tests exercise each trigger, intentional-jump suppression, direct-hit behavior, recovery gating, the stiffness ramp, stable return, and the capped assist. This recovery behavior is validated in the headless harness only; it has not yet been ported into the browser game.
+
 The 50° case remains outside the stance controller's stable envelope. The reference gait controller and the character-proportion stance rig are separate experiments; passing one does not imply the other is stable.
 
 A bilateral diagnostic confirms that the rig's initial geometry and a free-flight physics step are mirror-symmetric. The harness simplifies collinear terrain samples before creating connected Planck chains, matching the production terrain contour simplification. A 60-step settling diagnostic remains available for spawn initialization.
@@ -63,10 +77,10 @@ npm install
 npm test
 ```
 
-GitHub Actions is the authoritative execution environment when local dependency installation is unavailable. The suite currently contains 29 tests. It covers reference locomotion, rig structure and motor coverage, IK geometry, motor-sign verification, swing-clearance regression, bilateral symmetry, spawn settling, and repeatable flat/20°/35° upright stance acceptance across eight fixed seeds. The 35° acceptance allows up to 0.06 seconds of cumulative no-foot-contact time in a three-second run.
+GitHub Actions is the authoritative execution environment when local dependency installation is unavailable. The suite currently contains 37 tests. It covers reference locomotion, rig structure and motor coverage, IK geometry, motor-sign verification, swing-clearance regression, bilateral symmetry, spawn settling, repeatable flat/20°/35° upright stance acceptance across eight fixed seeds, fall-trigger thresholds, and limp recovery. The 35° acceptance allows up to 0.06 seconds of cumulative no-foot-contact time in a three-second run.
 
 ## Scope and next steps
 
 The harness remains isolated. The production game still uses its existing character implementation; `src/main.js` has not been modified by this experiment.
 
-The headless stance milestone is sufficiently validated to begin a production integration pass, but it is not yet integrated or browser-tested. Preserve the gravity-upright torso, ±0.6 ankle limits, and seeded acceptance cases. Next, replace the production capsule/ragdoll split with one rig from spawn, add turn-safety handling, then implement limp and recovery. Walking and jumping remain last. Do not merge until the integrated build is tested in desktop and Android browsers.
+The headless full-rig stance, fall detection, and recovery milestones are now validated, but none has been integrated into the browser game. Preserve the gravity-upright torso, ±0.6 ankle limits, tested torque scaling, and seeded acceptance cases. Next, port this exact rig into production so every character is articulated from spawn, remove the capsule-to-ragdoll body swap, and replace the legacy recovery code with the tested active/limp controller. Add turn-safety handling before attempting walking or jumping. Do not merge until the integrated build is tested in desktop and Android browsers. Do not merge until the integrated build is tested in desktop and Android browsers.
