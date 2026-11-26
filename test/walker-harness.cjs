@@ -577,7 +577,8 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1) {
     const target = footTargets[i];
     const surfaceY = heightAt(target.x);
     const terrainAngle = terrainAngleAt(target.x);
-    target.y = surfaceY + FOOT_HALF_HEIGHT * 2;
+    // Keep the swing lift calculated above. The IK target is the ankle joint
+    // anchor (the top of the foot), so its planted height is surface + 2h.
     const actualHip = hull.getWorldPoint(Vec2(leg.side * HIP_X, HIP_Y));
     const hipWorld = Vec2(actualHip.x, pelvisTargetY);
     const ankleTarget = Vec2(target.x, target.y);
@@ -655,6 +656,56 @@ function runPostureCase(degrees, seed = 12345, duration = 3, roughness = 0) {
       x: Number(walker.hull.getPosition().x.toFixed(4)),
       y: Number(walker.hull.getPosition().y.toFixed(4))
     }
+  };
+}
+
+function runSwingTargetCase() {
+  const { world, heightAt, terrainAngleAt } = makeWorld(0, 0, 0, 0);
+  const walker = createStanceRig(world, 0, heightAt, terrainAngleAt);
+  walker.swingIndex = 0;
+  walker.swingTime = 0.05;
+  walker.swingAirborne = false;
+  const result = stanceController(walker, heightAt, terrainAngleAt);
+  return {
+    targetY: result.targets[0].y,
+    plantedY: heightAt(result.targets[0].x) + FOOT_HALF_HEIGHT * 2,
+    swingIndex: walker.swingIndex
+  };
+}
+
+function runRigSymmetryCase() {
+  const { world, heightAt, terrainAngleAt } = makeWorld(0, 0, 0, 0);
+  const walker = createStanceRig(world, 0, heightAt, terrainAngleAt);
+  const measure = () => {
+    const left = walker.legs[0];
+    const right = walker.legs[1];
+    const pairs = [
+      [left.upper, right.upper],
+      [left.lower, right.lower],
+      [left.foot, right.foot]
+    ];
+    let error = 0;
+    for (const [a, b] of pairs) {
+      const pa = walker.hull.getLocalPoint(a.getPosition());
+      const pb = walker.hull.getLocalPoint(b.getPosition());
+      error = Math.max(error, Math.abs(pa.x + pb.x), Math.abs(pa.y - pb.y));
+      error = Math.max(error, Math.abs(
+        wrapAngle((a.getAngle() - walker.hull.getAngle()) +
+          (b.getAngle() - walker.hull.getAngle()))
+      ));
+    }
+    for (const key of ["hip", "knee", "ankle"]) {
+      error = Math.max(error, Math.abs(left[key].getJointAngle() + right[key].getJointAngle()));
+    }
+    return error;
+  };
+  const initialError = measure();
+  stanceController(walker, heightAt, terrainAngleAt);
+  world.step(FIXED_DT, 180, 60);
+  return {
+    initialError,
+    oneStepError: measure(),
+    contacts: walker.legs.map(leg => isGroundContact(leg.foot))
   };
 }
 
@@ -803,4 +854,4 @@ function runSlopeCase(degrees, seed = 12345, duration = 3, roughness = 0) {
   };
 }
 
-module.exports = { runSlopeCase, runStanceCase, runPostureCase, seededRandom, walkerController, stanceController, postureController, createWalker, createStanceRig, getRigCenterOfMassX, legIK, driveJoint };
+module.exports = { runSlopeCase, runStanceCase, runPostureCase, runSwingTargetCase, runRigSymmetryCase, seededRandom, walkerController, stanceController, postureController, createWalker, createStanceRig, getRigCenterOfMassX, legIK, driveJoint };
