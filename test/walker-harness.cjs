@@ -850,6 +850,29 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
       : makeWorld(degrees, roughness, phaseA, phaseB, chainStep);
   const startX = (random() - 0.5) * 0.2;
   const walker = createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidth, pelvisRatio, terrainTiltBlend, stanceCenterBlend, ankleLimit);
+  const initialPose = walker.legs.map(leg => {
+    const footCorners = [
+      leg.foot.getWorldPoint(Vec2(-FOOT_HALF_LENGTH, -FOOT_HALF_HEIGHT)),
+      leg.foot.getWorldPoint(Vec2(FOOT_HALF_LENGTH, -FOOT_HALF_HEIGHT))
+    ];
+    const lowerAnchor = leg.lower.getWorldPoint(Vec2(0, -leg.lowerLength / 2));
+    const footAnchor = leg.foot.getWorldPoint(Vec2(0, FOOT_HALF_HEIGHT));
+    return {
+      side: leg.side,
+      hip: [Number(walker.hull.getWorldPoint(Vec2(leg.side * HIP_X, HIP_Y)).x.toFixed(4)),
+        Number(walker.hull.getWorldPoint(Vec2(leg.side * HIP_X, HIP_Y)).y.toFixed(4))],
+      targetX: Number(leg.targetX.toFixed(4)),
+      lowerAnchor: [Number(lowerAnchor.x.toFixed(4)), Number(lowerAnchor.y.toFixed(4))],
+      footAnchor: [Number(footAnchor.x.toFixed(4)), Number(footAnchor.y.toFixed(4))],
+      footAngle: Number((leg.foot.getAngle() * 180 / Math.PI).toFixed(3)),
+      ankleAngle: Number(leg.ankle.getJointAngle().toFixed(4)),
+      ankleError: Number(Math.hypot(lowerAnchor.x - footAnchor.x, lowerAnchor.y - footAnchor.y).toFixed(6)),
+      bottomCorners: footCorners.map(point => ({
+        x: Number(point.x.toFixed(4)), y: Number(point.y.toFixed(4)),
+        clearance: Number((point.y - heightAt(point.x)).toFixed(4))
+      }))
+    };
+  });
   if (!controllerEnabled) {
     for (const leg of walker.legs) {
       leg.hip.enableMotor(false);
@@ -974,6 +997,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
     stanceCenterBlend,
     ankleLimit,
     ankleTorqueMax,
+    initialPose,
     supportedTime: Number(supportedTime.toFixed(3)),
     bothFeetContactTime: Number(bothFeetContactTime.toFixed(3)),
     oneFootContactTime: Number(oneFootContactTime.toFixed(3)),
