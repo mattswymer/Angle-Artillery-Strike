@@ -207,6 +207,31 @@ function jointPD(joint, target, kp, speedScale) {
   return kp * (target - joint.getJointAngle()) - 0.25 * (joint.getJointSpeed() / speedScale);
 }
 
+function legIK(hip, foot, upperLength, lowerLength, bend = 1) {
+  const dx = foot.x - hip.x;
+  const dy = foot.y - hip.y;
+  const rawDistance = Math.hypot(dx, dy);
+  const minDistance = Math.abs(upperLength - lowerLength) + 1e-6;
+  const maxDistance = (upperLength + lowerLength) * 0.999;
+  const distance = Math.max(minDistance, Math.min(rawDistance, maxDistance));
+  const direction = Math.atan2(dy, dx);
+  const hipCos = Math.max(-1, Math.min(1,
+    (upperLength * upperLength + distance * distance - lowerLength * lowerLength) /
+    (2 * upperLength * distance)
+  ));
+  const kneeCos = Math.max(-1, Math.min(1,
+    (upperLength * upperLength + lowerLength * lowerLength - distance * distance) /
+    (2 * upperLength * lowerLength)
+  ));
+  const hipOffset = Math.acos(hipCos);
+  const kneeInterior = Math.acos(kneeCos);
+  return {
+    thighDir: direction + bend * hipOffset,
+    kneeRel: bend * (Math.PI - kneeInterior),
+    distance: rawDistance
+  };
+}
+
 function wrapAngle(angle) {
   while (angle > Math.PI) angle -= Math.PI * 2;
   while (angle < -Math.PI) angle += Math.PI * 2;
@@ -385,4 +410,4 @@ function runSlopeCase(degrees, seed = 12345, duration = 3, roughness = 0) {
   };
 }
 
-module.exports = { runSlopeCase, seededRandom, walkerController, createWalker };
+module.exports = { runSlopeCase, seededRandom, walkerController, createWalker, legIK };
