@@ -365,11 +365,13 @@
       // segments from colliding with one another, while preserving terrain and
       // other-character collisions.
       const collisionGroup = -((character.team * 4) + character.number);
-      const distalLimb = name.includes("lower-arm") || name.includes("lower-leg");
+      const lowerArm = name.includes("lower-arm");
+      const lowerLeg = name.includes("lower-leg");
       const fixture = body.createFixture({
         shape: circle ? new P.Circle(halfWidth) : new P.Box(halfWidth, halfHeight),
-        density, friction: 0.18, restitution: 0.04,
-        isSensor: distalLimb,
+        density, friction: lowerLeg ? 0.88 : 0.18, restitution: 0.04,
+        // Hands stay non-blocking while tumbling; feet remain physical supports.
+        isSensor: lowerArm,
         filterGroupIndex: collisionGroup
       });
       fixture.setUserData({
@@ -581,6 +583,74 @@
     return surface;
   }
 
+  function standingTerrainProfile(ragdoll) {
+    const torsoPosition = ragdoll.torso.getPosition();
+    const sampleOffset = 0.24;
+    const leftX = torsoPosition.x - sampleOffset;
+    const rightX = torsoPosition.x + sampleOffset;
+    const leftY = terrainHeightBelow(leftX, torsoPosition.y + 0.25, 1.8);
+    const rightY = terrainHeightBelow(rightX, torsoPosition.y + 0.25, 1.8);
+    if (leftY === null || rightY === null) return null;
+    const slope = Math.atan2(rightY - leftY, rightX - leftX);
+    return { leftY, rightY, averageY: (leftY + rightY) * 0.5, slope };
+  }
+
+  function driveStandingRagdoll(ragdoll) {
+    const support = standingTerrainProfile(ragdoll);
+    if (!support) {
+      ragdoll.terrainMode = "unsupported";
+      for (const joint of ragdoll.joints) joint.setMaxMotorTorque(0.04);
+      return;
+    }
+
+    const maxStableSlope = Math.PI / 4;
+    if (Math.abs(support.slope) > maxStableSlope) {
+      // Do not pin a character to a wall or near-vertical face. Gravity remains
+      // in charge until the assembly reaches a surface it can physically stand on.
+      ragdoll.terrainMode = "sliding";
+      for (const joint of ragdoll.joints) joint.setMaxMotorTorque(0.025);
+      for (const name of ["left-lower-leg", "right-lower-leg"]) {
+        const fixture = ragdoll.byName[name].body.getFixtureList();
+        if (fixture) fixture.setFriction(0.08);
+      }
+      return;
+    }
+
+    ragdoll.terrainMode = "supported";
+    const torso = ragdoll.torso;
+    const position = torso.getPosition();
+    const verticalError = support.averageY + 0.98 - position.y;
+    // A soft physical support force prevents sinking without teleporting the
+    // character or replacing the articulated assembly.
+    torso.applyForceToCenter(V(0, Math.max(-torso.getMass() * 2,
+      Math.min(torso.getMass() * 8, verticalError * torso.getMass() * 18))), true);
+
+    const hipTarget = -support.slope * 0.28;
+    const kneeTarget = support.slope * 0.18;
+    const targets = {
+      leftHip: hipTarget, rightHip: hipTarget,
+      leftKnee: kneeTarget, rightKnee: kneeTarget,
+      leftShoulder: 0, rightShoulder: 0,
+      leftElbow: 0, rightElbow: 0, neck: 0
+    };
+    for (const [name, joint] of Object.entries(ragdoll.jointMap)) {
+      const error = (targets[name] ?? 0) - joint.getJointAngle();
+      joint.setMotorSpeed(Math.max(-5, Math.min(5, error * 7 - joint.getJointSpeed() * 1.1)));
+      joint.setMaxMotorTorque(name.includes("Hip") || name.includes("Knee") ? 0.62 : 0.3);
+    }
+
+    // Keep the torso generally upright while allowing the legs to articulate
+    // independently over uneven ground.
+    let angle = torso.getAngle();
+    while (angle > Math.PI) angle -= Math.PI * 2;
+    while (angle < -Math.PI) angle += Math.PI * 2;
+    torso.applyTorque(-angle * 7 - torso.getAngularVelocity() * 2.2, true);
+    for (const name of ["left-lower-leg", "right-lower-leg"]) {
+      const fixture = ragdoll.byName[name].body.getFixtureList();
+      if (fixture) fixture.setFriction(0.88);
+    }
+  }
+
   function driveGetUp(ragdoll) {
     const targets = getUpPose(ragdoll, ragdoll.getUpElapsed);
     const torque = ragdoll.getUpElapsed < 0.84 ? 0.78 : 0.58;
@@ -650,6 +720,7 @@
           joint.setMotorSpeed(0);
           joint.setMaxMotorTorque(0.38);
         }
+        ragdoll.terrainMode = "supported";
         character.grounded = true;
       }
     }
@@ -866,8 +937,10 @@
         (points.leftHip.y + points.rightHip.y) * 0.5);
 
       ctx.save();
-      ctx.strokeStyle = character.color;
-      ctx.lineWidth = Math.max(2.8, unit * 0.075);
+      // Match the original stickman: dark limbs and joints, team color
+      // reserved for the head and health bar.
+      ctx.strokeStyle = "#17232b";
+      ctx.lineWidth = Math.max(2.6, unit * 0.072);
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       // Render each bone between the live physics joint anchors. This keeps
@@ -1109,6 +1182,11 @@
         if (!character.eliminated && (!character.ragdoll || character.ragdoll.standing)) character.grounded = isGrounded(character);
       }
       recoverRagdolls();
+      for (const character of characters) {
+        if (!character.eliminated && character.ragdoll?.standing) {
+          driveStandingRagdoll(character.ragdoll);
+        }
+      }
       accumulator -= FIXED_STEP;
     }
     render();
