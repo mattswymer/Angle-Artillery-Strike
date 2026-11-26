@@ -486,6 +486,76 @@ test("production browser scripts parse without syntax errors", () => {
   }
 });
 
+test("browser entry point creates eight articulated combatants before its first animation frame", () => {
+  const worlds = [];
+  const P = Object.assign({}, planck);
+  P.World = function (...args) {
+    const world = new planck.World(...args);
+    worlds.push(world);
+    return world;
+  };
+
+  const elements = new Map();
+  const makeElement = id => ({
+    id, value: id === "angle" ? "45" : id === "power" ? "100" : "",
+    textContent: "", disabled: false, style: {},
+    addEventListener() {},
+    setPointerCapture() {},
+    getBoundingClientRect() {
+      return { width: 1200, height: 675, left: 0, top: 0 };
+    }
+  });
+  const context2d = { setTransform() {} };
+  const canvas = makeElement("game");
+  canvas.width = 0;
+  canvas.height = 0;
+  canvas.clientHeight = 675;
+  canvas.getContext = () => context2d;
+  const document = {
+    body: { classList: { toggle() {} } },
+    getElementById(id) {
+      if (id === "game") return canvas;
+      if (!elements.has(id)) elements.set(id, makeElement(id));
+      return elements.get(id);
+    },
+    addEventListener() {}
+  };
+  const window = {
+    planck: P,
+    CharacterRig: require("../src/character-rig.js"),
+    devicePixelRatio: 1,
+    addEventListener() {}
+  };
+  const context = vm.createContext({
+    window, document, performance: { now: () => 0 },
+    requestAnimationFrame() {}, console, Date
+  });
+  vm.runInContext(fs.readFileSync("src/terrain.js", "utf8"), context, { filename: "src/terrain.js" });
+  vm.runInContext(fs.readFileSync("src/main.js", "utf8"), context, { filename: "src/main.js" });
+
+  assert.equal(worlds.length, 1);
+  const world = worlds[0];
+  const characterBodies = [];
+  for (let body = world.getBodyList(); body; body = body.getNext()) {
+    if (body.getUserData()?.kind === "character") characterBodies.push(body);
+  }
+  const roster = new Map();
+  for (const body of characterBodies) {
+    const data = body.getUserData();
+    const key = data.team + ":" + data.number;
+    roster.set(key, (roster.get(key) || 0) + 1);
+    const position = body.getPosition();
+    assert.ok(Number.isFinite(position.x) && Number.isFinite(position.y));
+  }
+  assert.equal(characterBodies.length, 96);
+  assert.equal(roster.size, 8);
+  assert.ok([...roster.values()].every(count => count === 12));
+  let jointCount = 0;
+  for (let joint = world.getJointList(); joint; joint = joint.getNext()) jointCount++;
+  assert.equal(jointCount, 88);
+  assert.equal(elements.get("status").textContent, "Physics running");
+});
+
 test("production rig module builds the same twelve-body, eleven-joint character", () => {
   const world = new planck.World({ gravity: planck.Vec2(0, -10) });
   const ground = world.createBody();
