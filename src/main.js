@@ -928,7 +928,10 @@
       event.preventDefault();
       pressedAt = Date.now();
       held[key] = true;
-      if (key === "jump") jumpQueued = true;
+      if (key === "jump") {
+        jumpQueued = true;
+        jumpBufferTime = 0.16;
+      }
       button.setPointerCapture?.(event.pointerId);
     };
     const stop = event => {
@@ -1012,7 +1015,10 @@
     if (["ArrowLeft", "ArrowRight", "ArrowUp", " "].includes(event.key)) event.preventDefault();
     if (event.key.toLowerCase() === "a" || event.key === "ArrowLeft") held.left = true;
     if (event.key.toLowerCase() === "d" || event.key === "ArrowRight") held.right = true;
-    if (!event.repeat && (event.key.toLowerCase() === "w" || event.key === "ArrowUp" || event.key === " ")) jumpQueued = true;
+    if (!event.repeat && (event.key.toLowerCase() === "w" || event.key === "ArrowUp" || event.key === " ")) {
+      jumpQueued = true;
+      jumpBufferTime = 0.16;
+    }
     if (event.key === "Enter") fire();
   });
   window.addEventListener("keyup", event => {
