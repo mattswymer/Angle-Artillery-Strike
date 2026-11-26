@@ -811,6 +811,7 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
     let kneeTarget = wrapAngle(lowerBodyAngle - upperBodyAngle);
     let kneeTorque = kneeTorqueMax;
     let hipTorque = hipTorqueMax;
+    let ankleTorque = ankleTorqueMax;
     if (walker.jumpPhase === "crouch") {
       kneeTarget = wrapAngle(kneeTarget + leg.bend * 0.5);
     } else if (walker.jumpPhase === "extend") {
@@ -824,6 +825,11 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
       kneeTorque = kneeTorqueMax * 1.5;
       hipTorque = hipTorqueMax * 2;
     }
+    if (walker.swingRetargeted && walker.swingIndex === i) {
+      hipTorque *= 2;
+      kneeTorque *= 2;
+      ankleTorque *= 2;
+    }
     hipTargets.push(hipTarget);
     kneeTargets.push(kneeTarget);
     driveJoint(leg.hip, hipTarget, 13, 4, hipTorque, legStiffness);
@@ -832,7 +838,7 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
     const desiredFootAngle = terrainAngle;
     const ankleTargetAngle = wrapAngle(desiredFootAngle - leg.lower.getAngle());
     ankleTargets.push(ankleTargetAngle);
-    driveJoint(leg.ankle, ankleTargetAngle, 12, 3, ankleTorqueMax, legStiffness);
+    driveJoint(leg.ankle, ankleTargetAngle, 12, 3, ankleTorque, legStiffness);
   }
 
   // Keep the head and arms in a neutral, articulated carry pose. These joints
