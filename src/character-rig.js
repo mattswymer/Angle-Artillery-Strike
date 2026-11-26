@@ -104,6 +104,7 @@
       hit(dv = null) {
         this.mode = "limp";
         this.stiffness = 0;
+        for (const joint of this.joints) joint.setMaxMotorTorque(0);
         if (dv) {
           for (const piece of this.pieces) {
             const v = piece.body.getLinearVelocity();
