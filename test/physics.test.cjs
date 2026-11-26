@@ -80,3 +80,12 @@ for (const degrees of [0, 20, 35]) {
       `walker should remain upright on uneven terrain for all seeds: ${JSON.stringify(failures)}`);
   });
 }
+
+test("each leg has a separate foot and a bounded ankle joint", () => {
+  const result = runSlopeCase(20, 2026, 3);
+  assert.equal(result.footCount, 2);
+  assert.equal(result.ankleJointCount, 2);
+  assert.ok(Number.isFinite(result.maxAnkleAngle));
+  assert.ok(result.maxAnkleAngle <= 0.61,
+    `ankle joint exceeded its ±0.6 radian limit: ${result.maxAnkleAngle}`);
+});
