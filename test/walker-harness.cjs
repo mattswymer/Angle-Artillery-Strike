@@ -648,7 +648,7 @@ function getRigCenterOfMassX(walker) {
   return totalMass > 0 ? weightedX / totalMass : walker.hull.getPosition().x;
 }
 
-function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1, balanceKp = 1.5, balanceKd = 0.06, ankleTorqueMax = 1.5, stepReach = 0.18, stepLookahead = 0.25, hipTorqueMax = 4, kneeTorqueMax = 4, swingHeight = 0.12, swingDuration = 0.2, stanceTorqueScale = 1, hipHeightBlend = 1) {
+function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1, balanceKp = 1.5, balanceKd = 0.06, ankleTorqueMax = 1.5, stepReach = 0.18, stepLookahead = 0.25, hipTorqueMax = 4, kneeTorqueMax = 4, swingHeight = 0.12, swingDuration = 0.2, stanceTorqueScale = 1, hipHeightBlend = 1, upperBodyTorqueScale = 1) {
   const { hull, legs } = walker;
   const centerX = getRigCenterOfMassX(walker);
   const predictedCenterX = centerX + hull.getLinearVelocity().x * stepLookahead;
@@ -762,7 +762,7 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1, balan
   // Keep the head and arms in a neutral, articulated carry pose. These joints
   // use the same bounded motor driver as the lower body.
   for (const [name, joint] of Object.entries(walker.upperJoints ?? {})) {
-    const torque = name === "neck" ? 1 : name.includes("Shoulder") ? 0.9 : 0.7;
+    const torque = (name === "neck" ? 1 : name.includes("Shoulder") ? 0.9 : 0.7) * upperBodyTorqueScale;
     driveJoint(joint, 0, 8, 4, torque, stiffness);
   }
 
@@ -909,7 +909,7 @@ function runRigSymmetryCase(continuousGround = false, runController = true) {
   };
 }
 
-function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmupSteps = 0, groundStyle = "chain", controllerEnabled = true, balanceKp = 3.5, balanceKd = 0.02, chainStep = 0.25, stanceHalfWidth = 0.12, pelvisRatio = 0.95, terrainTiltBlend = 0, stanceCenterBlend = 0, ankleLimit = 0.6, ankleTorqueMax = 1.5, bendMode = "side", stepReach = 0.18, stepLookahead = 0.25, hipTorqueMax = 4, kneeTorqueMax = 4, swingHeight = 0.12, swingDuration = 0.2, stanceTorqueScale = 1, hipHeightBlend = 1, highSideBend = 0.4, lowSideBend = 1) {
+function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmupSteps = 0, groundStyle = "chain", controllerEnabled = true, balanceKp = 3.5, balanceKd = 0.02, chainStep = 0.25, stanceHalfWidth = 0.12, pelvisRatio = 0.95, terrainTiltBlend = 0, stanceCenterBlend = 0, ankleLimit = 0.6, ankleTorqueMax = 1.5, bendMode = "side", stepReach = 0.18, stepLookahead = 0.25, hipTorqueMax = 4, kneeTorqueMax = 4, swingHeight = 0.12, swingDuration = 0.2, stanceTorqueScale = 1, hipHeightBlend = 1, highSideBend = 0.4, lowSideBend = 1, upperBodyTorqueScale = 1) {
   const random = seededRandom(seed);
   const phaseA = random() * Math.PI * 2;
   const phaseB = random() * Math.PI * 2;
@@ -947,7 +947,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
     for (const joint of walker.joints) joint.enableMotor(false);
   }
   for (let i = 0; i < warmupSteps; i++) {
-    if (controllerEnabled) stanceController(walker, heightAt, terrainAngleAt, 1, balanceKp, balanceKd, ankleTorqueMax, stepReach, stepLookahead, hipTorqueMax, kneeTorqueMax, swingHeight, swingDuration, stanceTorqueScale, hipHeightBlend);
+    if (controllerEnabled) stanceController(walker, heightAt, terrainAngleAt, 1, balanceKp, balanceKd, ankleTorqueMax, stepReach, stepLookahead, hipTorqueMax, kneeTorqueMax, swingHeight, swingDuration, stanceTorqueScale, hipHeightBlend, upperBodyTorqueScale);
     world.step(FIXED_DT, 180, 60);
   }
   const steps = Math.ceil(duration / FIXED_DT);
@@ -1078,6 +1078,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
     hipHeightBlend,
     highSideBend,
     lowSideBend,
+    upperBodyTorqueScale,
     bodyCount: walker.bodies.length,
     jointCount: walker.joints.length,
     initialPose,
