@@ -50,6 +50,135 @@
     };
   }
 
+  function getFootContacts(rig) {
+    return rig.footBodies.map(footBody => {
+      let best = null;
+      for (let edge = footBody.getContactList(); edge; edge = edge.next) {
+        const contact = edge.contact;
+        if (!contact.isTouching()) continue;
+        const fixtureA = contact.getFixtureA();
+        const fixtureB = contact.getFixtureB();
+        const otherFixture = fixtureA.getBody() === footBody ? fixtureB : fixtureA;
+        if (otherFixture.getBody().getUserData()?.kind !== "terrain") continue;
+        const manifold = contact.getWorldManifold(null);
+        if (!manifold?.normal) continue;
+        let nx = manifold.normal.x;
+        let ny = manifold.normal.y;
+        if (fixtureA.getBody() === footBody) {
+          nx = -nx;
+          ny = -ny;
+        }
+        if (!best || ny > best.normal.y) {
+          const point = manifold.points?.[0] || footBody.getWorldCenter();
+          best = { normal: { x: nx, y: ny }, point: { x: point.x, y: point.y } };
+        }
+      }
+      return best;
+    });
+  }
+
+  function getRigCenterOfMass(rig) {
+    let mass = 0;
+    let x = 0;
+    let y = 0;
+    for (const piece of rig.pieces) {
+      const body = piece.body;
+      const partMass = body.getMass();
+      const center = body.getWorldCenter();
+      mass += partMass;
+      x += center.x * partMass;
+      y += center.y * partMass;
+    }
+    return { x: x / mass, y: y / mass };
+  }
+
+  function driveStance(rig, dt, terrainProbe) {
+    if (rig.mode !== "active") return;
+    const V = rig.Planck.Vec2;
+    const com = getRigCenterOfMass(rig);
+    const torsoAngle = rig.torso.getAngle();
+    const stanceHalf = 0.18;
+    const contacts = getFootContacts(rig);
+    const footCenters = rig.footBodies.map(body => body.getWorldCenter());
+    const supportMin = Math.min(...footCenters.map(point => point.x - 0.09));
+    const supportMax = Math.max(...footCenters.map(point => point.x + 0.09));
+    const outsideSupport = com.x < supportMin - 0.04 || com.x > supportMax + 0.04;
+
+    rig.balanceTime = outsideSupport ? rig.balanceTime + dt : 0;
+    if (rig.balanceTime > 0.25) {
+      const side = com.x > supportMax ? 1 : 0;
+      rig.footTargets[side].x = com.x + (side === 0 ? -stanceHalf : stanceHalf);
+      rig.balanceTime = 0;
+    }
+
+    const samples = rig.footTargets.map((target, index) => {
+      const probeX = target.x;
+      return terrainProbe(probeX, com.y + 1.0, com.y - 2.0);
+    });
+    if (samples.some(sample => !sample)) return;
+
+    const footTargets = samples.map((sample, index) => ({
+      x: rig.footTargets[index].x,
+      y: sample.point.y + 0.06,
+      angle: Math.atan2(-sample.normal.x, sample.normal.y),
+      normal: sample.normal
+    }));
+    const pelvisY = Math.min(footTargets[0].y, footTargets[1].y) +
+      0.95 * (LEG_UPPER + LEG_LOWER);
+    const hipLeft = { x: com.x - 0.105, y: pelvisY };
+    const hipRight = { x: com.x + 0.105, y: pelvisY };
+    const left = legIK(hipLeft, footTargets[0], 1);
+    const right = legIK(hipRight, footTargets[1], -1);
+
+    const targets = {
+      neck: 0,
+      leftShoulder: 0, rightShoulder: 0,
+      leftElbow: 0, rightElbow: 0,
+      leftHip: left.thighAngle - torsoAngle,
+      rightHip: right.thighAngle - torsoAngle,
+      leftKnee: left.kneeRelative,
+      rightKnee: right.kneeRelative,
+      leftAnkle: footTargets[0].angle - rig.byName["left-lower-leg"].body.getAngle(),
+      rightAnkle: footTargets[1].angle - rig.byName["right-lower-leg"].body.getAngle()
+    };
+    for (const [name, joint] of Object.entries(rig.jointMap)) {
+      const leg = name.includes("Hip") || name.includes("Knee");
+      const ankle = name.includes("Ankle");
+      driveJoint(joint, targets[name] ?? 0, leg ? 14 : ankle ? 10 : 8,
+        leg ? 8 : 6, leg ? 4 : ankle ? 1.5 : 1, rig.stiffness);
+    }
+    rig.lastTerrainSamples = samples;
+  }
+
+  function updateFallState(rig, dt) {
+    if (rig.mode !== "active") return;
+    const contacts = getFootContacts(rig);
+    const touching = contacts.filter(Boolean);
+    const steepContact = touching.some(contact =>
+      Math.acos(Math.max(-1, Math.min(1, contact.normal.y))) > 50 * Math.PI / 180);
+    const com = getRigCenterOfMass(rig);
+    const supportXs = touching.map(contact => contact.point.x);
+    const outsideSupport = supportXs.length > 0 &&
+      (com.x < Math.min(...supportXs) - 0.04 || com.x > Math.max(...supportXs) + 0.04);
+    rig.outsideSupportTime = outsideSupport ? rig.outsideSupportTime + dt : 0;
+    rig.noContactTime = touching.length === 0 && !rig.jumping ? rig.noContactTime + dt : 0;
+    const tilted = Math.abs(wrapAngle(rig.torso.getAngle())) > 60 * Math.PI / 180;
+
+    if (steepContact || rig.outsideSupportTime > 0.25 ||
+        rig.noContactTime > 0.3 || tilted) {
+      rig.mode = "limp";
+      rig.stiffness = 0;
+      for (const joint of rig.joints) joint.setMaxMotorTorque(0);
+      return;
+    }
+
+    const lowMotion = rig.pieces.every(piece =>
+      piece.body.getLinearVelocity().length() < 0.25 &&
+      Math.abs(piece.body.getAngularVelocity()) < 0.7);
+    rig.stableTime = touching.length === 2 && !outsideSupport && !tilted && lowMotion
+      ? rig.stableTime + dt : 0;
+  }
+
   function buildRig(Planck, world, team, number, origin, options = {}) {
     const V = Planck.Vec2;
     const pieces = [];
@@ -165,6 +294,13 @@
       number,
       mode: "active",
       stiffness: 1,
+      Planck,
+      footTargets: footTargets.map(target => ({ x: target.x, y: target.y, angle: target.angle || 0 })),
+      balanceTime: 0,
+      outsideSupportTime: 0,
+      noContactTime: 0,
+      stableTime: 0,
+      jumping: false,
       pieces,
       byName,
       torso,
@@ -188,6 +324,10 @@
         this.stiffness = Math.max(0, Math.min(1, value));
         this.mode = this.stiffness > 0 ? "active" : "limp";
       },
+      getFootContacts() { return getFootContacts(this); },
+      getCenterOfMass() { return getRigCenterOfMass(this); },
+      driveStance(dt, terrainProbe) { driveStance(this, dt, terrainProbe); },
+      updateFallState(dt) { updateFallState(this, dt); },
       driveJoint
     };
 
