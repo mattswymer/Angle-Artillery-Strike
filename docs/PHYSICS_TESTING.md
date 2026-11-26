@@ -8,20 +8,20 @@ The earlier custom 12-body IK/stance experiment has been removed from the active
 - six revolute joints: hips, knees, and ankles
 - the reference model's joint anchors, segment proportions, density/friction relationships, limits, and hip/knee motor model
 - compact high-friction feet (0.9) with ankle limits of approximately ±0.6 radians
-- ankle target tracking through a bounded, stiffness-scaled joint driver
+- all six joints route their motor commands through one bounded, stiffness-scaled joint driver
 - ground contact detected on the foot bodies
 - three-phase gait: stay on one leg, put the other down, push off
 - joint-angle feedback with normalized joint-speed damping
 - torso-angle/angular-velocity feedback shared by both hips
 - vertical-velocity damping shared by both knees
-- bounded motor speed and torque
+- bounded motor speed and torque, scaled by per-joint command magnitude
 - 50 Hz fixed timestep and the reference's high solver iteration budget (180 velocity / 60 position iterations)
 - deterministic seeded spawn offset
 
 Reference implementation:
 https://github.com/Farama-Foundation/Gymnasium/blob/main/gymnasium/envs/box2d/bipedal_walker.py
 
-The controller is based on a successful Box2D walker, but this is a Planck.js port and not a claim of identical simulation behavior. In particular, the reference heuristic is designed for forward locomotion, not static standing.
+The controller is based on a successful Box2D walker, but this is a Planck.js port and not a claim of identical simulation behavior. Hip and knee commands preserve the reference gait's normalized output while translating them into bounded target-angle errors for the shared driver; the ankle uses terrain-angle tracking. The reference heuristic is designed for forward locomotion, not static standing. A dedicated balance/stance controller is still required.
 
 ## Running
 
@@ -42,8 +42,8 @@ The headless Planck suite runs three-second locomotion cases on 0°, 20°, 35°,
 
 The 50° test currently measures loss of controlled gait across all eight seeds using excessive downhill speed or prolonged airtime, not a completed knockdown animation. Physical fall detection and ragdoll response are separate integration work. The uneven-terrain cases use a smooth analytic profile represented by short Planck edge segments; they are not yet a test of abrupt cliffs, craters, or terrain destruction.
 
-GitHub Actions is the authoritative execution environment when local dependency installation is unavailable. The current headless Planck run passes all 11 tests.
+GitHub Actions is the authoritative execution environment when local dependency installation is unavailable. The current headless Planck run is being rechecked after routing all six joints through the shared driver. The suite includes a structural assertion that all six joints expose finite motor speed and torque values.
 
 ## Scope
 
-The harness is deliberately isolated. The production game still uses its existing character implementation; `src/main.js` has not been modified by this experiment. The next step is to add head, arms, feet, hit-driven limp behavior, and recovery around this proven lower-body foundation without replacing the locomotion controller.
+The harness is deliberately isolated. The production game still uses its existing character implementation; `src/main.js` has not been modified by this experiment. Separate feet and ankle joints are now part of the lower-body rig. The next step is a dedicated stance/balance controller and verified terrain-aware foot placement; the upper body, hit-driven limp behavior, and recovery follow after that.
