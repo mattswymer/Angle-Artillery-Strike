@@ -499,6 +499,7 @@ function createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidt
     mode: "active",
     stiffness: 1,
     limpElapsed: 0,
+    falling: false,
     noContactTime: 0,
     outsideSupportTime: 0,
     fallReason: null,
@@ -593,12 +594,15 @@ function updateRigFallState(walker, deltaTime = FIXED_DT, jumping = false) {
   else if (walker.outsideSupportTime > 0.25) reason = "outside-support";
   else if (!jumping && walker.noContactTime > 0.3) reason = "no-foot-contact";
 
-  if (reason) {
+  if (reason && !walker.falling) {
+    walker.falling = true;
     walker.fallReason = reason;
-    walker.mode = "limp";
     walker.limpElapsed = 0;
-  } else {
-    walker.stiffness = Math.max(0, walker.stiffness - deltaTime / 0.1);
+  }
+  if (walker.falling) {
+    walker.limpElapsed += deltaTime;
+    walker.stiffness = Math.max(0, 1 - walker.limpElapsed / 0.1);
+    if (walker.stiffness <= 0) walker.mode = "limp";
   }
   return { mode: walker.mode, stiffness: walker.stiffness, reason: walker.fallReason };
 }
