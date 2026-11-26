@@ -281,6 +281,7 @@ const FOOT_HALF_HEIGHT = 0.03;
     nextSwingIndex: 0,
     jumpPhase: "idle",
     jumpElapsed: 0,
+    jumpAirborne: false,
     jumping: false,
     limpElapsed: 0,
     falling: false,
@@ -299,6 +300,7 @@ const FOOT_HALF_HEIGHT = 0.03;
       this.recoverySettleTime = 0;
       this.walkDirection = 0;
       this.jumpPhase = "idle";
+      this.jumpAirborne = false;
       this.jumping = false;
       this.fallReason = "hit";
       for (const joint of this.joints) {
@@ -565,6 +567,7 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
       if (!walker.legs.some(leg => isGroundContact(leg.foot))) return false;
       walker.jumpPhase = "crouch";
       walker.jumpElapsed = 0;
+      walker.jumpAirborne = false;
       walker.jumping = true;
       walker.walkDirection = 0;
       return true;
@@ -590,12 +593,16 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
     } else if (walker.jumpPhase === "extend" && walker.jumpElapsed >= 0.1) {
       walker.jumpPhase = "air";
       walker.jumpElapsed = 0;
-    } else if (walker.jumpPhase === "air" && contacts.some(Boolean)) {
-      walker.jumpPhase = "land";
-      walker.jumpElapsed = 0;
+    } else if (walker.jumpPhase === "air") {
+      if (!contacts.some(Boolean)) walker.jumpAirborne = true;
+      if (walker.jumpAirborne && contacts.some(Boolean)) {
+        walker.jumpPhase = "land";
+        walker.jumpElapsed = 0;
+      }
     } else if (walker.jumpPhase === "land" && walker.jumpElapsed >= 0.2) {
       walker.jumpPhase = "idle";
       walker.jumpElapsed = 0;
+      walker.jumpAirborne = false;
       walker.jumping = false;
     }
   }
