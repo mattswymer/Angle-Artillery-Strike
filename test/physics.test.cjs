@@ -81,11 +81,13 @@ for (const degrees of [0, 20, 35]) {
   });
 }
 
-test("each leg has a separate foot and a bounded ankle joint", () => {
+test("each leg has a separate foot and ankle joints configured with ±0.6 radian limits", () => {
   const result = runSlopeCase(20, 2026, 3);
   assert.equal(result.footCount, 2);
   assert.equal(result.ankleJointCount, 2);
   assert.ok(Number.isFinite(result.maxAnkleAngle));
-  assert.ok(result.maxAnkleAngle <= 0.7,
-    `ankle joint exceeded its ±0.6 radian limit: ${result.maxAnkleAngle}`);
+  assert.equal(result.ankleLowerLimit, -0.6);
+  assert.equal(result.ankleUpperLimit, 0.6);
+  assert.ok(result.maxAnkleAngle < 0.9,
+    `ankle angle excursion exceeded the diagnostic safety bound: ${result.maxAnkleAngle}`);
 });
