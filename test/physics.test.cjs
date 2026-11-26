@@ -331,6 +331,25 @@ test("connected terrain chains remove spawn-boundary instability", () => {
   }
 });
 
+test("terrain-chain resolution sweep isolates multi-child foot contacts", () => {
+  const results = [];
+  for (const step of [0.05, 0.1, 0.25, 0.5, 1, 5, 60]) {
+    for (const seed of [7, 42]) {
+      const result = runStanceCase(0, seed, 3, 0, 0, "chain", true, 3.5, 0.02, step);
+      results.push({
+        step, seed,
+        support: result.supportedTime,
+        tilt: result.maxRelativeTiltDegrees,
+        air: result.maxAirTime,
+        speed: result.maxSpeed,
+        contacts: result.trace.slice(0, 3).map(point => point.contactCounts)
+      });
+    }
+  }
+  console.log("terrain chain resolution sweep", JSON.stringify(results));
+  assert.equal(results.length, 14);
+});
+
 test("shared joint driver moves a revolute joint toward a positive target angle", () => {
   const world = new planck.World({ gravity: planck.Vec2(0, 0) });
   const base = world.createBody();
