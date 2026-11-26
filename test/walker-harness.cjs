@@ -13,7 +13,7 @@ const LEG_H = 34 / 30;
 const LEG_DOWN = -8 / 30;
 const HIP_SPEED = 4;
 const KNEE_SPEED = 6;
-const MAX_TORQUE = 80;
+const MAX_TORQUE = 16;
 const SUPPORT_KNEE_ANGLE = 0.1;
 const WALK_SPEED = 0.29;
 
@@ -43,7 +43,7 @@ function makeWorld(degrees) {
 
 function createWalker(world, slope, startX) {
   const surfaceY = Math.tan(slope) * startX;
-  const initY = surfaceY + 2 * LEG_H;
+  const initY = surfaceY + 2.55;
   const hull = world.createDynamicBody({
     position: Vec2(startX, initY),
     linearDamping: 0.05,
@@ -63,7 +63,7 @@ function createWalker(world, slope, startX) {
   const joints = [];
   for (const side of [-1, 1]) {
     const upper = world.createDynamicBody({
-      position: Vec2(startX, initY - LEG_H / 2 - LEG_DOWN),
+      position: Vec2(startX + Math.sin(side * 0.05) * LEG_H / 2, initY - 0.14 - Math.cos(side * 0.05) * LEG_H / 2),
       angle: side * 0.05,
       linearDamping: 0.05,
       angularDamping: 0.05,
@@ -78,7 +78,7 @@ function createWalker(world, slope, startX) {
       filterGroupIndex: -1
     });
 
-    const hipAnchor = Vec2(startX, initY + LEG_DOWN);
+    const hipAnchor = Vec2(startX, initY - 0.14);
     const hip = world.createJoint(planck.RevoluteJoint({
       enableMotor: true,
       enableLimit: true,
@@ -91,8 +91,8 @@ function createWalker(world, slope, startX) {
     }, hull, upper, hipAnchor));
 
     const lower = world.createDynamicBody({
-      position: Vec2(startX, initY - LEG_H * 1.5 - LEG_DOWN),
-      angle: side * 0.05,
+      position: Vec2(startX + Math.sin(side * 0.05 - 0.2) * LEG_H / 2, initY - 0.14 - LEG_H - Math.cos(side * 0.05 - 0.2) * LEG_H / 2),
+      angle: side * 0.05 - 0.2,
       linearDamping: 0.05,
       angularDamping: 0.05,
       allowSleep: false,
@@ -106,7 +106,7 @@ function createWalker(world, slope, startX) {
       filterGroupIndex: -1
     });
 
-    const kneeAnchor = Vec2(startX, initY - LEG_H - LEG_DOWN);
+    const kneeAnchor = Vec2(startX + Math.sin(side * 0.05) * LEG_H, initY - 0.14 - Math.cos(side * 0.05) * LEG_H);
     const knee = world.createJoint(planck.RevoluteJoint({
       enableMotor: true,
       enableLimit: true,
@@ -202,7 +202,7 @@ function walkerController(walker) {
   if (gait.phase === "PUSH_OFF") {
     kneeTargets[gait.movingLeg] = gait.supportingKneeAngle;
     kneeTargets[gait.supportingLeg] = 1.0;
-    if (supporting.knee.getJointAngle() > 0.88 || hullVelocity.x > WALK_SPEED * 1.2) {
+    if (supporting.knee.getJointAngle() + 1 > 0.88 || hullVelocity.x > WALK_SPEED * 1.2) {
       gait.phase = "STAY_ON_ONE_LEG";
       gait.movingLeg = 1 - gait.movingLeg;
       gait.supportingLeg = 1 - gait.movingLeg;
@@ -216,7 +216,7 @@ function walkerController(walker) {
       actions[i * 2] = jointPD(leg.hip, hipTargets[i], 0.9, 0.25);
     }
     if (kneeTargets[i] !== null) {
-      actions[i * 2 + 1] = jointPD(leg.knee, kneeTargets[i], 4, 0.25);
+      actions[i * 2 + 1] = jointPD(leg.knee, kneeTargets[i] - 1, 4, 0.25);
     }
     // Both hips share torso upright feedback. Both knees damp vertical bounce.
     actions[i * 2] -= 0.9 * (0 - hullAngle) - 1.5 * hullAngularVelocity;
