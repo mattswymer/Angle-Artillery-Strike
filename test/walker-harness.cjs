@@ -352,7 +352,7 @@ function runSlopeCase(degrees, seed = 12345, duration = 3, roughness = 0) {
   return {
     degrees,
     stable: !walker.everFallen && walker.stableTime >= duration * 0.5,
-    lostControl: walker.maxSpeed > 7.5 || walker.maxAirTime > 0.5,
+    lostControl: walker.maxSpeed > 6.5 || walker.maxAirTime > 0.5,
     stableTime: Number(walker.stableTime.toFixed(3)),
     contactTime: Number(walker.contactTime.toFixed(3)),
     maxAirTime: Number(walker.maxAirTime.toFixed(3)),
