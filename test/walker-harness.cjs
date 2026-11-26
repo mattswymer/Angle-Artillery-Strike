@@ -538,4 +538,4 @@ function runSlopeCase(degrees, seed = 12345, duration = 3, roughness = 0) {
   };
 }
 
-module.exports = { runSlopeCase, runStanceCase, seededRandom, walkerController, stanceController, createWalker, legIK };
+module.exports = { runSlopeCase, runStanceCase, seededRandom, walkerController, stanceController, createWalker, legIK, driveJoint };
