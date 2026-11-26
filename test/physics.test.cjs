@@ -625,6 +625,15 @@ test("production articulated walking maintains support while climbing a 20 degre
     world.step(1 / 50, 180, 60);
     if (rig.mode === "limp") break;
   }
+  console.log("uphill walking diagnostic", JSON.stringify({
+    displacement: rig.hull.getPosition().x - startX,
+    position: rig.hull.getPosition(), angle: rig.hull.getAngle(),
+    mode: rig.mode, fallReason: rig.fallReason, steps,
+    contacts: rig.legs.map(leg => productionRig.isGroundContact(leg.foot)),
+    velocity: rig.hull.getLinearVelocity(),
+    knees: rig.legs.map(leg => leg.knee.getJointAngle()),
+    hips: rig.legs.map(leg => leg.hip.getJointAngle())
+  }));
   assert.ok(rig.hull.getPosition().x > startX + 0.25,
     `uphill walking displacement was ${rig.hull.getPosition().x - startX}`);
   assert.ok(steps >= 2, `only ${steps} uphill steps began`);
