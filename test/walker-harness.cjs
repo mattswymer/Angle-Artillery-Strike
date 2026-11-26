@@ -31,23 +31,44 @@ function seededRandom(seed) {
   };
 }
 
-function makeWorld(degrees, roughness = 0, phaseA = 0, phaseB = 0) {
-  const world = new planck.World({ gravity: Vec2(0, -GRAVITY) });
-  world.setAllowSleeping(false);
+function makeTerrainFunctions(degrees, roughness, phaseA, phaseB) {
   const slope = -degrees * Math.PI / 180;
   const heightAt = x => Math.tan(slope) * x +
     roughness * (0.7 * Math.sin(0.65 * x + phaseA) + 0.3 * Math.sin(1.7 * x + phaseB));
+  const terrainAngleAt = x => Math.atan2(heightAt(x + 0.01) - heightAt(x - 0.01), 0.02);
+  return { slope, heightAt, terrainAngleAt };
+}
+
+function makeWorld(degrees, roughness = 0, phaseA = 0, phaseB = 0) {
+  const world = new planck.World({ gravity: Vec2(0, -GRAVITY) });
+  world.setAllowSleeping(false);
+  const terrain = makeTerrainFunctions(degrees, roughness, phaseA, phaseB);
   const ground = world.createBody();
-  const step = 0.25;
-  for (let x = -30; x < 30; x += step) {
+  const points = [];
+  for (let x = -30; x <= 30.0001; x += 0.25) {
+    points.push(Vec2(x, terrain.heightAt(x)));
+  }
+  ground.createFixture({
+    shape: new planck.Chain(points, false),
+    friction: 2.5,
+    restitution: 0
+  });
+  return { world, ...terrain };
+}
+
+function makeSegmentedWorld(degrees, roughness = 0, phaseA = 0, phaseB = 0) {
+  const world = new planck.World({ gravity: Vec2(0, -GRAVITY) });
+  world.setAllowSleeping(false);
+  const terrain = makeTerrainFunctions(degrees, roughness, phaseA, phaseB);
+  const ground = world.createBody();
+  for (let x = -30; x < 30; x += 0.25) {
     ground.createFixture({
-      shape: new planck.Edge(Vec2(x, heightAt(x)), Vec2(x + step, heightAt(x + step))),
+      shape: new planck.Edge(Vec2(x, terrain.heightAt(x)), Vec2(x + 0.25, terrain.heightAt(x + 0.25))),
       friction: 2.5,
       restitution: 0
     });
   }
-  const terrainAngleAt = x => Math.atan2(heightAt(x + 0.01) - heightAt(x - 0.01), 0.02);
-  return { world, slope, heightAt, terrainAngleAt };
+  return { world, ...terrain };
 }
 
 function makeContinuousWorld(degrees = 0) {
@@ -765,13 +786,15 @@ function runRigSymmetryCase(continuousGround = false, runController = true) {
   };
 }
 
-function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmupSteps = 0, groundStyle = "segmented", controllerEnabled = true, balanceKp = 1.5, balanceKd = 0.06) {
+function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmupSteps = 0, groundStyle = "chain", controllerEnabled = true, balanceKp = 3.5, balanceKd = 0.02) {
   const random = seededRandom(seed);
   const phaseA = random() * Math.PI * 2;
   const phaseB = random() * Math.PI * 2;
   const { world, slope, heightAt, terrainAngleAt } = groundStyle === "continuous"
     ? makeContinuousWorld(degrees)
-    : makeWorld(degrees, roughness, phaseA, phaseB);
+    : groundStyle === "segmented"
+      ? makeSegmentedWorld(degrees, roughness, phaseA, phaseB)
+      : makeWorld(degrees, roughness, phaseA, phaseB);
   const startX = (random() - 0.5) * 0.2;
   const walker = createStanceRig(world, startX, heightAt, terrainAngleAt);
   if (!controllerEnabled) {
