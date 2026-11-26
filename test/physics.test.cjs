@@ -27,6 +27,17 @@ for (const degrees of [0, 20, 35, 50]) {
     assert.ok(Number.isFinite(result.finalPosition.x) && Number.isFinite(result.finalPosition.y),
       "torso position must remain finite");
     if (degrees <= 35) {
+      for (const joint of result.spawnJointTargets) {
+        assert.ok(joint.hip >= -1.25 && joint.hip <= 1.25,
+          `spawn hip target out of range at ${degrees} degrees: ${JSON.stringify(joint)}`);
+        const kneeValid = joint.side < 0
+          ? joint.knee >= -0.25 && joint.knee <= 2.2
+          : joint.knee >= -2.2 && joint.knee <= 0.25;
+        assert.ok(kneeValid,
+          `spawn knee target out of range at ${degrees} degrees: ${JSON.stringify(joint)}`);
+        assert.ok(joint.ankle >= -0.6 && joint.ankle <= 0.6,
+          `spawn ankle target out of range at ${degrees} degrees: ${JSON.stringify(joint)}`);
+      }
       assert.equal(result.everLimp, false,
         `spawned rig must not enter limp mode at ${degrees} degrees; got ${JSON.stringify(result)}`);
       assert.equal(result.stable, true,
