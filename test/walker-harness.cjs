@@ -587,7 +587,13 @@ function updateRigFallState(walker, deltaTime = FIXED_DT, jumping = false) {
 
   const support = rigSupportBounds(walker);
   const centerX = getRigCenterOfMassX(walker);
-  const outsideSupport = support !== null && (centerX < support.min - 0.04 || centerX > support.max + 0.04);
+  // A moving biped can briefly project its COM beyond the planted foot while
+  // transferring weight. Judge the predicted COM over the fall-detection
+  // horizon so a corrective step that is already carrying it back is not
+  // misclassified as an unrecoverable fall.
+  const predictedCenterX = centerX + walker.hull.getLinearVelocity().x * 0.25;
+  const outsideSupport = support !== null &&
+    (predictedCenterX < support.min - 0.04 || predictedCenterX > support.max + 0.04);
   walker.outsideSupportTime = outsideSupport ? walker.outsideSupportTime + deltaTime : 0;
 
   const torsoTilt = Math.abs(wrapAngle(walker.hull.getAngle()));
