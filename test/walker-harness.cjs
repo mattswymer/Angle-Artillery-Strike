@@ -588,9 +588,10 @@ function getRigCenterOfMassX(walker) {
   return totalMass > 0 ? weightedX / totalMass : walker.hull.getPosition().x;
 }
 
-function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1, balanceKp = 1.5, balanceKd = 0.06, ankleTorqueMax = 1.5, stepReach = 0.18) {
+function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1, balanceKp = 1.5, balanceKd = 0.06, ankleTorqueMax = 1.5, stepReach = 0.18, stepLookahead = 0.25) {
   const { hull, legs } = walker;
   const centerX = getRigCenterOfMassX(walker);
+  const predictedCenterX = centerX + hull.getLinearVelocity().x * stepLookahead;
   const halfStance = walker.stanceHalfWidth ?? 0.12;
   if (!walker.stanceTargets) {
     walker.stanceTargets = [centerX - halfStance, centerX + halfStance];
@@ -624,20 +625,20 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1, balan
       });
       const minFootX = Math.min(...bounds.map(bound => bound.min));
       const maxFootX = Math.max(...bounds.map(bound => bound.max));
-      if (centerX < minFootX - 0.04) {
+      if (predictedCenterX < minFootX - 0.04) {
         walker.swingIndex = 0;
         walker.swingTime = 0;
         walker.swingAirborne = false;
         const hipMidX = hull.getPosition().x - HIP_Y * Math.sin(hull.getAngle());
         const stanceCenterX = centerX + (hipMidX - centerX) * (walker.stanceCenterBlend ?? 0);
-        walker.stanceTargets[0] = centerX - stepReach;
-      } else if (centerX > maxFootX + 0.04) {
+        walker.stanceTargets[0] = predictedCenterX - stepReach;
+      } else if (predictedCenterX > maxFootX + 0.04) {
         walker.swingIndex = 1;
         walker.swingTime = 0;
         walker.swingAirborne = false;
         const hipMidX = hull.getPosition().x - HIP_Y * Math.sin(hull.getAngle());
         const stanceCenterX = centerX + (hipMidX - centerX) * (walker.stanceCenterBlend ?? 0);
-        walker.stanceTargets[1] = centerX + stepReach;
+        walker.stanceTargets[1] = predictedCenterX + stepReach;
       }
     }
   }
@@ -838,7 +839,7 @@ function runRigSymmetryCase(continuousGround = false, runController = true) {
   };
 }
 
-function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmupSteps = 0, groundStyle = "chain", controllerEnabled = true, balanceKp = 3.5, balanceKd = 0.02, chainStep = 0.25, stanceHalfWidth = 0.12, pelvisRatio = 0.95, terrainTiltBlend = 0, stanceCenterBlend = 0, ankleLimit = 0.6, ankleTorqueMax = 1.5, bendMode = "side", stepReach = 0.18) {
+function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmupSteps = 0, groundStyle = "chain", controllerEnabled = true, balanceKp = 3.5, balanceKd = 0.02, chainStep = 0.25, stanceHalfWidth = 0.12, pelvisRatio = 0.95, terrainTiltBlend = 0, stanceCenterBlend = 0, ankleLimit = 0.6, ankleTorqueMax = 1.5, bendMode = "side", stepReach = 0.18, stepLookahead = 0.25) {
   const random = seededRandom(seed);
   const phaseA = random() * Math.PI * 2;
   const phaseB = random() * Math.PI * 2;
@@ -880,7 +881,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
     }
   }
   for (let i = 0; i < warmupSteps; i++) {
-    if (controllerEnabled) stanceController(walker, heightAt, terrainAngleAt, 1, balanceKp, balanceKd, ankleTorqueMax, stepReach);
+    if (controllerEnabled) stanceController(walker, heightAt, terrainAngleAt, 1, balanceKp, balanceKd, ankleTorqueMax, stepReach, stepLookahead);
     world.step(FIXED_DT, 180, 60);
   }
   const steps = Math.ceil(duration / FIXED_DT);
@@ -998,6 +999,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
     ankleTorqueMax,
     bendMode,
     stepReach,
+    stepLookahead,
     initialPose,
     supportedTime: Number(supportedTime.toFixed(3)),
     bothFeetContactTime: Number(bothFeetContactTime.toFixed(3)),
