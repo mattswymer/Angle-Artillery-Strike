@@ -282,6 +282,7 @@ const FOOT_HALF_HEIGHT = 0.03;
     jumpPhase: "idle",
     jumpElapsed: 0,
     jumpAirborne: false,
+    jumpLandContactTime: 0,
     jumping: false,
     limpElapsed: 0,
     falling: false,
@@ -301,6 +302,7 @@ const FOOT_HALF_HEIGHT = 0.03;
       this.walkDirection = 0;
       this.jumpPhase = "idle";
       this.jumpAirborne = false;
+      this.jumpLandContactTime = 0;
       this.jumping = false;
       this.fallReason = "hit";
       for (const joint of this.joints) {
@@ -569,6 +571,7 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
       walker.jumpPhase = "crouch";
       walker.jumpElapsed = 0;
       walker.jumpAirborne = false;
+      walker.jumpLandContactTime = 0;
       walker.jumping = true;
       walker.walkDirection = 0;
       walker.swingIndex = null;
@@ -614,12 +617,19 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
       if (walker.jumpAirborne && contacts.some(Boolean)) {
         walker.jumpPhase = "land";
         walker.jumpElapsed = 0;
+        walker.jumpLandContactTime = 0;
       }
-    } else if (walker.jumpPhase === "land" && walker.jumpElapsed >= 0.2) {
-      walker.jumpPhase = "idle";
-      walker.jumpElapsed = 0;
-      walker.jumpAirborne = false;
-      walker.jumping = false;
+    } else if (walker.jumpPhase === "land") {
+      walker.jumpLandContactTime = contacts.every(Boolean)
+        ? walker.jumpLandContactTime + FIXED_DT
+        : 0;
+      if (walker.jumpLandContactTime >= 0.1) {
+        walker.jumpPhase = "idle";
+        walker.jumpElapsed = 0;
+        walker.jumpAirborne = false;
+        walker.jumpLandContactTime = 0;
+        walker.jumping = false;
+      }
     }
   }
 
@@ -654,7 +664,7 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
         const velocity = hull.getLinearVelocity();
         const tangentSpeed = Math.abs(velocity.x * Math.cos(tangent) + velocity.y * Math.sin(tangent));
         const speedRatio = Math.max(0, Math.min(1, tangentSpeed / (walker.walkSpeed || 3.4)));
-        const stride = stepReach * speedRatio;
+        const stride = Math.max(stepReach, walker.minimumWalkingStride ?? 0.22) * speedRatio;
         walker.swingIndex = swingIndex;
         walker.swingTime = 0;
         walker.swingAirborne = false;
@@ -704,10 +714,14 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
     return { x, y: heightAt(x) + FOOT_HALF_HEIGHT * 2 + lift };
   });
   const terrainReferenceAngle = terrainAngleAt(hull.getPosition().x) * (walker.terrainTiltBlend ?? 0);
+  const walking = walkDirection !== 0 && walker.jumpPhase === "idle";
+  const pelvisRatio = walking
+    ? (walker.walkingPelvisRatio ?? 0.82)
+    : (walker.pelvisRatio ?? 0.95);
   const pelvisTargetY = Math.min(
     heightAt(walker.stanceTargets[0]) + FOOT_HALF_HEIGHT * 2,
     heightAt(walker.stanceTargets[1]) + FOOT_HALF_HEIGHT * 2
-  ) + (walker.pelvisRatio ?? 0.95) * (UPPER_LENGTH + LOWER_LENGTH);
+  ) + pelvisRatio * (UPPER_LENGTH + LOWER_LENGTH);
   const hipTargets = [];
   const kneeTargets = [];
   const ankleTargets = [];
