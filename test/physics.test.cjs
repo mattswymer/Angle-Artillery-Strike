@@ -322,6 +322,7 @@ test("upright 20 and 35 degree stance remains controlled for three seconds acros
       return {
         seed, support: r.supportedTime, bothFeet: r.bothFeetContactTime,
         tilt: r.maxAbsoluteTiltDegrees, air: r.maxAirTime, speed: r.maxSpeed,
+        mode: r.mode, fallReason: r.fallReason,
         initialAnkles: r.initialPose.map(leg => leg.ankleAngle)
       };
     });
