@@ -647,11 +647,6 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1, balan
     return { x, y: heightAt(x) + FOOT_HALF_HEIGHT * 2 + lift };
   });
   const terrainReferenceAngle = terrainAngleAt(hull.getPosition().x) * (walker.terrainTiltBlend ?? 0);
-  const pelvisTargetY = Math.min(
-    heightAt(walker.stanceTargets[0]) + FOOT_HALF_HEIGHT * 2,
-    heightAt(walker.stanceTargets[1]) + FOOT_HALF_HEIGHT * 2
-  ) + (walker.pelvisRatio ?? 0.95) * (UPPER_LENGTH + LOWER_LENGTH);
-
   const hipTargets = [];
   const kneeTargets = [];
   const ankleTargets = [];
@@ -663,13 +658,10 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1, balan
     // Keep the swing lift calculated above. The IK target is the ankle joint
     // anchor (the top of the foot), so its planted height is surface + 2h.
     const actualHip = hull.getWorldPoint(Vec2(leg.side * HIP_X, HIP_Y));
-    // Pelvis target is the midpoint height of the two hip anchors. Account
-    // for the rotated lateral hip offset so each virtual hip target matches
-    // the torso's current terrain-relative frame.
-    const hipWorld = Vec2(
-      actualHip.x,
-      pelvisTargetY + leg.side * HIP_X * Math.sin(hull.getAngle())
-    );
+    // Solve from the actual moving hip anchor. Using the spawn pelvis
+    // target here makes the IK solve against an imaginary torso height after
+    // the hull moves, so the motor targets stop matching the physical joints.
+    const hipWorld = actualHip;
     const ankleTarget = Vec2(target.x, target.y);
     const solution = legIK(hipWorld, ankleTarget, leg.upperLength, leg.lowerLength, leg.side);
 
