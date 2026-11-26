@@ -622,11 +622,11 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
         // Preserve the first planted foot's actual landing point and bring the
         // other foot underneath the moving pelvis. Reusing takeoff coordinates
         // can leave both feet reaching behind the body after a long jump.
-        walker.stanceTargets = walker.legs.map((leg, index) =>
-          contacts[index]
-            ? leg.foot.getPosition().x
-            : hull.getPosition().x + leg.side * (walker.stanceHalfWidth ?? 0.12)
-        );
+        // Hold both feet at their actual horizontal positions for the
+        // landing phase. The swing foot may still be behind the pelvis after
+        // flight; forcing it to a nominal stance offset can make the target
+        // unreachable and leave the torso to collapse onto the terrain.
+        walker.stanceTargets = walker.legs.map(leg => leg.foot.getPosition().x);
         walker.jumpPhase = "land";
         walker.jumpElapsed = 0;
         walker.jumpLandContactTime = 0;
