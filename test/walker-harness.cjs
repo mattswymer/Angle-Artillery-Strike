@@ -864,6 +864,8 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
   }
   const steps = Math.ceil(duration / FIXED_DT);
   let supportedTime = 0;
+  let bothFeetContactTime = 0;
+  let oneFootContactTime = 0;
   let maxRelativeTilt = 0;
   let maxAbsoluteTilt = 0;
   let maxSpeed = 0;
@@ -880,6 +882,8 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
     const contacts = walker.legs.map(leg => isGroundContact(leg.foot));
     if (contacts.some(Boolean)) {
       supportedTime += FIXED_DT;
+      if (contacts.every(Boolean)) bothFeetContactTime += FIXED_DT;
+      else oneFootContactTime += FIXED_DT;
       airTime = 0;
     } else {
       airTime += FIXED_DT;
@@ -972,6 +976,8 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
     ankleLimit,
     ankleTorqueMax,
     supportedTime: Number(supportedTime.toFixed(3)),
+    bothFeetContactTime: Number(bothFeetContactTime.toFixed(3)),
+    oneFootContactTime: Number(oneFootContactTime.toFixed(3)),
     maxRelativeTiltDegrees: Number((maxRelativeTilt * 180 / Math.PI).toFixed(2)),
     maxAbsoluteTiltDegrees: Number((maxAbsoluteTilt * 180 / Math.PI).toFixed(2)),
     maxSpeed: Number(maxSpeed.toFixed(3)),
