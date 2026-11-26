@@ -115,7 +115,7 @@
       addPart(side + "-lower-leg", lowerCenter, solved.shinAngle, 0.06, 0.17, 1.1, false, 0.88);
       const footAngle = target.angle || 0;
       const footCenter = {
-        x: target.x - Math.sin(footAngle) * 0.03,
+        x: target.x + Math.sin(footAngle) * 0.03,
         y: target.y - Math.cos(footAngle) * 0.03
       };
       addPart(side + "-foot", footCenter, footAngle, 0.09, 0.03, 0.55, false, 0.9);
