@@ -293,15 +293,16 @@ const FOOT_HALF_LENGTH = 0.09;
 const FOOT_HALF_HEIGHT = 0.03;
 
 function createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidth = 0.12) {
-  // Torso remains gravity-upright at spawn; only the articulated feet align to terrain.
-  const initialTerrainAngle = 0;
+  // Start the torso aligned with the local terrain frame; the feet independently
+  // align to the surface normal through their ankle joints.
+  const initialTerrainAngle = terrainAngleAt(startX);
   const initialFootY = Math.min(
     heightAt(startX - stanceHalfWidth) + FOOT_HALF_HEIGHT * 2,
     heightAt(startX + stanceHalfWidth) + FOOT_HALF_HEIGHT * 2
   );
   const pelvisTargetY = initialFootY + 0.95 * (UPPER_LENGTH + LOWER_LENGTH);
   const hull = world.createDynamicBody({
-    position: Vec2(startX, pelvisTargetY - HIP_Y),
+    position: Vec2(startX, pelvisTargetY - HIP_Y * Math.cos(initialTerrainAngle)),
     angle: initialTerrainAngle,
     linearDamping: 0.08,
     angularDamping: 0.08,
@@ -321,7 +322,7 @@ function createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidt
     const targetX = startX + side * stanceHalfWidth;
     const ankleTarget = Vec2(targetX, heightAt(targetX) + FOOT_HALF_HEIGHT * 2);
     const actualHip = hull.getWorldPoint(Vec2(side * HIP_X, HIP_Y));
-    const hipWorld = Vec2(actualHip.x, pelvisTargetY);
+    const hipWorld = actualHip;
     const solution = legIK(hipWorld, ankleTarget, UPPER_LENGTH, LOWER_LENGTH, side);
 
     const upperAngle = solution.thighDir + Math.PI / 2;
@@ -643,7 +644,13 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1, balan
     // Keep the swing lift calculated above. The IK target is the ankle joint
     // anchor (the top of the foot), so its planted height is surface + 2h.
     const actualHip = hull.getWorldPoint(Vec2(leg.side * HIP_X, HIP_Y));
-    const hipWorld = Vec2(actualHip.x, pelvisTargetY);
+    // Pelvis target is the midpoint height of the two hip anchors. Account
+    // for the rotated lateral hip offset so each virtual hip target matches
+    // the torso's current terrain-relative frame.
+    const hipWorld = Vec2(
+      actualHip.x,
+      pelvisTargetY + leg.side * HIP_X * Math.sin(hull.getAngle())
+    );
     const ankleTarget = Vec2(target.x, target.y);
     const solution = legIK(hipWorld, ankleTarget, leg.upperLength, leg.lowerLength, leg.side);
 
@@ -653,9 +660,12 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1, balan
     const lowerBodyAngle = solution.thighDir - solution.kneeRel + Math.PI / 2;
     // Joint-only torso stabilization: positive torso angle/velocity biases
     // both hip targets so their motor reaction applies counter-torque to hull.
+    const torsoTilt = wrapAngle(
+      hull.getAngle() - terrainAngleAt(hull.getPosition().x)
+    );
     const hipTarget = wrapAngle(
       upperBodyAngle - hull.getAngle() +
-      balanceKp * hull.getAngle() +
+      balanceKp * torsoTilt +
       balanceKd * hull.getAngularVelocity()
     );
     const kneeTarget = wrapAngle(lowerBodyAngle - upperBodyAngle);
