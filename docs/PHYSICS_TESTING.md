@@ -1,53 +1,38 @@
-# Physics test harness status
+# Physics harness
 
-This branch has a headless Node test harness using the same pinned Planck.js 1.5.1 version as the browser prototype.
+## Controller foundation
 
-## Run locally
+The earlier custom 12-body IK/stance harness is superseded. The current isolated prototype is a small four-joint biped based on the proven control pattern in Gymnasium's Box2D BipedalWalker:
+
+- torso/hull plus two upper and two lower leg bodies
+- revolute hip and knee joints with limits and torque-limited motors
+- contact detection on the lower legs
+- a three-phase gait state machine: support/swing, foot placement, push-off
+- joint feedback combines angle error and angular velocity damping
+- torso angle/angular velocity feedback is shared across both hips
+- vertical velocity damping is shared across both knees
+- deterministic seeded spawn offset
+
+Reference implementation:
+https://github.com/Farama-Foundation/Gymnasium/blob/main/gymnasium/envs/box2d/bipedal_walker.py
+
+This is a direct architectural reference, not a claim that the current prototype is already stable. The reference walker is designed to move forward; its heuristic is not a stationary standing controller. The harness therefore measures continuous locomotion and ground contact, not a static pose.
+
+## Running
+
+Requires Node 24 and the pinned Planck.js dependency.
 
 ```sh
 npm install
 npm test
 ```
 
-GitHub Actions runs the same command on Node 24.
+## Slope cases
 
-## What is covered
+The headless Planck suite runs a deterministic three-second locomotion case on 0°, 20°, 35°, and 50° slopes. The intended envelope is to remain upright with repeated ground contact through 35° and lose stance at 50°.
 
-- Seeded random-number determinism.
-- Two-bone IK finite output, including clamped unreachable targets.
-- A complete articulated test rig from spawn: torso, head, upper/lower arms, upper/lower legs, feet, and revolute joints.
-- Planck reference-angle-zero joints, mirrored/selected knee IK branches, and explicit hip/knee/ankle limit checks at spawn.
-- 90 controller warm-up steps before the measured interval.
-- Three seconds of continuous-stability testing on 0°, 20°, 35°, and 50° slopes.
-- Foot-contact normals relative to world vertical, planted-foot support span, full-rig COM/velocity, protective stepping, stiffness, and limp transitions.
+GitHub Actions is the authoritative execution environment when local dependency installation is unavailable. Do not integrate this controller into `src/main.js` until the tests pass and browser behavior is verified.
 
-## Current result
+## Scope
 
-The latest CI run executes seven tests: four pass and three fail.
-
-- 0°: fails sustained stability. The rig initially stands, then its COM leaves the planted-foot support interval; the protective step does not recover balance before the 0.25-second fall threshold.
-- 20°: fails; downhill momentum and torso rotation overwhelm the current step controller.
-- 35°: fails; the rig loses support and falls.
-- 50°: passes the expected loss-of-stance assertion.
-- Seeded RNG, IK finite-value, and supporting harness checks pass.
-
-These are genuine Planck simulation results, not dependency-installation failures. The tests intentionally remain red; do not weaken the assertions to make CI green.
-
-## Important findings so far
-
-The harness caught several implementation errors that were corrected:
-
-- Planck contact lists are not populated until the world has stepped; the controller now starts only after initial contacts are established.
-- Revolute joints use the configured reference angle; IK targets are converted to the same zero-reference convention used by the game rig.
-- A foot that is swinging is not counted as part of the support interval.
-- Protective stepping now moves the non-supporting foot in the direction needed to recover the COM.
-- Spawn IK selects a knee branch that fits the hip, knee, and ankle limits where possible.
-- The no-foot-contact timeout measures continuous time without contact, rather than elapsed match time.
-
-These fixes improved the diagnostics but have not yet produced a stable 0°/20°/35° stance. The next task is to correct the balance/foot-plant controller based on the remaining traces, not to tune damage or integrate gameplay.
-
-## Integration gate
-
-This is an isolated controller prototype, not yet the game character implementation. It does not implement the get-up controller, turn-state integration, or gameplay renderer.
-
-Do not integrate it into `src/main.js` until all four slope tests pass and the joint-angle/contact traces have been reviewed.
+The harness is deliberately isolated. The production game still uses its existing character implementation; `src/main.js` has not been modified by this experiment. The next step after the lower-body walker passes is to add the upper body/head/arms and hit-driven limp behavior without replacing the locomotion foundation.
