@@ -669,7 +669,15 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
     const desiredForce = (targetSpeed - tangentSpeed) * rigMass * 4;
     const maxForce = rigMass * GRAVITY * 0.3;
     const force = Math.max(-maxForce, Math.min(maxForce, desiredForce));
-    hull.applyForceToCenter(Vec2(tangent.x * force, tangent.y * force), true);
+    // Distribute the capped assistance across the articulated assembly so
+    // it accelerates as one rig instead of pulling only on the torso.
+    for (const body of walker.bodies) {
+      const share = body.getMass() / rigMass;
+      body.applyForceToCenter(
+        Vec2(tangent.x * force * share, tangent.y * force * share),
+        true
+      );
+    }
   }
 
   if (walker.swingIndex !== undefined && walker.swingIndex !== null) {
