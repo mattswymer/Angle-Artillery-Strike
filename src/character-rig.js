@@ -266,6 +266,7 @@ const FOOT_HALF_HEIGHT = 0.03;
     byName,
     pieces,
     bodies,
+    totalMass: bodies.reduce((sum, body) => sum + body.getMass(), 0),
     joints,
     legs,
     stanceTargets: [stanceCenterX - stanceHalfWidth, stanceCenterX + stanceHalfWidth],
@@ -662,8 +663,11 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
     const velocity = hull.getLinearVelocity();
     const tangentSpeed = velocity.x * tangent.x + velocity.y * tangent.y;
     const targetSpeed = walkDirection * (walker.walkSpeed || 3.4);
-    const desiredForce = (targetSpeed - tangentSpeed) * hull.getMass() * 4;
-    const maxForce = hull.getMass() * GRAVITY * 0.3;
+    const rigMass = walker.totalMass ?? walker.bodies.reduce(
+      (sum, body) => sum + body.getMass(), 0
+    );
+    const desiredForce = (targetSpeed - tangentSpeed) * rigMass * 4;
+    const maxForce = rigMass * GRAVITY * 0.3;
     const force = Math.max(-maxForce, Math.min(maxForce, desiredForce));
     hull.applyForceToCenter(Vec2(tangent.x * force, tangent.y * force), true);
   }
