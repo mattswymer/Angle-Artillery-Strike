@@ -679,6 +679,23 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
       walker.swingIndex = null;
       walker.swingTime = 0;
       walker.swingAirborne = false;
+      walker.swingRetargeted = false;
+    } else if (walker.swingTime > swingDuration + 0.3) {
+      if (walker.swingAirborne && !contacts[walker.swingIndex] && !walker.swingRetargeted) {
+        // A step that cannot reach its original landing point must not hang
+        // in the air forever. Re-target once directly beneath its hip, then
+        // lower it without another lift so the leg can regain support.
+        const leg = legs[walker.swingIndex];
+        walker.stanceTargets[walker.swingIndex] =
+          hull.getWorldPoint(Vec2(leg.side * HIP_X, HIP_Y)).x;
+        walker.swingTime = swingDuration;
+        walker.swingRetargeted = true;
+      } else if (!walker.swingAirborne && contacts[walker.swingIndex]) {
+        walker.swingIndex = null;
+        walker.swingTime = 0;
+        walker.swingAirborne = false;
+        walker.swingRetargeted = false;
+      }
     }
   }
   if (walker.swingIndex === undefined || walker.swingIndex === null) {
@@ -694,6 +711,7 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
         walker.swingIndex = swingIndex;
         walker.swingTime = 0;
         walker.swingAirborne = false;
+        walker.swingRetargeted = false;
         walker.stanceTargets[swingIndex] = predictedCenterX + walkDirection * stride;
         walker.nextSwingIndex = 1 - swingIndex;
       }
@@ -717,11 +735,13 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
           walker.swingIndex = 0;
           walker.swingTime = 0;
           walker.swingAirborne = false;
+          walker.swingRetargeted = false;
           walker.stanceTargets[0] = predictedCenterX - stepReach;
         } else if (predictedCenterX > maxFootX + 0.04) {
           walker.swingIndex = 1;
           walker.swingTime = 0;
           walker.swingAirborne = false;
+          walker.swingRetargeted = false;
           walker.stanceTargets[1] = predictedCenterX + stepReach;
         }
       }
