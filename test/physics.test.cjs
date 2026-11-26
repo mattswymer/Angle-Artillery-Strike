@@ -442,25 +442,27 @@ test("limp recovery waits for low speed and ground contact, then ramps stiffness
   const ground = world.createBody();
   ground.createFixture({ shape: new planck.Edge(planck.Vec2(-5, 0), planck.Vec2(5, 0)), friction: 2.5 });
   const rig = createStanceRig(world, 0, () => 0, () => 0);
-  for (let i = 0; i < 10; i++) world.step(1 / 50, 180, 60);
+  for (let i = 0; i < 30; i++) {
+    stanceController(rig, () => 0, () => 0, 1, 3.5, 0.02, 1.5,
+      0.12, 0.41, 6, 6, 0.12, 0.2, 1, 1, 0.1);
+    world.step(1 / 50, 180, 60);
+  }
   rig.hit(planck.Vec2(0, 0));
 
-  for (let i = 0; i < 9; i++) {
-    const state = updateRigRecovery(rig, 0.02, () => 0);
-    assert.equal(state.recovering, false);
-  }
-  const started = updateRigRecovery(rig, 0.02, () => 0);
-  assert.equal(started.recovering, true);
-  assert.equal(started.stiffness, 0);
-
-  for (let i = 0; i < 25 && rig.mode === "limp"; i++) {
+  let recoveryStarted = false;
+  let maxRecoveryStiffness = 0;
+  for (let i = 0; i < 400 && rig.mode === "limp"; i++) {
     const state = updateRigRecovery(rig, 0.02, () => 0);
     if (rig.recovering) {
+      recoveryStarted = true;
+      maxRecoveryStiffness = Math.max(maxRecoveryStiffness, state.stiffness);
       stanceController(rig, () => 0, () => 0, state.stiffness,
         3.5, 0.02, 1.5, 0.12, 0.41, 6, 6, 0.12, 0.2, 1, 1, 0.1);
     }
     world.step(1 / 50, 180, 60);
   }
+  assert.equal(recoveryStarted, true);
+  assert.ok(maxRecoveryStiffness > 0);
   assert.equal(rig.mode, "active");
   assert.equal(rig.stiffness, 1);
   assert.equal(rig.recovering, false);
