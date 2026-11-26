@@ -173,6 +173,14 @@
       outsideSupportTime: rig.outsideSupportTime,
       noContactTime: rig.noContactTime,
       torsoAngle: wrapAngle(rig.torso.getAngle()),
+      torsoPosition: rig.torso.getPosition(),
+      feet: rig.footBodies.map(body => ({
+        position: body.getPosition(),
+        velocity: body.getLinearVelocity(),
+        angle: body.getAngle(),
+        angularVelocity: body.getAngularVelocity(),
+        contacts: Boolean(body.getContactList())
+      })),
       steepContact,
       tilted
     };
