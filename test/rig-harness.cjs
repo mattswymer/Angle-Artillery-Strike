@@ -102,7 +102,7 @@ function createRig(world, degrees, x = 0) {
   const slope = degrees * Math.PI / 180;
   const normal = V(-Math.sin(slope), Math.cos(slope));
   const surfaceAt = px => Math.tan(slope) * px;
-  const footXs = [x - 0.19, x + 0.19];
+  const footXs = [x - 0.105, x + 0.105];
   const pelvisY = Math.min(...footXs.map(px => surfaceAt(px))) +
     0.035 + 0.95 * (SEGMENT.thigh + SEGMENT.shin);
   const torsoY = pelvisY + 0.25;
@@ -451,6 +451,12 @@ function runSlopeCase(degrees, seed = 12345) {
     stableFor: Number(rig.stableFor.toFixed(3)),
     mode: rig.mode,
     everLimp: rig.everLimp,
+    spawnJointTargets: rig.legs.map(leg => ({
+      side: leg.side,
+      hip: Number(leg.initialIK.thighAngle.toFixed(3)),
+      knee: Number(leg.initialIK.kneeRelative.toFixed(3)),
+      ankle: Number((radians - leg.initialIK.shinAngle).toFixed(3))
+    })),
     finalAngle: Number((rig.torso.getAngle() * 180 / Math.PI).toFixed(2)),
     finalPosition: { x: rig.torso.getPosition().x, y: rig.torso.getPosition().y },
     trace
