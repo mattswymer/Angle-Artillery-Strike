@@ -296,11 +296,14 @@ function createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidt
   // Start the torso aligned with the local terrain frame; the feet independently
   // align to the surface normal through their ankle joints.
   const initialTerrainAngle = terrainAngleAt(startX);
+  const stanceCenterX = startX - HIP_Y * Math.sin(initialTerrainAngle);
   const initialFootY = Math.min(
-    heightAt(startX - stanceHalfWidth) + FOOT_HALF_HEIGHT * 2,
-    heightAt(startX + stanceHalfWidth) + FOOT_HALF_HEIGHT * 2
+    heightAt(stanceCenterX - stanceHalfWidth) + FOOT_HALF_HEIGHT * 2,
+    heightAt(stanceCenterX + stanceHalfWidth) + FOOT_HALF_HEIGHT * 2
   );
-  const pelvisTargetY = initialFootY + 0.95 * (UPPER_LENGTH + LOWER_LENGTH);
+  const pelvisTargetY = initialFootY +
+    0.97 * (UPPER_LENGTH + LOWER_LENGTH) +
+    Math.abs(HIP_X * Math.sin(initialTerrainAngle));
   const hull = world.createDynamicBody({
     position: Vec2(startX, pelvisTargetY - HIP_Y * Math.cos(initialTerrainAngle)),
     angle: initialTerrainAngle,
@@ -319,7 +322,7 @@ function createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidt
 
   const legs = [];
   for (const side of [-1, 1]) {
-    const targetX = startX + side * stanceHalfWidth;
+    const targetX = stanceCenterX + side * stanceHalfWidth;
     const ankleTarget = Vec2(targetX, heightAt(targetX) + FOOT_HALF_HEIGHT * 2);
     const actualHip = hull.getWorldPoint(Vec2(side * HIP_X, HIP_Y));
     const hipWorld = actualHip;
@@ -427,7 +430,7 @@ function createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidt
   return {
     hull,
     legs,
-    stanceTargets: [startX - stanceHalfWidth, startX + stanceHalfWidth],
+    stanceTargets: [stanceCenterX - stanceHalfWidth, stanceCenterX + stanceHalfWidth],
     stanceHalfWidth
   };
 }
@@ -613,12 +616,14 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1, balan
         walker.swingIndex = 0;
         walker.swingTime = 0;
         walker.swingAirborne = false;
-        walker.stanceTargets[0] = centerX - halfStance;
+        const pelvisCenterX = hull.getPosition().x - HIP_Y * Math.sin(hull.getAngle());
+        walker.stanceTargets[0] = pelvisCenterX - halfStance;
       } else if (centerX > maxFootX + 0.04) {
         walker.swingIndex = 1;
         walker.swingTime = 0;
         walker.swingAirborne = false;
-        walker.stanceTargets[1] = centerX + halfStance;
+        const pelvisCenterX = hull.getPosition().x - HIP_Y * Math.sin(hull.getAngle());
+        walker.stanceTargets[1] = pelvisCenterX + halfStance;
       }
     }
   }
@@ -628,10 +633,12 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1, balan
     const lift = swing ? Math.sin(progress * Math.PI) * 0.12 : 0;
     return { x, y: heightAt(x) + FOOT_HALF_HEIGHT * 2 + lift };
   });
+  const terrainReferenceAngle = terrainAngleAt(hull.getPosition().x);
   const pelvisTargetY = Math.min(
     heightAt(walker.stanceTargets[0]) + FOOT_HALF_HEIGHT * 2,
     heightAt(walker.stanceTargets[1]) + FOOT_HALF_HEIGHT * 2
-  ) + 0.95 * (UPPER_LENGTH + LOWER_LENGTH);
+  ) + 0.97 * (UPPER_LENGTH + LOWER_LENGTH) +
+    Math.abs(HIP_X * Math.sin(terrainReferenceAngle));
 
   const hipTargets = [];
   const kneeTargets = [];
@@ -660,9 +667,7 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1, balan
     const lowerBodyAngle = solution.thighDir - solution.kneeRel + Math.PI / 2;
     // Joint-only torso stabilization: positive torso angle/velocity biases
     // both hip targets so their motor reaction applies counter-torque to hull.
-    const torsoTilt = wrapAngle(
-      hull.getAngle() - terrainAngleAt(hull.getPosition().x)
-    );
+    const torsoTilt = wrapAngle(hull.getAngle() - terrainReferenceAngle);
     const hipTarget = wrapAngle(
       upperBodyAngle - hull.getAngle() +
       balanceKp * torsoTilt +
@@ -820,7 +825,7 @@ function runRigSymmetryCase(continuousGround = false, runController = true) {
   };
 }
 
-function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmupSteps = 0, groundStyle = "chain", controllerEnabled = true, balanceKp = 3.5, balanceKd = 0.02, chainStep = 0.25, stanceHalfWidth = 0.12) {
+function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmupSteps = 0, groundStyle = "chain", controllerEnabled = true, balanceKp = 3.5, balanceKd = 0.02, chainStep = 0.25, stanceHalfWidth = 0.08) {
   const random = seededRandom(seed);
   const phaseA = random() * Math.PI * 2;
   const phaseB = random() * Math.PI * 2;
