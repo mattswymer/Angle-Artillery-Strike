@@ -608,12 +608,21 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1, balan
     }
   }
   if (walker.swingIndex === undefined || walker.swingIndex === null) {
-    const planted = walker.stanceTargets
-      .map((x, i) => contacts[i] ? x : null)
-      .filter(x => x !== null);
+    const planted = legs
+      .map((leg, i) => contacts[i] ? leg.foot : null)
+      .filter(foot => foot !== null);
     if (planted.length) {
-      const minFootX = Math.min(...planted);
-      const maxFootX = Math.max(...planted);
+      const bounds = planted.map(foot => {
+        const angle = foot.getAngle();
+        const halfSpan = Math.abs(Math.cos(angle)) * FOOT_HALF_LENGTH +
+          Math.abs(Math.sin(angle)) * FOOT_HALF_HEIGHT;
+        return {
+          min: foot.getPosition().x - halfSpan,
+          max: foot.getPosition().x + halfSpan
+        };
+      });
+      const minFootX = Math.min(...bounds.map(bound => bound.min));
+      const maxFootX = Math.max(...bounds.map(bound => bound.max));
       if (centerX < minFootX - 0.04) {
         walker.swingIndex = 0;
         walker.swingTime = 0;
