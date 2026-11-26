@@ -155,7 +155,7 @@
     const contacts = getFootContacts(rig);
     const touching = contacts.filter(Boolean);
     const steepContact = touching.some(contact =>
-      Math.acos(Math.max(-1, Math.min(1, contact.normal.y))) > 50 * Math.PI / 180);
+      Math.acos(Math.max(-1, Math.min(1, contact.normal.y))) >= 50 * Math.PI / 180);
     const com = getRigCenterOfMass(rig);
     const supportXs = touching.map(contact => contact.point.x);
     const outsideSupport = supportXs.length > 0 &&
