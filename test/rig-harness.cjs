@@ -109,8 +109,8 @@ function createRig(world, degrees, x = 0) {
   const torsoY = pelvisY + 0.22;
   const torso = world.createDynamicBody({
     position: V(x, torsoY),
-    linearDamping: 0.04,
-    angularDamping: 0.08,
+    linearDamping: 0.35,
+    angularDamping: 0.75,
     allowSleep: false,
     userData: { kind: "rig-part", name: "torso" }
   });
@@ -163,8 +163,8 @@ function createRig(world, degrees, x = 0) {
     const foot = world.createDynamicBody({
       position: footCenter,
       angle: slope,
-      linearDamping: 0.04,
-      angularDamping: 0.08,
+      linearDamping: 0.35,
+      angularDamping: 0.75,
       allowSleep: false,
       userData: { kind: "rig-part", name: "foot" }
     });
@@ -183,8 +183,8 @@ function createRig(world, degrees, x = 0) {
     const thigh = world.createDynamicBody({
       position: thighCenter,
       angle: ik.thighAngle,
-      linearDamping: 0.04,
-      angularDamping: 0.08,
+      linearDamping: 0.35,
+      angularDamping: 0.75,
       allowSleep: false,
       userData: { kind: "rig-part", name: "thigh" }
     });
@@ -198,8 +198,8 @@ function createRig(world, degrees, x = 0) {
     const shin = world.createDynamicBody({
       position: shinCenter,
       angle: ik.shinAngle,
-      linearDamping: 0.04,
-      angularDamping: 0.08,
+      linearDamping: 0.35,
+      angularDamping: 0.75,
       allowSleep: false,
       userData: { kind: "rig-part", name: "shin" }
     });
@@ -357,9 +357,9 @@ function stepRig(world, rig, slopeRadians, dt = STEP) {
     const hipTarget = ik.thighAngle - rig.torso.getAngle() - leg.hipReference;
     const kneeTarget = ik.kneeRelative - leg.kneeReference;
     const ankleTarget = slopeRadians - ik.shinAngle - leg.ankleReference;
-    driveJoint(leg.hipJoint, hipTarget, 13, 8, 4, rig.stiffness);
-    driveJoint(leg.kneeJoint, kneeTarget, 13, 8, 4, rig.stiffness);
-    driveJoint(leg.ankleJoint, ankleTarget, 12, 6, 1.5, rig.stiffness);
+    driveJoint(leg.hipJoint, hipTarget, 13, 5, 4, rig.stiffness);
+    driveJoint(leg.kneeJoint, kneeTarget, 13, 5, 4, rig.stiffness);
+    driveJoint(leg.ankleJoint, ankleTarget, 12, 4, 1.5, rig.stiffness);
   });
 
   driveJoint(rig.neck, -rig.torso.getAngle() - rig.neckReference, 10, 5, 1, rig.stiffness);
