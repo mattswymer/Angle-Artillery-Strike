@@ -147,6 +147,7 @@ test("two-bone IK clamps unreachable targets without producing invalid angles", 
 for (const degrees of [0, 20, 35]) {
   test(`IK stance controller emits finite diagnostics on ${degrees} degree terrain`, () => {
     const results = SEEDS.slice(0, 4).map(seed => runStanceCase(degrees, seed, 3));
+    console.log(`stance summary ${degrees}`, JSON.stringify(results.map(({ supportedTime, maxRelativeTiltDegrees, maxSpeed, maxAirTime }) => ({ supportedTime, maxRelativeTiltDegrees, maxSpeed, maxAirTime }))));
     for (const result of results) {
       assert.equal(result.finite, true, `non-finite state on ${degrees} degree terrain: ${JSON.stringify(result)}`);
       assert.ok(Number.isFinite(result.maxSpeed));
