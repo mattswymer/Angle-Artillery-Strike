@@ -580,7 +580,7 @@ function updateRigFallState(walker, deltaTime = FIXED_DT, jumping = false) {
   });
   const contacts = walker.legs.map(leg => isGroundContact(leg.foot));
   const anyContact = contacts.some(Boolean);
-  walker.noContactTime = anyContact ? 0 : walker.noContactTime + deltaTime;
+  walker.noContactTime = anyContact || jumping ? 0 : walker.noContactTime + deltaTime;
 
   const support = rigSupportBounds(walker);
   const centerX = getRigCenterOfMassX(walker);
