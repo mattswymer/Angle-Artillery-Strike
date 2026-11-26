@@ -313,7 +313,7 @@ function runSlopeCase(degrees, seed = 12345, duration = 3, roughness = 0) {
   for (let i = 0; i < warmup + steps; i++) {
     const contacts = walker.legs.map(leg => isGroundContact(leg.foot));
     const control = walkerController(walker, terrainAngleAt);
-    world.step(FIXED_DT, 180, 60);
+    world.step(FIXED_DT, 180, 100);
 
     const angle = Math.abs(walker.hull.getAngle());
     const relativeTilt = Math.abs(walker.hull.getAngle() - slope);
