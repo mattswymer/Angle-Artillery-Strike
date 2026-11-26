@@ -292,11 +292,11 @@ const LOWER_HALF_WIDTH = 0.06;
 const FOOT_HALF_LENGTH = 0.09;
 const FOOT_HALF_HEIGHT = 0.03;
 
-function createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidth = 0.12, pelvisRatio = 0.95, terrainTiltBlend = 0) {
+function createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidth = 0.12, pelvisRatio = 0.95, terrainTiltBlend = 0, stanceCenterBlend = 0) {
   // Start the torso aligned with the local terrain frame; the feet independently
   // align to the surface normal through their ankle joints.
   const initialTerrainAngle = terrainAngleAt(startX) * terrainTiltBlend;
-  const stanceCenterX = startX - HIP_Y * Math.sin(initialTerrainAngle);
+  const stanceCenterX = startX - HIP_Y * Math.sin(initialTerrainAngle) * stanceCenterBlend;
   const initialFootY = Math.min(
     heightAt(stanceCenterX - stanceHalfWidth) + FOOT_HALF_HEIGHT * 2,
     heightAt(stanceCenterX + stanceHalfWidth) + FOOT_HALF_HEIGHT * 2
@@ -432,7 +432,8 @@ function createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidt
     stanceTargets: [stanceCenterX - stanceHalfWidth, stanceCenterX + stanceHalfWidth],
     stanceHalfWidth,
     pelvisRatio,
-    terrainTiltBlend
+    terrainTiltBlend,
+    stanceCenterBlend
   };
 }
 
@@ -617,14 +618,16 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1, balan
         walker.swingIndex = 0;
         walker.swingTime = 0;
         walker.swingAirborne = false;
-        const pelvisCenterX = hull.getPosition().x - HIP_Y * Math.sin(hull.getAngle());
-        walker.stanceTargets[0] = pelvisCenterX - halfStance;
+        const hipMidX = hull.getPosition().x - HIP_Y * Math.sin(hull.getAngle());
+        const stanceCenterX = centerX + (hipMidX - centerX) * (walker.stanceCenterBlend ?? 0);
+        walker.stanceTargets[0] = stanceCenterX - halfStance;
       } else if (centerX > maxFootX + 0.04) {
         walker.swingIndex = 1;
         walker.swingTime = 0;
         walker.swingAirborne = false;
-        const pelvisCenterX = hull.getPosition().x - HIP_Y * Math.sin(hull.getAngle());
-        walker.stanceTargets[1] = pelvisCenterX + halfStance;
+        const hipMidX = hull.getPosition().x - HIP_Y * Math.sin(hull.getAngle());
+        const stanceCenterX = centerX + (hipMidX - centerX) * (walker.stanceCenterBlend ?? 0);
+        walker.stanceTargets[1] = stanceCenterX + halfStance;
       }
     }
   }
@@ -825,7 +828,7 @@ function runRigSymmetryCase(continuousGround = false, runController = true) {
   };
 }
 
-function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmupSteps = 0, groundStyle = "chain", controllerEnabled = true, balanceKp = 3.5, balanceKd = 0.02, chainStep = 0.25, stanceHalfWidth = 0.12, pelvisRatio = 0.95, terrainTiltBlend = 0) {
+function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmupSteps = 0, groundStyle = "chain", controllerEnabled = true, balanceKp = 3.5, balanceKd = 0.02, chainStep = 0.25, stanceHalfWidth = 0.12, pelvisRatio = 0.95, terrainTiltBlend = 0, stanceCenterBlend = 0) {
   const random = seededRandom(seed);
   const phaseA = random() * Math.PI * 2;
   const phaseB = random() * Math.PI * 2;
@@ -835,7 +838,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
       ? makeSegmentedWorld(degrees, roughness, phaseA, phaseB)
       : makeWorld(degrees, roughness, phaseA, phaseB, chainStep);
   const startX = (random() - 0.5) * 0.2;
-  const walker = createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidth, pelvisRatio, terrainTiltBlend);
+  const walker = createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidth, pelvisRatio, terrainTiltBlend, stanceCenterBlend);
   if (!controllerEnabled) {
     for (const leg of walker.legs) {
       leg.hip.enableMotor(false);
@@ -951,6 +954,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
     stanceHalfWidth,
     pelvisRatio,
     terrainTiltBlend,
+    stanceCenterBlend,
     supportedTime: Number(supportedTime.toFixed(3)),
     maxRelativeTiltDegrees: Number((maxRelativeTilt * 180 / Math.PI).toFixed(2)),
     maxSpeed: Number(maxSpeed.toFixed(3)),
