@@ -385,6 +385,32 @@ test("upright 35 degree final candidate tunes swing arc and duration", () => {
   assert.equal(results.length, 25);
 });
 
+test("upright stance sweeps live versus virtual hip-height IK targets", () => {
+  const results = [];
+  for (const degrees of [20, 35]) {
+    for (const hipHeightBlend of [0, 0.25, 0.5, 0.75, 1]) {
+      const r = degrees === 20
+        ? runStanceCase(
+            degrees, 1, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25,
+            0.25, 0.85, 0, 0, 0.6, 1.5, "same-positive", 0.12, 0.41, 6, 6,
+            0.12, 0.2, 1, hipHeightBlend
+          )
+        : runStanceCase(
+            degrees, 1, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25,
+            0.1, 0.95, 0, 0, 0.6, 1.5, "same-positive", 0.34, 0.36, 6, 6,
+            0.08, 0.2, 1, hipHeightBlend
+          );
+      results.push({
+        degrees, hipHeightBlend,
+        support: r.supportedTime, bothFeet: r.bothFeetContactTime,
+        tilt: r.maxAbsoluteTiltDegrees, air: r.maxAirTime, speed: r.maxSpeed
+      });
+    }
+  }
+  console.log("upright hip-height blend sweep", JSON.stringify(results));
+  assert.equal(results.length, 10);
+});
+
 test("upright stance tests stronger planted-leg support during corrective steps", () => {
   const results = [];
   for (const degrees of [20, 35]) {
