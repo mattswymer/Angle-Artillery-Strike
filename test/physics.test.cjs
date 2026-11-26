@@ -3,7 +3,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const planck = require("planck");
-const { runSlopeCase, runStanceCase, runPostureCase, runSwingTargetCase, runRigSymmetryCase, seededRandom, legIK, driveJoint } = require("./walker-harness.cjs");
+const { runSlopeCase, runStanceCase, runSwingTargetCase, runRigSymmetryCase, seededRandom, legIK, driveJoint } = require("./walker-harness.cjs");
 
 const SEEDS = [1, 7, 42, 99, 314, 1337, 481516, 8675309];
 
@@ -203,65 +203,6 @@ test("character-proportion stance rig stands for three seconds on flat terrain a
   );
   assert.deepEqual(failures, [],
     `flat stance must remain stable for three seconds: ${JSON.stringify(failures)}`);
-});
-
-test("upright 20 degree adaptive knee bend tunes stance width and knee flex", () => {
-  const results = [];
-  for (const stanceHalfWidth of [0.1, 0.15, 0.2, 0.25]) {
-    for (const highSideBend of [0.4, 0.5, 0.6]) {
-      const r = runStanceCase(
-        20, 1, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25,
-        stanceHalfWidth, 0.85, 0, 0, 0.6, 1.5, "slope-adaptive", 0.12, 0.41, 6, 6,
-        0.12, 0.2, 1, 1, highSideBend, 1
-      );
-      results.push({
-        stanceHalfWidth, highSideBend,
-        initialAnkles: r.initialPose.map(leg => leg.ankleAngle),
-        support: r.supportedTime, bothFeet: r.bothFeetContactTime,
-        tilt: r.maxAbsoluteTiltDegrees, air: r.maxAirTime, speed: r.maxSpeed
-      });
-    }
-  }
-  console.log("upright 20 adaptive geometry sweep", JSON.stringify(results));
-  assert.equal(results.length, 12);
-});
-
-test("upright 20 degree stance adapts high-side knee bend to keep ankle within limits", () => {
-  const results = [];
-  for (const highSideBend of [0, 0.2, 0.4, 0.6, 0.8, 1]) {
-    const r = runStanceCase(
-      20, 1, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25,
-      0.25, 0.85, 0, 0, 0.6, 1.5, "slope-adaptive", 0.12, 0.41, 6, 6,
-      0.12, 0.2, 1, 1, highSideBend, 1
-    );
-    results.push({
-      highSideBend,
-      initialAnkles: r.initialPose.map(leg => leg.ankleAngle),
-      support: r.supportedTime, bothFeet: r.bothFeetContactTime,
-      tilt: r.maxAbsoluteTiltDegrees, air: r.maxAirTime, speed: r.maxSpeed
-    });
-  }
-  console.log("upright 20 adaptive high-side bend sweep", JSON.stringify(results));
-  assert.equal(results.length, 6);
-});
-
-test("upright 20 degree stance checks spawn ankle limits across pelvis heights", () => {
-  const results = [];
-  for (const pelvisRatio of [0.85, 0.9, 0.95, 1.0]) {
-    const r = runStanceCase(
-      20, 1, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25,
-      0.25, pelvisRatio, 0, 0, 0.6, 1.5, "same-positive", 0.12, 0.41, 6, 6,
-      0.12, 0.2, 1, 1
-    );
-    results.push({
-      pelvisRatio,
-      initialAnkles: r.initialPose.map(leg => leg.ankleAngle),
-      support: r.supportedTime, bothFeet: r.bothFeetContactTime,
-      tilt: r.maxAbsoluteTiltDegrees, air: r.maxAirTime, speed: r.maxSpeed
-    });
-  }
-  console.log("upright 20 degree pelvis ankle feasibility", JSON.stringify(results));
-  assert.equal(results.length, 4);
 });
 
 test("upright 20 and 35 degree stance remains controlled for three seconds across eight seeds", () => {
