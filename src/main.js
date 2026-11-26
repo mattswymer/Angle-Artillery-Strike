@@ -151,15 +151,17 @@
   function makeCharacter(team, number, x) {
     const leftX = x - 0.18;
     const rightX = x + 0.18;
-    const leftY = heightAt(leftX) + 0.06;
-    const rightY = heightAt(rightX) + 0.06;
     const leftAngle = Math.atan2(heightAt(leftX + 0.025) - heightAt(leftX - 0.025), 0.05);
     const rightAngle = Math.atan2(heightAt(rightX + 0.025) - heightAt(rightX - 0.025), 0.05);
+    const leftNormal = { x: -Math.sin(leftAngle), y: Math.cos(leftAngle) };
+    const rightNormal = { x: -Math.sin(rightAngle), y: Math.cos(rightAngle) };
+    const leftY = heightAt(leftX) + leftNormal.y * 0.06;
+    const rightY = heightAt(rightX) + rightNormal.y * 0.06;
     const pelvisY = Math.min(leftY, rightY) + 0.95 * (0.41 + 0.34);
     const origin = { x, y: pelvisY + 0.25 };
     const footTargets = [
-      { x: leftX, y: leftY, angle: leftAngle },
-      { x: rightX, y: rightY, angle: rightAngle }
+      { x: leftX + leftNormal.x * 0.06, y: leftY, angle: leftAngle, probeX: leftX },
+      { x: rightX + rightNormal.x * 0.06, y: rightY, angle: rightAngle, probeX: rightX }
     ];
     const rig = window.CharacterRig.buildRig(P, world, team, number, origin, { footTargets });
     return {
