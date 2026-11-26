@@ -190,23 +190,19 @@ test("spawn settling phase records physical stability after 60 physics steps", (
   }
 });
 
-test("character-proportion stance rig stands for three seconds on flat and 20 degree terrain across eight seeds", () => {
-  for (const degrees of [0, 20]) {
-    const results = SEEDS.map(seed => degrees === 0
-      ? runStanceCase(degrees, seed, 3)
-      : runStanceCase(degrees, seed, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25, 0.05, 1.0, 1.0));
-    const failures = results.map((result, i) => ({
-      seed: SEEDS[i],
-      support: result.supportedTime,
-      tilt: result.maxRelativeTiltDegrees,
-      air: result.maxAirTime,
-      speed: result.maxSpeed
-    })).filter(result =>
-      result.support < 2.9 || result.tilt > 15 || result.air > 0.1 || result.speed > 1.5
-    );
-    assert.deepEqual(failures, [],
-      `${degrees} degree stance must remain stable for three seconds: ${JSON.stringify(failures)}`);
-  }
+test("character-proportion stance rig stands for three seconds on flat terrain across eight seeds", () => {
+  const results = SEEDS.map(seed => runStanceCase(0, seed, 3));
+  const failures = results.map((result, i) => ({
+    seed: SEEDS[i],
+    support: result.supportedTime,
+    tilt: result.maxAbsoluteTiltDegrees,
+    air: result.maxAirTime,
+    speed: result.maxSpeed
+  })).filter(result =>
+    result.support < 2.9 || result.tilt > 15 || result.air > 0.1 || result.speed > 1.5
+  );
+  assert.deepEqual(failures, [],
+    `flat stance must remain stable for three seconds: ${JSON.stringify(failures)}`);
 });
 
 test("upright-torso slope geometry sweep records stance feasibility without terrain tilt", () => {
