@@ -174,6 +174,7 @@
       noContactTime: rig.noContactTime,
       torsoAngle: wrapAngle(rig.torso.getAngle()),
       torsoPosition: rig.torso.getPosition(),
+      footTargets: rig.footTargets.map(target => ({ ...target })),
       feet: rig.footBodies.map(body => ({
         position: body.getPosition(),
         velocity: body.getLinearVelocity(),
