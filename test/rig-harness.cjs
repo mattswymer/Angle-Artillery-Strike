@@ -151,11 +151,11 @@ function createRig(world, degrees, x = 0) {
     const kneeJoint = revolute(thigh, shin, knee, -2.4, 2.4, 4);
     const ankleJoint = revolute(shin, foot, ankle, -0.7, 0.7, 1.5);
     parts.legs.push({
-      side, footX, thigh, shin, foot,
+      side, footX, targetX: footX, step: null, thigh, shin, foot,
       hipJoint, kneeJoint, ankleJoint
     });
   }
-  return { ...parts, mode: "active", stiffness: 1, stableFor: 0, elapsed: 0 };
+  return { ...parts, mode: "active", stiffness: 1, stableFor: 0, elapsed: 0, outsideTime: 0 };
 }
 
 function footContact(foot) {
@@ -187,18 +187,53 @@ function stepRig(world, rig, slopeRadians, dt = STEP) {
       const slopeNormal = V(-Math.sin(slopeRadians), Math.cos(slopeRadians));
       const alignment = Math.max(-1, Math.min(1,
         upwardNormal.x * slopeNormal.x + upwardNormal.y * slopeNormal.y));
-      const angle = Math.acos(alignment);
-      worstNormalAngle = Math.max(worstNormalAngle, angle);
+      worstNormalAngle = Math.max(worstNormalAngle, Math.acos(alignment));
     }
-    minFootX = Math.min(minFootX, leg.foot.getPosition().x);
-    maxFootX = Math.max(maxFootX, leg.foot.getPosition().x);
+    const footX = leg.foot.getPosition().x;
+    minFootX = Math.min(minFootX, footX);
+    maxFootX = Math.max(maxFootX, footX);
+  }
+
+  const outsideSupport = torsoPosition.x < minFootX - 0.04 ||
+    torsoPosition.x > maxFootX + 0.04;
+  rig.outsideTime = outsideSupport ? (rig.outsideTime || 0) + dt : 0;
+
+  // A foot only steps when the COM leaves the support interval.
+  if (outsideSupport && !rig.legs.some(leg => leg.step)) {
+    const leftOfSupport = torsoPosition.x < minFootX - 0.04;
+    const steppingLeg = rig.legs.reduce((chosen, leg) => {
+      const x = leg.foot.getPosition().x;
+      if (!chosen) return leg;
+      const chosenX = chosen.foot.getPosition().x;
+      return leftOfSupport ? (x < chosenX ? leg : chosen) : (x > chosenX ? leg : chosen);
+    }, null);
+    const destination = torsoPosition.x + (leftOfSupport ? -0.22 : 0.22);
+    if (Math.abs(destination - steppingLeg.foot.getPosition().x) > 0.12) {
+      steppingLeg.step = {
+        fromX: steppingLeg.foot.getPosition().x,
+        toX: destination,
+        elapsed: 0,
+        duration: 0.24
+      };
+    }
+  }
+
+  for (const leg of rig.legs) {
+    if (!leg.step) continue;
+    leg.step.elapsed = Math.min(leg.step.duration, leg.step.elapsed + dt);
+    const progress = leg.step.elapsed / leg.step.duration;
+    const smooth = progress * progress * (3 - 2 * progress);
+    leg.targetX = leg.step.fromX + (leg.step.toX - leg.step.fromX) * smooth;
+    if (progress >= 1) {
+      leg.targetX = leg.step.toX;
+      leg.step = null;
+    }
   }
 
   const supported = contacts > 0;
-  const outsideSupport = torsoPosition.x < minFootX - 0.25 || torsoPosition.x > maxFootX + 0.25;
   const torsoTilt = Math.abs(wrapAngle(rig.torso.getAngle()));
   const badSupport = worstNormalAngle > 50 * Math.PI / 180 ||
-    (outsideSupport && rig.elapsed > 0.25) ||
+    rig.outsideTime > 0.25 ||
     (!supported && rig.elapsed > 0.3) ||
     torsoTilt > 60 * Math.PI / 180;
 
@@ -206,15 +241,21 @@ function stepRig(world, rig, slopeRadians, dt = STEP) {
   else rig.stiffness = Math.min(1, rig.stiffness + dt / 0.5);
 
   const torsoAngle = rig.torso.getAngle();
+  const slope = Math.tan(slopeRadians);
   const footTargets = rig.legs.map(leg => {
-    const p = leg.foot.getPosition();
-    return { x: p.x, y: Math.tan(slopeRadians) * p.x };
+    const x = leg.targetX;
+    const lift = leg.step
+      ? Math.sin(Math.PI * leg.step.elapsed / leg.step.duration) * 0.12
+      : 0;
+    return V(
+      x - Math.sin(slopeRadians) * 0.035,
+      slope * x + 0.035 + Math.cos(slopeRadians) * 0.035 + lift
+    );
   });
 
   rig.legs.forEach((leg, index) => {
     const hip = rig.torso.getWorldPoint(V(leg.side * 0.105, -0.22));
-    const target = footTargets[index];
-    const ik = legIK(hip, V(target.x, target.y + 0.06), SEGMENT.thigh, SEGMENT.shin, leg.side);
+    const ik = legIK(hip, footTargets[index], SEGMENT.thigh, SEGMENT.shin, leg.side);
     const thighTarget = ik.thighDirection + Math.PI / 2 - torsoAngle;
     driveJoint(leg.hipJoint, thighTarget, 13, 8, 4, rig.stiffness);
     driveJoint(leg.kneeJoint, ik.kneeRelative, 13, 8, 4, rig.stiffness);
