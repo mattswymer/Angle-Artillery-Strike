@@ -116,7 +116,7 @@
     return {
       stanceHalfWidth: 0.12, pelvisRatio: 0.95,
       bendMode: "side", highSideBend: 0.4, lowSideBend: 1,
-      stepReach: 0.18, stepLookahead: 0.25,
+      stepReach: 0.12, stepLookahead: 0.25,
       hipHeightBlend: 1, swingHeight: 0.12,
       swingDuration: 0.2, upperBodyTorqueScale: 1
     };
