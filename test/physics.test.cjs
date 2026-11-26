@@ -328,6 +328,7 @@ test("upright 20 and 35 degree stance remains controlled for three seconds acros
 
     const failures = results.filter(r =>
       r.support < 2.9 ||
+      r.mode !== "active" ||
       r.tilt > candidate.maxTilt ||
       r.air > 0.06 ||
       r.speed > 2 ||
