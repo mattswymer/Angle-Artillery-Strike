@@ -327,6 +327,98 @@ function walkerController(walker, terrainAngleAt = () => 0) {
   return { movingContact, supportingContact, actions };
 }
 
+
+function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1) {
+  const { hull, legs } = walker;
+  const centerX = hull.getPosition().x;
+  const halfStance = 0.24;
+  const footTargets = [
+    { x: centerX - halfStance, y: 0 },
+    { x: centerX + halfStance, y: 0 }
+  ];
+
+  // Keep the feet beneath the torso. Repositioning is deliberately modest:
+  // the controller does not teleport either foot or apply a hover force.
+  for (let i = 0; i < legs.length; i++) {
+    const leg = legs[i];
+    const target = footTargets[i];
+    const surfaceY = heightAt(target.x);
+    const terrainAngle = terrainAngleAt(target.x);
+    const normal = Vec2(-Math.sin(terrainAngle), Math.cos(terrainAngle));
+    target.y = surfaceY + 0.06;
+    const hipWorld = hull.getWorldPoint(Vec2(0, LEG_DOWN));
+    const ankleTarget = Vec2(target.x, target.y);
+    const solution = legIK(hipWorld, ankleTarget, LEG_H, LEG_H, 1);
+
+    // Box long axes point down at body angle zero. Convert the IK's
+    // mathematical +X segment direction into Planck body/joint angles.
+    const upperBodyAngle = solution.thighDir + Math.PI / 2;
+    const lowerBodyAngle = solution.thighDir - solution.kneeRel + Math.PI / 2;
+    const hipTarget = wrapAngle(upperBodyAngle - hull.getAngle());
+    const kneeTarget = wrapAngle(lowerBodyAngle - upperBodyAngle);
+    driveJoint(leg.hip, hipTarget, 10, 5, 32, stiffness);
+    driveJoint(leg.knee, kneeTarget, 12, 6, 32, stiffness);
+
+    const desiredFootAngle = terrainAngle;
+    const ankleTargetAngle = wrapAngle(desiredFootAngle - leg.lower.getAngle());
+    driveJoint(leg.ankle, ankleTargetAngle, 10, 4, 4, stiffness);
+  }
+
+  return {
+    targets: footTargets,
+    contacts: legs.map(leg => isGroundContact(leg.foot)),
+    hipAngles: legs.map(leg => legs.indexOf(leg) >= 0 ? leg.hip.getJointAngle() : 0)
+  };
+}
+
+function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0) {
+  const random = seededRandom(seed);
+  const phaseA = random() * Math.PI * 2;
+  const phaseB = random() * Math.PI * 2;
+  const { world, slope, heightAt, terrainAngleAt } = makeWorld(degrees, roughness, phaseA, phaseB);
+  const startX = (random() - 0.5) * 0.2;
+  const walker = createWalker(world, slope, startX, random, heightAt, terrainAngleAt);
+  const steps = Math.ceil(duration / FIXED_DT);
+  let supportedTime = 0;
+  let maxRelativeTilt = 0;
+  let maxSpeed = 0;
+  let maxAirTime = 0;
+  let airTime = 0;
+  let finite = true;
+
+  for (let i = 0; i < steps; i++) {
+    const control = stanceController(walker, heightAt, terrainAngleAt);
+    world.step(FIXED_DT, 180, 60);
+    const contacts = walker.legs.map(leg => isGroundContact(leg.foot));
+    if (contacts.some(Boolean)) {
+      supportedTime += FIXED_DT;
+      airTime = 0;
+    } else {
+      airTime += FIXED_DT;
+      maxAirTime = Math.max(maxAirTime, airTime);
+    }
+    maxRelativeTilt = Math.max(maxRelativeTilt, Math.abs(wrapAngle(walker.hull.getAngle() - slope)));
+    maxSpeed = Math.max(maxSpeed, walker.hull.getLinearVelocity().length());
+    finite = finite &&
+      Number.isFinite(walker.hull.getAngle()) &&
+      Number.isFinite(walker.hull.getPosition().x) &&
+      control.targets.every(point => Number.isFinite(point.x) && Number.isFinite(point.y));
+  }
+
+  return {
+    degrees,
+    supportedTime: Number(supportedTime.toFixed(3)),
+    maxRelativeTiltDegrees: Number((maxRelativeTilt * 180 / Math.PI).toFixed(2)),
+    maxSpeed: Number(maxSpeed.toFixed(3)),
+    maxAirTime: Number(maxAirTime.toFixed(3)),
+    finite,
+    finalPosition: {
+      x: Number(walker.hull.getPosition().x.toFixed(4)),
+      y: Number(walker.hull.getPosition().y.toFixed(4))
+    }
+  };
+}
+
 function runSlopeCase(degrees, seed = 12345, duration = 3, roughness = 0) {
   const random = seededRandom(seed);
   const phaseA = random() * Math.PI * 2;
@@ -410,4 +502,4 @@ function runSlopeCase(degrees, seed = 12345, duration = 3, roughness = 0) {
   };
 }
 
-module.exports = { runSlopeCase, seededRandom, walkerController, createWalker, legIK };
+module.exports = { runSlopeCase, runStanceCase, seededRandom, walkerController, stanceController, createWalker, legIK };
