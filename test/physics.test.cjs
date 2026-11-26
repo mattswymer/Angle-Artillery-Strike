@@ -606,10 +606,14 @@ test("production articulated walking maintains support while climbing a 20 degre
       0.1, 0.85, 0, 0, 0.6, "slope-adaptive", 0.4, 1
     );
     rig.walkingPelvisRatio = walkingPelvisRatio;
-    const control = () => productionRig.stanceController(
-      rig, heightAt, terrainAngleAt, rig.stiffness,
-      3.5, 0.06, 1.5, 0.12, 0.41, 6, 6, 0.12, 0.2, 1, 1, 1
-    );
+    let lastControl;
+    const control = () => {
+      lastControl = productionRig.stanceController(
+        rig, heightAt, terrainAngleAt, rig.stiffness,
+        3.5, 0.06, 1.5, 0.12, 0.41, 6, 6, 0.12, 0.2, 1, 1, 1
+      );
+      return lastControl;
+    };
     for (let i = 0; i < 60; i++) {
       control();
       world.step(1 / 50, 180, 60);
@@ -632,7 +636,13 @@ test("production articulated walking maintains support while climbing a 20 degre
       walkingPelvisRatio,
       displacement: rig.hull.getPosition().x - startX,
       steps, mode: rig.mode, swingIndex: rig.swingIndex ?? null,
-      swingTime: rig.swingTime, swingRetargeted: rig.swingRetargeted
+      swingTime: rig.swingTime, swingRetargeted: rig.swingRetargeted,
+      feet: rig.legs.map(leg => ({
+        position: leg.foot.getPosition(),
+        angle: leg.foot.getAngle(),
+        target: lastControl?.targets[rig.legs.indexOf(leg)]
+      })),
+      hipAnchors: rig.legs.map(leg => rig.hull.getWorldPoint(planck.Vec2(leg.side * 0.105, -0.25)))
     });
   }
   console.log("uphill pelvis sweep", JSON.stringify(results));
