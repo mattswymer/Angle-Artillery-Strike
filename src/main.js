@@ -552,25 +552,23 @@
     });
   }
 
-  function getUpPose(ragdoll, elapsed) {
-    // Keep the requested support sequence, but move through it decisively.
-    if (elapsed < 0.28) return {
-      leftHip: -0.48, rightHip: -0.48, leftKnee: 1.25, rightKnee: -1.25,
-      leftShoulder: -ragdoll.facing * 0.78, rightShoulder: -ragdoll.facing * 0.78,
-      leftElbow: ragdoll.facing * 1.05, rightElbow: ragdoll.facing * 1.05, neck: 0
-    };
-    if (elapsed < 0.56) return {
-      leftHip: -0.32, rightHip: 0, leftKnee: 1.05, rightKnee: 0,
-      leftShoulder: -ragdoll.facing * 0.72, rightShoulder: -ragdoll.facing * 0.72,
-      leftElbow: ragdoll.facing * 0.9, rightElbow: ragdoll.facing * 0.9, neck: 0
-    };
-    if (elapsed < 0.84) return {
-      leftHip: 0, rightHip: 0, leftKnee: 0, rightKnee: 0,
-      leftShoulder: -ragdoll.facing * 0.62, rightShoulder: -ragdoll.facing * 0.62,
-      leftElbow: ragdoll.facing * 0.82, rightElbow: ragdoll.facing * 0.82, neck: 0
-    };
-    return { leftHip: 0, rightHip: 0, leftKnee: 0, rightKnee: 0,
-      leftShoulder: 0, rightShoulder: 0, leftElbow: 0, rightElbow: 0, neck: 0 };
+  function wrapAngle(angle) {
+    while (angle > Math.PI) angle -= Math.PI * 2;
+    while (angle < -Math.PI) angle += Math.PI * 2;
+    return angle;
+  }
+
+  function setJointTarget(joint, target, maxTorque, gain = 8, damping = 1.4) {
+    const error = wrapAngle(target - joint.getJointAngle());
+    const speed = Math.max(-6, Math.min(6, error * gain - joint.getJointSpeed() * damping));
+    joint.setMotorSpeed(speed);
+    joint.setMaxMotorTorque(maxTorque);
+  }
+
+  function setBodyUpright(body, torqueScale = 16, damping = 3.2) {
+    const angle = wrapAngle(body.getAngle());
+    body.applyTorque(-angle * torqueScale - body.getAngularVelocity() * damping, true);
+    return Math.abs(angle);
   }
 
   function terrainHeightBelow(x, y, distance = 2.2) {
@@ -583,94 +581,221 @@
     return surface;
   }
 
-  function standingTerrainProfile(ragdoll) {
-    const torsoPosition = ragdoll.torso.getPosition();
-    const sampleOffset = 0.24;
-    const leftX = torsoPosition.x - sampleOffset;
-    const rightX = torsoPosition.x + sampleOffset;
-    const leftY = terrainHeightBelow(leftX, torsoPosition.y + 0.25, 1.8);
-    const rightY = terrainHeightBelow(rightX, torsoPosition.y + 0.25, 1.8);
-    if (leftY === null || rightY === null) return null;
-    const slope = Math.atan2(rightY - leftY, rightX - leftX);
-    return { leftY, rightY, averageY: (leftY + rightY) * 0.5, slope };
+  function getRagdollGround(ragdoll, name, rayStartOffset = 0.2, rayLength = 1.4) {
+    const body = ragdoll.byName[name].body;
+    const foot = body.getWorldPoint(V(0, -0.17));
+    let hit = null;
+    world.rayCast(V(foot.x, foot.y + rayStartOffset), V(foot.x, foot.y - rayLength),
+      (fixture, point, normal, fraction) => {
+        if (fixture.getBody().getUserData()?.kind !== "terrain") return -1;
+        hit = { x: point.x, y: point.y, normal: V(normal.x, normal.y), fraction };
+        return fraction;
+      });
+    return hit;
   }
 
-  function driveStandingRagdoll(ragdoll) {
-    const support = standingTerrainProfile(ragdoll);
-    if (!support) {
-      ragdoll.terrainMode = "unsupported";
-      for (const joint of ragdoll.joints) joint.setMaxMotorTorque(0.04);
-      return;
-    }
+  function ragdollGroundProfile(ragdoll) {
+    const left = getRagdollGround(ragdoll, "left-lower-leg", 0.28, 1.6);
+    const right = getRagdollGround(ragdoll, "right-lower-leg", 0.28, 1.6);
+    if (!left || !right) return null;
+    const dx = right.x - left.x;
+    const dy = right.y - left.y;
+    const slope = Math.atan2(dy, Math.max(0.001, Math.abs(dx)));
+    return { left, right, slope, averageY: (left.y + right.y) * 0.5 };
+  }
 
-    const maxStableSlope = Math.PI / 4;
-    if (Math.abs(support.slope) > maxStableSlope) {
-      // Do not pin a character to a wall or near-vertical face. Gravity remains
-      // in charge until the assembly reaches a surface it can physically stand on.
-      ragdoll.terrainMode = "sliding";
-      for (const joint of ragdoll.joints) joint.setMaxMotorTorque(0.025);
-      for (const name of ["left-lower-leg", "right-lower-leg"]) {
-        const fixture = ragdoll.byName[name].body.getFixtureList();
-        if (fixture) fixture.setFriction(0.08);
-      }
-      return;
-    }
+  function ragdollHasGroundContact(ragdoll) {
+    return ["left-lower-leg", "right-lower-leg", "left-lower-arm", "right-lower-arm",
+      "left-upper-leg", "right-upper-leg", "torso"].some(name => {
+      const body = ragdoll.byName[name].body;
+      const center = body.getPosition();
+      let found = false;
+      world.rayCast(V(center.x, center.y + 0.12), V(center.x, center.y - 0.55),
+        (fixture, point, normal, fraction) => {
+          if (fixture.getBody().getUserData()?.kind !== "terrain") return -1;
+          found = true;
+          return fraction;
+        });
+      return found;
+    });
+  }
 
-    ragdoll.terrainMode = "supported";
+  function ragdollIsStable(ragdoll) {
+    const profile = ragdollGroundProfile(ragdoll);
+    if (!profile || Math.abs(profile.slope) > Math.PI / 4) return false;
     const torso = ragdoll.torso;
-    const position = torso.getPosition();
-    const verticalError = support.averageY + 0.98 - position.y;
-    // A soft physical support force prevents sinking without teleporting the
-    // character or replacing the articulated assembly.
-    torso.applyForceToCenter(V(0, Math.max(-torso.getMass() * 2,
-      Math.min(torso.getMass() * 8, verticalError * torso.getMass() * 18))), true);
+    const torsoAngle = Math.abs(wrapAngle(torso.getAngle()));
+    const torsoPosition = torso.getPosition();
+    const centerX = torsoPosition.x;
+    const supportMin = Math.min(profile.left.x, profile.right.x) - 0.12;
+    const supportMax = Math.max(profile.left.x, profile.right.x) + 0.12;
+    const comInsideSupport = centerX >= supportMin && centerX <= supportMax;
+    const lowMotion = ragdoll.pieces.every(piece =>
+      piece.body.getLinearVelocity().length() < 0.55 &&
+      Math.abs(piece.body.getAngularVelocity()) < 1.5);
+    return torsoAngle < 0.22 && comInsideSupport && lowMotion;
+  }
 
-    const hipTarget = -support.slope * 0.28;
-    const kneeTarget = support.slope * 0.18;
-    const targets = {
-      leftHip: hipTarget, rightHip: hipTarget,
-      leftKnee: kneeTarget, rightKnee: kneeTarget,
+  function getUpPose(ragdoll, phase) {
+    // The pose targets are relative joint angles. Each phase is held until
+    // physical contact/orientation conditions are met, not a fixed animation time.
+    if (phase === "roll") return {
+      leftHip: -0.9, rightHip: -0.9, leftKnee: 1.4, rightKnee: -1.4,
+      leftShoulder: 1.0, rightShoulder: -1.0,
+      leftElbow: 0.8, rightElbow: -0.8, neck: 0
+    };
+    if (phase === "hands-knees") return {
+      leftHip: -0.75, rightHip: -0.75, leftKnee: 1.35, rightKnee: -1.35,
+      leftShoulder: -0.95, rightShoulder: 0.95,
+      leftElbow: 1.15, rightElbow: -1.15, neck: 0
+    };
+    if (phase === "half-kneel") return {
+      leftHip: -0.45, rightHip: -0.05, leftKnee: 1.15, rightKnee: -0.15,
+      leftShoulder: -0.65, rightShoulder: 0.65,
+      leftElbow: 0.45, rightElbow: -0.45, neck: 0
+    };
+    return {
+      leftHip: 0, rightHip: 0, leftKnee: 0, rightKnee: 0,
       leftShoulder: 0, rightShoulder: 0,
       leftElbow: 0, rightElbow: 0, neck: 0
     };
-    for (const [name, joint] of Object.entries(ragdoll.jointMap)) {
-      const error = (targets[name] ?? 0) - joint.getJointAngle();
-      joint.setMotorSpeed(Math.max(-5, Math.min(5, error * 7 - joint.getJointSpeed() * 1.1)));
-      joint.setMaxMotorTorque(name.includes("Hip") || name.includes("Knee") ? 0.62 : 0.3);
-    }
+  }
 
-    // Keep the torso generally upright while allowing the legs to articulate
-    // independently over uneven ground.
-    let angle = torso.getAngle();
-    while (angle > Math.PI) angle -= Math.PI * 2;
-    while (angle < -Math.PI) angle += Math.PI * 2;
-    torso.applyTorque(-angle * 7 - torso.getAngularVelocity() * 2.2, true);
-    for (const name of ["left-lower-leg", "right-lower-leg"]) {
-      const fixture = ragdoll.byName[name].body.getFixtureList();
-      if (fixture) fixture.setFriction(0.88);
+  function applyRecoveryPose(ragdoll, phase) {
+    const targets = getUpPose(ragdoll, phase);
+    for (const [name, joint] of Object.entries(ragdoll.jointMap)) {
+      setJointTarget(joint, targets[name] ?? 0, name.includes("Hip") || name.includes("Knee") ? 2.8 : 1.8, 7, 1.5);
     }
   }
 
+  function beginRecovery(ragdoll) {
+    ragdoll.gettingUp = true;
+    ragdoll.standing = false;
+    ragdoll.recoveryPhase = "roll";
+    ragdoll.phaseTime = 0;
+    ragdoll.recoveryAttempts = (ragdoll.recoveryAttempts || 0) + 1;
+    ragdoll.pieces.forEach(piece => {
+      piece.body.setAwake(true);
+      const velocity = piece.body.getLinearVelocity();
+      piece.body.setLinearVelocity(V(velocity.x * 0.35, velocity.y * 0.25));
+      piece.body.setAngularVelocity(piece.body.getAngularVelocity() * 0.25);
+    });
+  }
+
   function driveGetUp(ragdoll) {
-    const targets = getUpPose(ragdoll, ragdoll.getUpElapsed);
-    const torque = ragdoll.getUpElapsed < 0.84 ? 0.78 : 0.58;
-    for (const [name, joint] of Object.entries(ragdoll.jointMap)) {
-      const error = (targets[name] ?? 0) - joint.getJointAngle();
-      joint.setMotorSpeed(Math.max(-7, Math.min(7, error * 9 - joint.getJointSpeed() * 1.2)));
-      joint.setMaxMotorTorque(torque);
-    }
+    const phase = ragdoll.recoveryPhase;
     const torso = ragdoll.torso;
-    let angle = torso.getAngle();
-    while (angle > Math.PI) angle -= Math.PI * 2;
-    while (angle < -Math.PI) angle += Math.PI * 2;
-    torso.applyTorque(-angle * 8 - torso.getAngularVelocity() * 2.4, true);
-    if (ragdoll.getUpElapsed > 0.56 && ragdoll.getUpElapsed < 1.02) {
-      const position = torso.getPosition();
-      const floor = terrainHeightBelow(position.x, position.y);
-      if (floor !== null && position.y < floor + 0.98) {
-        torso.applyForceToCenter(V(0, torso.getMass() * 6.0), true);
+    const torsoAngle = Math.abs(wrapAngle(torso.getAngle()));
+    const torsoPosition = torso.getPosition();
+    const ground = ragdollGroundProfile(ragdoll);
+    ragdoll.phaseTime += FIXED_STEP;
+
+    if (phase === "roll") {
+      // First turn the torso face-up into a side/prone recovery orientation.
+      const direction = wrapAngle(torso.getAngle()) > 0 ? -1 : 1;
+      torso.applyTorque(direction * torso.getInertia() * 7 - torso.getAngularVelocity() * torso.getInertia() * 2.4, true);
+      applyRecoveryPose(ragdoll, "roll");
+      if (torsoAngle < 0.48 && ragdollHasGroundContact(ragdoll) && ragdoll.phaseTime > 0.25) {
+        ragdoll.recoveryPhase = "hands-knees";
+        ragdoll.phaseTime = 0;
+      } else if (ragdoll.phaseTime > 2.2) {
+        // Try the opposite roll direction when wedged against terrain.
+        ragdoll.recoveryPhase = "roll";
+        ragdoll.phaseTime = 0;
+        ragdoll.rollDirection = -(ragdoll.rollDirection || 1);
+        torso.applyTorque(ragdoll.rollDirection * torso.getInertia() * 10, true);
       }
+      return;
     }
+
+    if (phase === "hands-knees") {
+      setBodyUpright(torso, 10, 2.8);
+      applyRecoveryPose(ragdoll, phase);
+      const hands = ["left-lower-arm", "right-lower-arm"].filter(name => {
+        const body = ragdoll.byName[name].body;
+        const p = body.getPosition();
+        return terrainHeightBelow(p.x, p.y, 0.65) !== null;
+      }).length;
+      const knees = ["left-lower-leg", "right-lower-leg"].filter(name => {
+        const body = ragdoll.byName[name].body;
+        const p = body.getPosition();
+        return terrainHeightBelow(p.x, p.y, 0.65) !== null;
+      }).length;
+      if ((hands + knees >= 3 && torsoAngle < 0.75) || ragdoll.phaseTime > 2.5) {
+        ragdoll.recoveryPhase = "half-kneel";
+        ragdoll.phaseTime = 0;
+      }
+      return;
+    }
+
+    if (phase === "half-kneel") {
+      setBodyUpright(torso, 14, 3.2);
+      applyRecoveryPose(ragdoll, phase);
+      if (ground && torsoAngle < 0.38 && ragdoll.phaseTime > 0.25) {
+        ragdoll.recoveryPhase = "stand";
+        ragdoll.phaseTime = 0;
+      } else if (ragdoll.phaseTime > 2.5) {
+        ragdoll.recoveryPhase = "hands-knees";
+        ragdoll.phaseTime = 0;
+      }
+      return;
+    }
+
+    // Stand phase: upright torso, extended legs, and actual two-foot support.
+    setBodyUpright(torso, 20, 4.0);
+    applyRecoveryPose(ragdoll, "stand");
+    if (ground) {
+      const targetY = ground.averageY + 1.02;
+      const error = targetY - torsoPosition.y;
+      torso.applyForceToCenter(V(0, Math.max(-torso.getMass() * 5,
+        Math.min(torso.getMass() * 12, error * torso.getMass() * 24))), true);
+      const horizontalError = ((ground.left.x + ground.right.x) * 0.5) - torsoPosition.x;
+      torso.applyForceToCenter(V(Math.max(-torso.getMass() * 4,
+        Math.min(torso.getMass() * 4, horizontalError * torso.getMass() * 8)), 0), true);
+    }
+
+    if (ragdollIsStable(ragdoll)) ragdoll.stableTime = (ragdoll.stableTime || 0) + FIXED_STEP;
+    else ragdoll.stableTime = 0;
+    if (ragdoll.stableTime >= 0.35) {
+      ragdoll.gettingUp = false;
+      ragdoll.standing = true;
+      ragdoll.recoveryPhase = null;
+      ragdoll.elapsedTime = 0;
+      ragdoll.stableTime = 0;
+      ragdoll.joints.forEach(joint => joint.setMaxMotorTorque(1.4));
+      return;
+    }
+    if (ragdoll.phaseTime > 3.0) {
+      // Recovery is not declared successful. Reposition the physical support
+      // limbs and retry instead of leaving a sprawled character marked standing.
+      ragdoll.recoveryPhase = "hands-knees";
+      ragdoll.phaseTime = 0;
+      ragdoll.stableTime = 0;
+    }
+  }
+
+  function driveStandingRagdoll(ragdoll) {
+    const profile = ragdollGroundProfile(ragdoll);
+    if (!profile || Math.abs(profile.slope) > Math.PI / 4) {
+      ragdoll.terrainMode = "sliding";
+      ragdoll.joints.forEach(joint => joint.setMaxMotorTorque(0.18));
+      return;
+    }
+    ragdoll.terrainMode = "supported";
+    const slope = profile.slope;
+    setBodyUpright(ragdoll.torso, 18, 3.5);
+    const targets = {
+      leftHip: -slope * 0.35, rightHip: -slope * 0.35,
+      leftKnee: slope * 0.2, rightKnee: -slope * 0.2,
+      leftShoulder: 0, rightShoulder: 0, leftElbow: 0, rightElbow: 0, neck: 0
+    };
+    for (const [name, joint] of Object.entries(ragdoll.jointMap)) {
+      setJointTarget(joint, targets[name] || 0, name.includes("Hip") || name.includes("Knee") ? 1.3 : 0.5, 6, 1.8);
+    }
+    const torsoPosition = ragdoll.torso.getPosition();
+    const heightError = profile.averageY + 1.02 - torsoPosition.y;
+    ragdoll.torso.applyForceToCenter(V(0, Math.max(-ragdoll.torso.getMass() * 3,
+      Math.min(ragdoll.torso.getMass() * 7, heightError * ragdoll.torso.getMass() * 16))), true);
   }
 
   function recoverRagdolls() {
@@ -685,44 +810,21 @@
         }
         continue;
       }
-      if (!ragdoll.gettingUp) {
+      if (!ragdoll.gettingUp && !ragdoll.standing) {
         const averageSpeed = ragdoll.pieces.reduce((sum, piece) =>
           sum + piece.body.getLinearVelocity().length(), 0) / ragdoll.pieces.length;
         const averageSpin = ragdoll.pieces.reduce((sum, piece) =>
           sum + Math.abs(piece.body.getAngularVelocity()), 0) / ragdoll.pieces.length;
         ragdoll.elapsedTime += FIXED_STEP;
-        const settled = ragdoll.elapsedTime > 0.3 && ragdollHasGroundContact(ragdoll) &&
-          averageSpeed < 0.85 && averageSpin < 2.4;
+        const settled = ragdoll.elapsedTime > 0.25 && ragdollHasGroundContact(ragdoll) &&
+          averageSpeed < 1.0 && averageSpin < 2.8;
         ragdoll.settledTime = settled ? ragdoll.settledTime + FIXED_STEP : 0;
-        if (ragdoll.settledTime >= 0.12 || ragdoll.elapsedTime >= 1.4) {
-          // If a limb is buried or still tumbling, clear the overlap and bleed
-          // off the worst residual motion before the motors begin standing up.
-          liftRagdollOutOfTerrain(ragdoll);
-          ragdoll.pieces.forEach(piece => {
-            const body = piece.body;
-            const velocity = body.getLinearVelocity();
-            body.setLinearVelocity(V(velocity.x * 0.3, velocity.y * 0.3));
-            body.setAngularVelocity(body.getAngularVelocity() * 0.35);
-            body.setAwake(true);
-          });
-          ragdoll.gettingUp = true;
-          ragdoll.getUpElapsed = 0;
+        if (ragdoll.settledTime >= 0.18 || ragdoll.elapsedTime >= 1.8) {
+          beginRecovery(ragdoll);
         }
         continue;
       }
-      ragdoll.getUpElapsed += FIXED_STEP;
-      driveGetUp(ragdoll);
-      if (ragdoll.getUpElapsed >= 1.15) {
-        ragdoll.gettingUp = false;
-        ragdoll.standing = true;
-        ragdoll.elapsedTime = 0;
-        for (const joint of ragdoll.joints) {
-          joint.setMotorSpeed(0);
-          joint.setMaxMotorTorque(0.38);
-        }
-        ragdoll.terrainMode = "supported";
-        character.grounded = true;
-      }
+      if (ragdoll.gettingUp) driveGetUp(ragdoll);
     }
   }
 
@@ -1183,9 +1285,7 @@
       }
       recoverRagdolls();
       for (const character of characters) {
-        if (!character.eliminated && character.ragdoll?.standing) {
-          driveStandingRagdoll(character.ragdoll);
-        }
+        if (!character.eliminated && character.ragdoll?.standing) driveStandingRagdoll(character.ragdoll);
       }
       accumulator -= FIXED_STEP;
     }
