@@ -415,125 +415,10 @@
     fireButton.disabled = true;
   }
 
-  function createRagdoll(character, impact, hitLocation = "chest") {
-    if (character.ragdoll) return;
-    const oldBody = character.body;
-    const origin = oldBody.getPosition();
-    const inheritedVelocity = oldBody.getLinearVelocity();
-    const inheritedSpin = oldBody.getAngularVelocity();
-    const pieces = [];
-    const byName = {};
-    const addPart = (name, x, y, halfWidth, halfHeight, density, circle = false) => {
-      const body = world.createBody({
-        type: "dynamic",
-        position: V(origin.x + x, origin.y + y),
-        linearDamping: 0.02,
-        angularDamping: 0.08,
-        allowSleep: false,
-        userData: { kind: "character", team: character.team, number: character.number, ragdoll: true, part: name }
-      });
-      // A negative group index prevents this character's overlapping ragdoll
-      // segments from colliding with one another, while preserving terrain and
-      // other-character collisions.
-      const collisionGroup = -((character.team * 4) + character.number);
-      const lowerArm = name.includes("lower-arm");
-      const lowerLeg = name.includes("lower-leg");
-      const fixture = body.createFixture({
-        shape: circle ? new P.Circle(halfWidth) : new P.Box(halfWidth, halfHeight),
-        density, friction: lowerLeg ? 0.88 : 0.18, restitution: 0.04,
-        // Hands stay non-blocking while tumbling; feet remain physical supports.
-        isSensor: lowerArm,
-        filterGroupIndex: collisionGroup
-      });
-      fixture.setUserData({
-        kind: "character",
-        location: name === "head" ? "head" : name.includes("leg") ? "legs" : "chest",
-        ragdollPart: name
-      });
-      const piece = { name, body, halfWidth, halfHeight, circle };
-      pieces.push(piece);
-      byName[name] = piece;
-      // Preserve momentum at each segment's center, including the tangential part
-      // of any angular velocity inherited from the original character body.
-      body.setLinearVelocity(V(
-        inheritedVelocity.x - inheritedSpin * y,
-        inheritedVelocity.y + inheritedSpin * x
-      ));
-      body.setAngularVelocity(inheritedSpin);
-      return body;
-    };
-
-    // Segment centers and local hinge anchors are aligned exactly at creation.
-    // Keep the torso relatively light and give the limbs enough mass to
-    // carry their own momentum instead of being dragged like weightless strings.
-    const torso = addPart("torso", 0, 0, 0.17, 0.29, 1.5);
-    const head = addPart("head", 0, 0.47, 0.135, 0.135, 1.05, true);
-    const leftUpperArm = addPart("left-upper-arm", -0.17, 0.03, 0.065, 0.19, 0.8);
-    const leftLowerArm = addPart("left-lower-arm", -0.17, -0.33, 0.055, 0.17, 0.8);
-    const rightUpperArm = addPart("right-upper-arm", 0.17, 0.03, 0.065, 0.19, 0.8);
-    const rightLowerArm = addPart("right-lower-arm", 0.17, -0.33, 0.055, 0.17, 0.8);
-    const leftUpperLeg = addPart("left-upper-leg", -0.105, -0.455, 0.075, 0.205, 1.15);
-    const leftLowerLeg = addPart("left-lower-leg", -0.105, -0.83, 0.06, 0.17, 1.1);
-    const rightUpperLeg = addPart("right-upper-leg", 0.105, -0.455, 0.075, 0.205, 1.15);
-    const rightLowerLeg = addPart("right-lower-leg", 0.105, -0.83, 0.06, 0.17, 1.1);
-
-    const hinge = (bodyA, bodyB, anchorA, anchorB, lower, upper) => {
-      const sharedWorldAnchor = bodyA.getWorldPoint(V(anchorA[0], anchorA[1]));
-      const otherAnchor = bodyB.getWorldPoint(V(anchorB[0], anchorB[1]));
-      const mismatch = Math.hypot(
-        sharedWorldAnchor.x - otherAnchor.x,
-        sharedWorldAnchor.y - otherAnchor.y
-      );
-      // Catch bad segment placement immediately instead of creating a joint
-      // whose two ends begin at different coordinates.
-      if (mismatch > 0.002) throw new Error("Ragdoll joint anchors do not line up: " + mismatch);
-      return world.createJoint(new P.RevoluteJoint({
-        enableLimit: true,
-        lowerAngle: lower,
-        upperAngle: upper,
-        referenceAngle: 0,
-        collideConnected: false
-      }, bodyA, bodyB, sharedWorldAnchor));
-    };
-
-    const jointMap = {
-      neck: hinge(torso, head, [0, 0.29], [0, -0.18], -0.8, 0.8),
-      leftShoulder: hinge(torso, leftUpperArm, [-0.17, 0.22], [0, 0.19], -2.35, 1.5),
-      leftElbow: hinge(leftUpperArm, leftLowerArm, [0, -0.19], [0, 0.17], -2.45, 2.45),
-      rightShoulder: hinge(torso, rightUpperArm, [0.17, 0.22], [0, 0.19], -1.5, 2.35),
-      rightElbow: hinge(rightUpperArm, rightLowerArm, [0, -0.19], [0, 0.17], -2.45, 2.45),
-      leftHip: hinge(torso, leftUpperLeg, [-0.105, -0.25], [0, 0.205], -1.25, 1.25),
-      leftKnee: hinge(leftUpperLeg, leftLowerLeg, [0, -0.205], [0, 0.17], -0.25, 2.2),
-      rightHip: hinge(torso, rightUpperLeg, [0.105, -0.25], [0, 0.205], -1.25, 1.25),
-      rightKnee: hinge(rightUpperLeg, rightLowerLeg, [0, -0.205], [0, 0.17], -2.2, 0.25)
-    };
-    const joints = Object.values(jointMap);
-    for (const joint of joints) {
-      joint.enableMotor(true);
-      joint.setMotorSpeed(0);
-      joint.setMaxMotorTorque(0);
-    }
-
-    character.body = torso;
-    character.ragdoll = {
-      pieces, byName, joints, jointMap, torso, elapsedTime: 0,
-      settledTime: 0, hitLocation, gettingUp: false, getUpElapsed: 0,
-      standing: false, facing: character.team === 0 ? 1 : -1
-    };
-    // The old upright hitbox was shorter than the articulated body. Clear any
-    // overlap created when converting it into a full ragdoll before applying blast force.
-    liftRagdollOutOfTerrain(character.ragdoll);
-    world.destroyBody(oldBody);
-
-  }
-
-  // Apply a requested change in velocity, not a fixed impulse. Multiplying
-  // by each part's mass makes every segment receive comparable acceleration.
-  function blastRagdoll(ragdoll, origin, strength, radius, hitLocation = null) {
-    const hitPartName = hitLocation === "head" ? "head" :
-      hitLocation === "legs" ? "left-upper-leg" : "torso";
-    const hitBody = hitLocation ? ragdoll.byName[hitPartName]?.body : null;
-    for (const { body } of ragdoll.pieces) {
+  function applyBlastToRig(rig, origin, strength, radius, skipBody = null, directBody = null, directPoint = null) {
+    for (const piece of rig.pieces) {
+      const body = piece.body;
+      if (body === skipBody) continue;
       const center = body.getWorldCenter();
       const dx = center.x - origin.x;
       const dy = center.y - origin.y;
@@ -546,369 +431,24 @@
         (dx / distance * deltaV) * mass,
         (dy / distance * deltaV + 0.5 * falloff) * mass
       );
-      // Apply the direct-hit impulse at the projectile contact point so the
-      // hit can generate natural torque instead of an artificial spin impulse.
-      body.applyLinearImpulse(impulse, body === hitBody ? origin : center, true);
-    }
-  }
-
-  function ragdollIntersectsTerrain(ragdoll) {
-    const supportParts = new Set([
-      "torso", "head", "left-upper-arm", "right-upper-arm",
-      "left-upper-leg", "right-upper-leg"
-    ]);
-    for (const piece of ragdoll.pieces) {
-      if (!supportParts.has(piece.name)) continue;
-      const points = piece.circle
-        ? [[0, 0], [piece.halfWidth * 0.7, 0], [-piece.halfWidth * 0.7, 0],
-          [0, piece.halfWidth * 0.7], [0, -piece.halfWidth * 0.7]]
-        : [[0, 0],
-          [piece.halfWidth * 0.8, piece.halfHeight * 0.8],
-          [-piece.halfWidth * 0.8, piece.halfHeight * 0.8],
-          [piece.halfWidth * 0.8, -piece.halfHeight * 0.8],
-          [-piece.halfWidth * 0.8, -piece.halfHeight * 0.8]];
-      for (const local of points) {
-        const point = piece.body.getWorldPoint(V(local[0], local[1]));
-        const cellX = Math.floor(point.x / terrainSystem.cellSize);
-        const cellY = Math.floor((point.y - terrainSystem.originY) / terrainSystem.cellSize);
-        if (terrainSystem.isSolid(cellX, cellY)) return true;
-      }
-    }
-    return false;
-  }
-
-  function liftRagdollOutOfTerrain(ragdoll) {
-    let lifted = 0;
-    while (lifted < 2.0 && ragdollIntersectsTerrain(ragdoll)) {
-      for (const piece of ragdoll.pieces) {
-        const body = piece.body;
-        const position = body.getPosition();
-        body.setTransform(V(position.x, position.y + 0.04), body.getAngle());
-        body.setAwake(true);
-      }
-      lifted += 0.04;
-    }
-    if (lifted > 0) {
-      for (const piece of ragdoll.pieces) {
-        const body = piece.body;
-        const velocity = body.getLinearVelocity();
-        body.setLinearVelocity(V(velocity.x, Math.max(0, velocity.y * 0.25)));
-        body.setAngularVelocity(body.getAngularVelocity() * 0.35);
-      }
-    }
-    return lifted;
-  }
-
-  function ragdollHasGroundContact(ragdoll) {
-    return ragdoll.pieces.some(piece => {
-      if (!piece.name.includes("upper-leg") && piece.name !== "torso") return false;
-      const body = piece.body;
-      const position = body.getPosition();
-      const angle = body.getAngle();
-      const verticalExtent = piece.circle ? piece.halfWidth :
-        Math.abs(Math.cos(angle)) * piece.halfHeight + Math.abs(Math.sin(angle)) * piece.halfWidth;
-      let grounded = false;
-      world.rayCast(
-        V(position.x, position.y - verticalExtent - 0.025),
-        V(position.x, position.y - verticalExtent - 0.22),
-        (fixture, point, normal, fraction) => {
-          if (fixture.getBody().getUserData()?.kind === "terrain") {
-            grounded = true;
-            return fraction;
-          }
-          return -1;
-        }
+      body.applyLinearImpulse(
+        impulse,
+        body === directBody && directPoint ? directPoint : center,
+        true
       );
-      return grounded;
-    });
-  }
-
-  function wrapAngle(angle) {
-    while (angle > Math.PI) angle -= Math.PI * 2;
-    while (angle < -Math.PI) angle += Math.PI * 2;
-    return angle;
-  }
-
-  function setJointTarget(joint, target, maxTorque, gain = 8, damping = 1.4) {
-    const error = wrapAngle(target - joint.getJointAngle());
-    const speed = Math.max(-6, Math.min(6, error * gain - joint.getJointSpeed() * damping));
-    joint.setMotorSpeed(speed);
-    joint.setMaxMotorTorque(maxTorque);
-  }
-
-  function setBodyUpright(body, torqueScale = 16, damping = 3.2) {
-    const angle = wrapAngle(body.getAngle());
-    body.applyTorque(-angle * torqueScale - body.getAngularVelocity() * damping, true);
-    return Math.abs(angle);
-  }
-
-  function terrainHeightBelow(x, y, distance = 2.2) {
-    let surface = null;
-    world.rayCast(V(x, y + 0.25), V(x, y - distance), (fixture, point, normal, fraction) => {
-      if (fixture.getBody().getUserData()?.kind !== "terrain") return -1;
-      surface = point.y;
-      return fraction;
-    });
-    return surface;
-  }
-
-  function getRagdollGround(ragdoll, name, rayStartOffset = 0.2, rayLength = 1.4) {
-    const body = ragdoll.byName[name].body;
-    const foot = body.getWorldPoint(V(0, -0.17));
-    let hit = null;
-    world.rayCast(V(foot.x, foot.y + rayStartOffset), V(foot.x, foot.y - rayLength),
-      (fixture, point, normal, fraction) => {
-        if (fixture.getBody().getUserData()?.kind !== "terrain") return -1;
-        hit = { x: point.x, y: point.y, normal: V(normal.x, normal.y), fraction };
-        return fraction;
-      });
-    return hit;
-  }
-
-  function ragdollGroundProfile(ragdoll) {
-    const left = getRagdollGround(ragdoll, "left-lower-leg", 0.28, 1.6);
-    const right = getRagdollGround(ragdoll, "right-lower-leg", 0.28, 1.6);
-    if (!left || !right) return null;
-    const dx = right.x - left.x;
-    const dy = right.y - left.y;
-    const slope = Math.atan2(dy, Math.max(0.001, Math.abs(dx)));
-    return { left, right, slope, averageY: (left.y + right.y) * 0.5 };
-  }
-
-  function ragdollHasGroundContact(ragdoll) {
-    return ["left-lower-leg", "right-lower-leg", "left-lower-arm", "right-lower-arm",
-      "left-upper-leg", "right-upper-leg", "torso"].some(name => {
-      const body = ragdoll.byName[name].body;
-      const center = body.getPosition();
-      let found = false;
-      world.rayCast(V(center.x, center.y + 0.12), V(center.x, center.y - 0.55),
-        (fixture, point, normal, fraction) => {
-          if (fixture.getBody().getUserData()?.kind !== "terrain") return -1;
-          found = true;
-          return fraction;
-        });
-      return found;
-    });
-  }
-
-  function ragdollIsStable(ragdoll) {
-    const profile = ragdollGroundProfile(ragdoll);
-    if (!profile || Math.abs(profile.slope) > Math.PI / 4) return false;
-    const torso = ragdoll.torso;
-    const torsoAngle = Math.abs(wrapAngle(torso.getAngle()));
-    const torsoPosition = torso.getPosition();
-    const centerX = torsoPosition.x;
-    const supportMin = Math.min(profile.left.x, profile.right.x) - 0.12;
-    const supportMax = Math.max(profile.left.x, profile.right.x) + 0.12;
-    const comInsideSupport = centerX >= supportMin && centerX <= supportMax;
-    const lowMotion = ragdoll.pieces.every(piece =>
-      piece.body.getLinearVelocity().length() < 0.55 &&
-      Math.abs(piece.body.getAngularVelocity()) < 1.5);
-    return torsoAngle < 0.22 && comInsideSupport && lowMotion;
-  }
-
-  function getUpPose(ragdoll, phase) {
-    // The pose targets are relative joint angles. Each phase is held until
-    // physical contact/orientation conditions are met, not a fixed animation time.
-    if (phase === "roll") return {
-      leftHip: -0.9, rightHip: -0.9, leftKnee: 1.4, rightKnee: -1.4,
-      leftShoulder: 1.0, rightShoulder: -1.0,
-      leftElbow: 0.8, rightElbow: -0.8, neck: 0
-    };
-    if (phase === "hands-knees") return {
-      leftHip: -0.75, rightHip: -0.75, leftKnee: 1.35, rightKnee: -1.35,
-      leftShoulder: -0.95, rightShoulder: 0.95,
-      leftElbow: 1.15, rightElbow: -1.15, neck: 0
-    };
-    if (phase === "half-kneel") return {
-      leftHip: -0.45, rightHip: -0.05, leftKnee: 1.15, rightKnee: -0.15,
-      leftShoulder: -0.65, rightShoulder: 0.65,
-      leftElbow: 0.45, rightElbow: -0.45, neck: 0
-    };
-    return {
-      leftHip: 0, rightHip: 0, leftKnee: 0, rightKnee: 0,
-      leftShoulder: 0, rightShoulder: 0,
-      leftElbow: 0, rightElbow: 0, neck: 0
-    };
-  }
-
-  function applyRecoveryPose(ragdoll, phase) {
-    const targets = getUpPose(ragdoll, phase);
-    for (const [name, joint] of Object.entries(ragdoll.jointMap)) {
-      setJointTarget(joint, targets[name] ?? 0, name.includes("Hip") || name.includes("Knee") ? 2.8 : 1.8, 7, 1.5);
     }
   }
 
-  function setRecoveryHandContacts(ragdoll, enabled) {
-    for (const name of ["left-lower-arm", "right-lower-arm"]) {
-      const fixture = ragdoll.byName[name].body.getFixtureList();
-      if (!fixture) continue;
-      fixture.setSensor(!enabled);
-      fixture.setFriction(enabled ? 0.72 : 0.18);
-    }
-  }
-
-  function beginRecovery(ragdoll) {
-    // During the tumble hands are sensors to avoid snagging. They become real
-    // colliders for the push-up and remain physical while the character stands.
-    setRecoveryHandContacts(ragdoll, true);
-    ragdoll.gettingUp = true;
-    ragdoll.standing = false;
-    ragdoll.recoveryPhase = "roll";
-    ragdoll.phaseTime = 0;
-    ragdoll.recoveryAttempts = (ragdoll.recoveryAttempts || 0) + 1;
-    ragdoll.pieces.forEach(piece => {
-      piece.body.setAwake(true);
-      const velocity = piece.body.getLinearVelocity();
-      piece.body.setLinearVelocity(V(velocity.x * 0.35, velocity.y * 0.25));
-      piece.body.setAngularVelocity(piece.body.getAngularVelocity() * 0.25);
-    });
-  }
-
-  function driveGetUp(ragdoll) {
-    const phase = ragdoll.recoveryPhase;
-    const torso = ragdoll.torso;
-    const torsoAngle = Math.abs(wrapAngle(torso.getAngle()));
-    const torsoPosition = torso.getPosition();
-    const ground = ragdollGroundProfile(ragdoll);
-    ragdoll.phaseTime += FIXED_STEP;
-
-    if (phase === "roll") {
-      // First turn the torso face-up into a side/prone recovery orientation.
-      const angle = wrapAngle(torso.getAngle());
-      torso.applyTorque(-angle * torso.getInertia() * 8 -
-        torso.getAngularVelocity() * torso.getInertia() * 2.8, true);
-      applyRecoveryPose(ragdoll, "roll");
-      if (torsoAngle < 0.48 && ragdollHasGroundContact(ragdoll) && ragdoll.phaseTime > 0.25) {
-        ragdoll.recoveryPhase = "hands-knees";
-        ragdoll.phaseTime = 0;
-      } else if (ragdoll.phaseTime > 2.2) {
-        // Try the opposite roll direction when wedged against terrain.
-        ragdoll.recoveryPhase = "roll";
-        ragdoll.phaseTime = 0;
-        ragdoll.rollDirection = -(ragdoll.rollDirection || 1);
-        torso.applyTorque(ragdoll.rollDirection * torso.getInertia() * 10, true);
-      }
-      return;
-    }
-
-    if (phase === "hands-knees") {
-      setBodyUpright(torso, 10, 2.8);
-      applyRecoveryPose(ragdoll, phase);
-      const hands = ["left-lower-arm", "right-lower-arm"].filter(name => {
-        const body = ragdoll.byName[name].body;
-        const p = body.getPosition();
-        return terrainHeightBelow(p.x, p.y, 0.65) !== null;
-      }).length;
-      const knees = ["left-lower-leg", "right-lower-leg"].filter(name => {
-        const body = ragdoll.byName[name].body;
-        const p = body.getPosition();
-        return terrainHeightBelow(p.x, p.y, 0.65) !== null;
-      }).length;
-      if ((hands + knees >= 3 && torsoAngle < 0.75) || ragdoll.phaseTime > 2.5) {
-        ragdoll.recoveryPhase = "half-kneel";
-        ragdoll.phaseTime = 0;
-      }
-      return;
-    }
-
-    if (phase === "half-kneel") {
-      setBodyUpright(torso, 14, 3.2);
-      applyRecoveryPose(ragdoll, phase);
-      if (ground && torsoAngle < 0.38 && ragdoll.phaseTime > 0.25) {
-        ragdoll.recoveryPhase = "stand";
-        ragdoll.phaseTime = 0;
-      } else if (ragdoll.phaseTime > 2.5) {
-        ragdoll.recoveryPhase = "hands-knees";
-        ragdoll.phaseTime = 0;
-      }
-      return;
-    }
-
-    // Stand phase: upright torso, extended legs, and actual two-foot support.
-    setBodyUpright(torso, 20, 4.0);
-    applyRecoveryPose(ragdoll, "stand");
-    if (ground) {
-      const targetY = ground.averageY + 1.02;
-      const error = targetY - torsoPosition.y;
-      torso.applyForceToCenter(V(0, Math.max(-torso.getMass() * 5,
-        Math.min(torso.getMass() * 12, error * torso.getMass() * 24))), true);
-      const horizontalError = ((ground.left.x + ground.right.x) * 0.5) - torsoPosition.x;
-      torso.applyForceToCenter(V(Math.max(-torso.getMass() * 4,
-        Math.min(torso.getMass() * 4, horizontalError * torso.getMass() * 8)), 0), true);
-    }
-
-    if (ragdollIsStable(ragdoll)) ragdoll.stableTime = (ragdoll.stableTime || 0) + FIXED_STEP;
-    else ragdoll.stableTime = 0;
-    if (ragdoll.stableTime >= 0.35) {
-      ragdoll.gettingUp = false;
-      ragdoll.standing = true;
-      ragdoll.recoveryPhase = null;
-      ragdoll.elapsedTime = 0;
-      ragdoll.stableTime = 0;
-      ragdoll.joints.forEach(joint => joint.setMaxMotorTorque(1.4));
-      return;
-    }
-    if (ragdoll.phaseTime > 3.0) {
-      // Recovery is not declared successful. Reposition the physical support
-      // limbs and retry instead of leaving a sprawled character marked standing.
-      ragdoll.recoveryPhase = "hands-knees";
-      ragdoll.phaseTime = 0;
-      ragdoll.stableTime = 0;
-    }
-  }
-
-  function driveStandingRagdoll(ragdoll) {
-    const profile = ragdollGroundProfile(ragdoll);
-    if (!profile || Math.abs(profile.slope) > Math.PI / 4) {
-      ragdoll.terrainMode = "sliding";
-      ragdoll.joints.forEach(joint => joint.setMaxMotorTorque(0.18));
-      return;
-    }
-    ragdoll.terrainMode = "supported";
-    const slope = profile.slope;
-    setBodyUpright(ragdoll.torso, 18, 3.5);
-    const targets = {
-      leftHip: -slope * 0.35, rightHip: -slope * 0.35,
-      leftKnee: slope * 0.2, rightKnee: -slope * 0.2,
-      leftShoulder: 0, rightShoulder: 0, leftElbow: 0, rightElbow: 0, neck: 0
-    };
-    for (const [name, joint] of Object.entries(ragdoll.jointMap)) {
-      setJointTarget(joint, targets[name] || 0, name.includes("Hip") || name.includes("Knee") ? 1.3 : 0.5, 6, 1.8);
-    }
-    const torsoPosition = ragdoll.torso.getPosition();
-    const heightError = profile.averageY + 1.02 - torsoPosition.y;
-    ragdoll.torso.applyForceToCenter(V(0, Math.max(-ragdoll.torso.getMass() * 3,
-      Math.min(ragdoll.torso.getMass() * 7, heightError * ragdoll.torso.getMass() * 16))), true);
-  }
-
-  function recoverRagdolls() {
+  function updateCharacterRigs() {
     for (const character of characters) {
-      const ragdoll = character.ragdoll;
-      if (!ragdoll) continue;
       if (character.eliminated) {
-        ragdoll.elapsedTime += FIXED_STEP;
-        if (ragdoll.elapsedTime >= 4.5) {
-          ragdoll.pieces.forEach(piece => world.destroyBody(piece.body));
-          character.ragdoll = null;
+        for (const joint of character.rig.joints) {
+          joint.setMotorSpeed(0);
+          joint.setMaxMotorTorque(0);
         }
         continue;
       }
-      if (!ragdoll.gettingUp && !ragdoll.standing) {
-        const averageSpeed = ragdoll.pieces.reduce((sum, piece) =>
-          sum + piece.body.getLinearVelocity().length(), 0) / ragdoll.pieces.length;
-        const averageSpin = ragdoll.pieces.reduce((sum, piece) =>
-          sum + Math.abs(piece.body.getAngularVelocity()), 0) / ragdoll.pieces.length;
-        ragdoll.elapsedTime += FIXED_STEP;
-        const settled = ragdoll.elapsedTime > 0.25 && ragdollHasGroundContact(ragdoll) &&
-          averageSpeed < 1.0 && averageSpin < 2.8;
-        ragdoll.settledTime = settled ? ragdoll.settledTime + FIXED_STEP : 0;
-        if (ragdoll.settledTime >= 0.18 || ragdoll.elapsedTime >= 1.8) {
-          beginRecovery(ragdoll);
-        }
-        continue;
-      }
-      if (ragdoll.gettingUp) driveGetUp(ragdoll);
+      driveCharacterRig(character);
     }
   }
 
@@ -926,11 +466,6 @@
     const blastRadius = 2.6;
     const removedCells = terrainSystem.carveCircle(point.x, point.y, radius);
     rebuildTerrain();
-    // Destruction can leave existing articulated bodies intersecting a newly
-    // exposed crater wall. Resolve that before contacts and get-up motors fight it.
-    for (const character of characters) {
-      if (character.ragdoll && !character.eliminated) liftRagdollOutOfTerrain(character.ragdoll);
-    }
     const damageEvents = [];
 
     for (const character of characters) {
@@ -942,62 +477,50 @@
       const isDirectTarget = directHit?.character === character;
       let damage = 0;
       if (isDirectTarget) {
-        if (!character.ragdoll) createRagdoll(character, point, directHit.location);
         damage = { head: 40, chest: 30, legs: 20 }[directHit.location];
       } else if (distance < blastRadius) {
         damage = Math.round(18 * (1 - distance / blastRadius));
       }
+
       if (damage > 0) {
         character.health = Math.max(0, character.health - damage);
-        damageEvents.push({ character, damage, direct: isDirectTarget, location: isDirectTarget ? directHit.location : "splash" });
+        damageEvents.push({
+          character, damage, direct: isDirectTarget,
+          location: isDirectTarget ? directHit.location : "splash"
+        });
         damagePopups.push({
           x: p.x, y: p.y + 0.9, damage, direct: isDirectTarget,
           expires: performance.now() + 1100
         });
-        if (character.health <= 0) {
-          character.eliminated = true;
-          if (character.ragdoll) character.ragdoll.pieces.forEach(piece => piece.body.setActive(false));
-          else character.body.setActive(false);
-        }
       }
 
-      // A direct hit always breaks the upright pose. A sufficiently strong
-      // nearby blast does too; weaker splash uses mass-scaled knockback only.
       const knockback = 4.5 * Math.max(0, 1 - distance / 3.3);
-      const ragdollDeltaV = 11 * Math.max(0, 1 - distance / blastRadius);
-      if (isDirectTarget || ragdollDeltaV > 3.5) {
-        if (!character.ragdoll) createRagdoll(character, point, isDirectTarget ? directHit.location : "chest");
-        if (character.ragdoll.standing || character.ragdoll.gettingUp) {
-          setRecoveryHandContacts(character.ragdoll, false);
-          character.ragdoll.standing = false;
-          character.ragdoll.gettingUp = false;
-          character.ragdoll.elapsedTime = 0;
-          character.ragdoll.settledTime = 0;
-          character.ragdoll.joints.forEach(joint => joint.setMaxMotorTorque(0));
-        }
-        blastRagdoll(character.ragdoll, point, isDirectTarget ? 12 : 11, blastRadius,
-          isDirectTarget ? directHit.location : null);
-      } else if (character.ragdoll) {
-        if (distance < blastRadius) {
-          if (character.ragdoll.standing || character.ragdoll.gettingUp) {
-            character.ragdoll.standing = false;
-            character.ragdoll.gettingUp = false;
-            character.ragdoll.elapsedTime = 0;
-            character.ragdoll.settledTime = 0;
-            character.ragdoll.joints.forEach(joint => joint.setMaxMotorTorque(0));
-          }
-          blastRagdoll(character.ragdoll, point, 11, blastRadius);
-        }
-      } else if (knockback > 0) {
+      const impactStrength = 11 * Math.max(0, 1 - distance / blastRadius);
+      if (isDirectTarget || impactStrength > 3.5) {
+        const hitPartName = isDirectTarget
+          ? directHit.location === "head" ? "head" :
+            directHit.location === "legs" ? "left-upper-leg" : "torso"
+          : "torso";
+        const hitBody = character.rig.byName[hitPartName]?.body || character.rig.hull;
         const length = Math.max(0.1, distance);
-        const mass = character.body.getMass();
-        character.body.applyLinearImpulse(
-          V((dx / length * knockback) * mass, (dy / length * knockback + 0.55) * mass),
-          character.body.getWorldCenter(),
-          true
+        const deltaV = isDirectTarget ? 12 : 11;
+        const dv = V(
+          dx / length * deltaV * Math.max(0.2, 1 - distance / blastRadius),
+          dy / length * deltaV * Math.max(0.2, 1 - distance / blastRadius) + 0.5
         );
+        character.rig.hit(dv, hitBody, isDirectTarget ? point : null);
+        applyBlastToRig(character.rig, point, isDirectTarget ? 11 : 10,
+          blastRadius, hitBody);
+      } else if (knockback > 0) {
+        applyBlastToRig(character.rig, point, knockback, blastRadius);
+      }
+
+      if (character.health <= 0) {
+        character.eliminated = true;
+        if (character.rig.mode !== "limp") character.rig.hit(V(0, 0));
       }
     }
+
     const damageSummary = damageEvents.map(event =>
       (event.character.team === 0 ? "Blue " : "Red ") + event.character.number +
       " -" + event.damage + (event.direct ? " direct " + event.location : " splash")
