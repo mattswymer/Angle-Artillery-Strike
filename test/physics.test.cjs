@@ -298,6 +298,32 @@ test("higher-gain joint balance sweep checks seed sensitivity", () => {
   assert.equal(gains.length, 15);
 });
 
+test("high-gain stance behavior is compared at identical starts on segmented and continuous terrain", () => {
+  const comparison = [];
+  for (const seed of SEEDS.slice(0, 4)) {
+    const segmented = runStanceCase(0, seed, 3, 0, 0, "segmented", true, 3.5, 0.02);
+    const continuous = runStanceCase(0, seed, 3, 0, 0, "continuous", true, 3.5, 0.02);
+    comparison.push({
+      seed,
+      startX: segmented.trace[0].x,
+      segmented: {
+        support: segmented.supportedTime,
+        tilt: segmented.maxRelativeTiltDegrees,
+        air: segmented.maxAirTime,
+        speed: segmented.maxSpeed
+      },
+      continuous: {
+        support: continuous.supportedTime,
+        tilt: continuous.maxRelativeTiltDegrees,
+        air: continuous.maxAirTime,
+        speed: continuous.maxSpeed
+      }
+    });
+  }
+  console.log("segmented versus continuous terrain", JSON.stringify(comparison));
+  assert.equal(comparison.length, 4);
+});
+
 test("shared joint driver moves a revolute joint toward a positive target angle", () => {
   const world = new planck.World({ gravity: planck.Vec2(0, 0) });
   const base = world.createBody();
