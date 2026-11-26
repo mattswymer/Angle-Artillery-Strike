@@ -72,6 +72,15 @@ for (const slope of [0, 20, 35]) {
   });
 }
 
+test("stance IK targets agree with the IK spawn pose on flat ground", () => {
+  const { rig, terrainProbe } = spawnRig(0);
+  rig.driveStance(STEP, terrainProbe);
+  const differences = Object.fromEntries(Object.entries(rig.lastJointTargets).map(([name, target]) =>
+    [name, Number((target - rig.initialTargets[name]).toFixed(4))]));
+  assert.ok(Object.values(differences).every(value => Math.abs(value) < 0.02),
+    JSON.stringify({ initial: rig.initialTargets, targets: rig.lastJointTargets, differences }));
+});
+
 test("initial motor pose can hold the rig without the stance controller", () => {
   const { world, rig } = spawnRig(0);
   const start = rig.torso.getPosition();
