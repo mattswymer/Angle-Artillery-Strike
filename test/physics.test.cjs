@@ -352,7 +352,9 @@ test("terrain-chain resolution sweep isolates multi-child foot contacts", () => 
 
 for (const degrees of [0, 20, 35]) {
   test(`character-proportion stance rig stands for three seconds on ${degrees} degree terrain across eight seeds`, () => {
-    const results = SEEDS.map(seed => runStanceCase(degrees, seed, 3));
+    const results = SEEDS.map(seed => degrees === 0
+      ? runStanceCase(degrees, seed, 3)
+      : runStanceCase(degrees, seed, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25, 0.05, 1.0, 1.0));
     console.log(`stance acceptance ${degrees} degrees`, JSON.stringify(results.map((r, i) => ({
       seed: SEEDS[i],
       support: r.supportedTime,
