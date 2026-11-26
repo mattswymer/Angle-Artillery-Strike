@@ -33,7 +33,7 @@ for (const slope of [0, 20, 35, 50]) {
     assert.equal(rig.mode, "active");
     assert.equal(rig.stiffness, 1);
     assert.equal(rig.torso, rig.byName.torso.body);
-    assert.equal(rig.pieces.length, 10);
+    assert.equal(rig.pieces.length, 12);
     assert.equal(rig.pieces.some(piece => piece.body.isFixedRotation()), false);
 
     for (let i = 0; i < 90; i++) world.step(1 / 60, 10, 6);
