@@ -508,9 +508,22 @@ function walkerController(walker, terrainAngleAt = () => 0) {
 }
 
 
+function getRigCenterOfMassX(walker) {
+  const bodies = [walker.hull];
+  for (const leg of walker.legs) bodies.push(leg.upper, leg.lower, leg.foot);
+  let weightedX = 0;
+  let totalMass = 0;
+  for (const body of bodies) {
+    const mass = body.getMass();
+    weightedX += body.getWorldCenter().x * mass;
+    totalMass += mass;
+  }
+  return totalMass > 0 ? weightedX / totalMass : walker.hull.getPosition().x;
+}
+
 function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1) {
   const { hull, legs } = walker;
-  const centerX = hull.getPosition().x;
+  const centerX = getRigCenterOfMassX(walker);
   const halfStance = 0.12;
   if (!walker.stanceTargets) {
     walker.stanceTargets = [centerX - halfStance, centerX + halfStance];
@@ -790,4 +803,4 @@ function runSlopeCase(degrees, seed = 12345, duration = 3, roughness = 0) {
   };
 }
 
-module.exports = { runSlopeCase, runStanceCase, runPostureCase, seededRandom, walkerController, stanceController, postureController, createWalker, createStanceRig, legIK, driveJoint };
+module.exports = { runSlopeCase, runStanceCase, runPostureCase, seededRandom, walkerController, stanceController, postureController, createWalker, createStanceRig, getRigCenterOfMassX, legIK, driveJoint };
