@@ -386,6 +386,29 @@ test("50 degree terrain exceeds the character stance rig's stable envelope", () 
     "steep terrain should exceed the stance controller's stability envelope");
 });
 
+test("slope stance failures are compared on a single edge and a simplified terrain chain", () => {
+  const comparison = [];
+  for (const degrees of [20, 35]) {
+    for (const seed of [1]) {
+      const chain = runStanceCase(degrees, seed, 3, 0, 0, "chain");
+      const edge = runStanceCase(degrees, seed, 3, 0, 0, "continuous");
+      comparison.push({
+        degrees, seed,
+        chain: {
+          support: chain.supportedTime, tilt: chain.maxRelativeTiltDegrees,
+          air: chain.maxAirTime, speed: chain.maxSpeed, trace: chain.trace
+        },
+        edge: {
+          support: edge.supportedTime, tilt: edge.maxRelativeTiltDegrees,
+          air: edge.maxAirTime, speed: edge.maxSpeed, trace: edge.trace
+        }
+      });
+    }
+  }
+  console.log("slope contact geometry comparison", JSON.stringify(comparison));
+  assert.equal(comparison.length, 2);
+});
+
 test("shared joint driver moves a revolute joint toward a positive target angle", () => {
   const world = new planck.World({ gravity: planck.Vec2(0, 0) });
   const base = world.createBody();
