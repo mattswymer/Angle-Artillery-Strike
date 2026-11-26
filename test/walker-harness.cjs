@@ -554,8 +554,10 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1) {
     const lift = swing ? Math.sin(progress * Math.PI) * 0.12 : 0;
     return { x, y: heightAt(x) + FOOT_HALF_HEIGHT * 2 + lift };
   });
-  const pelvisTargetY = Math.min(footTargets[0].y, footTargets[1].y) - 0.12 +
-    0.95 * (UPPER_LENGTH + LOWER_LENGTH);
+  const pelvisTargetY = Math.min(
+    heightAt(walker.stanceTargets[0]) + FOOT_HALF_HEIGHT * 2,
+    heightAt(walker.stanceTargets[1]) + FOOT_HALF_HEIGHT * 2
+  ) + 0.95 * (UPPER_LENGTH + LOWER_LENGTH);
 
   for (let i = 0; i < legs.length; i++) {
     const leg = legs[i];
