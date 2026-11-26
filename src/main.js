@@ -298,7 +298,7 @@
     activeNameEl.textContent = active ? (active.team === 0 ? "Blue" : "Red") + " " + active.number : "—";
     seedLabel.textContent = "Seed " + seed;
     fireButton.textContent = "Fire";
-    fireButton.disabled = activeAction === "move" || activeAction === "attack" || Boolean(projectile);
+    fireButton.disabled = !canAct(active) || activeAction === "move" || activeAction === "attack" || Boolean(projectile);
   }
 
   function setAimLabels() {
@@ -307,17 +307,7 @@
   }
 
   function isGrounded(character) {
-    const p = character.body.getPosition();
-    let found = false;
-    world.rayCast(V(p.x, p.y - 0.77), V(p.x, p.y - 0.91), (fixture, point, normal, fraction) => {
-      if (fixture.getBody() === character.body) return -1;
-      if (fixture.getBody().getUserData()?.kind === "terrain") {
-        found = true;
-        return fraction;
-      }
-      return -1;
-    });
-    return found;
+    return character.rig.legs.some(leg => CharacterRig.isGroundContact(leg.foot));
   }
 
   function stepHeightAhead(character, direction) {
@@ -339,7 +329,7 @@
 
   function moveActive() {
     const character = activeCharacter();
-    if (!character || character.eliminated || (character.ragdoll && !character.ragdoll.standing) || projectile || activeAction === "attack") return;
+    if (!canAct(character) || projectile || activeAction === "attack") return;
     const velocity = character.body.getLinearVelocity();
     const heldDirection = (held.right ? 1 : 0) - (held.left ? 1 : 0);
     let direction = heldDirection || (tapMoveRemaining > 0 ? tapMoveDirection : 0);
@@ -396,7 +386,7 @@
 
   function fire() {
     const character = activeCharacter();
-    if (!character || character.eliminated || (character.ragdoll && !character.ragdoll.standing) || projectile || activeAction === "move" || activeAction === "attack") return;
+    if (!canAct(character) || projectile || activeAction === "move" || activeAction === "attack") return;
     activeAction = "attack";
     updateHud();
     const angle = Number(angleInput.value) * Math.PI / 180;
@@ -1493,7 +1483,7 @@
   canvas.addEventListener("pointerdown", event => {
     if (aimMode !== "pullback" || projectile || activeAction === "move" || activeAction === "attack") return;
     const character = activeCharacter();
-    if (!character || character.eliminated || (character.ragdoll && !character.ragdoll.standing)) return;
+    if (!canAct(character)) return;
     event.preventDefault();
     const rect = canvas.getBoundingClientRect();
     pullbackOrigin = { x: event.clientX - rect.left, y: event.clientY - rect.top };
