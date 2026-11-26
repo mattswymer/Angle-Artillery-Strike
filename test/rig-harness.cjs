@@ -288,47 +288,55 @@ function stepRig(world, rig, slopeRadians, dt = STEP) {
   let worstNormalAngle = 0;
   let minFootX = Infinity;
   let maxFootX = -Infinity;
+  const supportingLegs = [];
 
   for (const leg of rig.legs) {
     const contact = footContact(leg.foot);
-    if (contact) {
-      contacts++;
-      const footIsFixtureA = contact.contact.getFixtureA().getBody() === leg.foot;
-      const upwardNormal = footIsFixtureA
-        ? V(-contact.normal.x, -contact.normal.y)
-        : contact.normal;
-      // The failure threshold is measured from world vertical, not from the
-      // local ground normal (otherwise every slope would read as zero degrees).
-      const angleFromVertical = Math.acos(Math.max(-1, Math.min(1, upwardNormal.y)));
-      worstNormalAngle = Math.max(worstNormalAngle, angleFromVertical);
-    }
+    if (!contact) continue;
+    contacts++;
+    supportingLegs.push(leg);
+    const footIsFixtureA = contact.contact.getFixtureA().getBody() === leg.foot;
+    const upwardNormal = footIsFixtureA
+      ? V(-contact.normal.x, -contact.normal.y)
+      : contact.normal;
+    const angleFromVertical = Math.acos(Math.max(-1, Math.min(1, upwardNormal.y)));
+    worstNormalAngle = Math.max(worstNormalAngle, angleFromVertical);
     const px = leg.foot.getPosition().x;
     minFootX = Math.min(minFootX, px);
     maxFootX = Math.max(maxFootX, px);
   }
 
-  const outsideSupport = centerOfMass.x < minFootX - 0.04 ||
+  // Only planted feet count as support. A swinging foot is not part of the
+  // support interval until it actually touches the ground again.
+  const outsideSupport = contacts === 0 ||
+    centerOfMass.x < minFootX - 0.04 ||
     centerOfMass.x > maxFootX + 0.04;
   rig.outsideTime = outsideSupport ? rig.outsideTime + dt : 0;
 
-  // Step only when the torso COM leaves the current foot support span.
   if (outsideSupport && !rig.legs.some(leg => leg.step)) {
-    const left = centerOfMass.x < minFootX;
-    const leg = rig.legs.reduce((chosen, candidate) => {
-      if (!chosen) return candidate;
-      const a = candidate.foot.getPosition().x;
-      const b = chosen.foot.getPosition().x;
-      return left ? (a < b ? candidate : chosen) : (a > b ? candidate : chosen);
-    }, null);
-    const fromX = leg.foot.getPosition().x;
-    // Predict the COM's drift during the swing so the new support foot lands
-    // ahead of the falling body rather than directly beneath its current pose.
+    let steppingLeg;
+    let left;
+    if (supportingLegs.length === 1) {
+      steppingLeg = rig.legs.find(leg => leg !== supportingLegs[0]);
+      left = centerOfMass.x < supportingLegs[0].foot.getPosition().x;
+    } else if (supportingLegs.length === 2) {
+      left = centerOfMass.x < minFootX;
+      // Keep the foot under the COM planted; move the opposite foot across.
+      steppingLeg = left
+        ? supportingLegs.reduce((a, b) => a.foot.getPosition().x > b.foot.getPosition().x ? a : b)
+        : supportingLegs.reduce((a, b) => a.foot.getPosition().x < b.foot.getPosition().x ? a : b);
+    } else {
+      left = centerOfMass.vx < 0;
+      steppingLeg = rig.legs[0];
+    }
+
     const stepDistance = Math.max(0.18, Math.min(0.45,
       0.18 + Math.abs(centerOfMass.vx) * 0.20
     ));
+    const fromX = steppingLeg.foot.getPosition().x;
     const toX = centerOfMass.x + (left ? -stepDistance : stepDistance);
     if (Math.abs(toX - fromX) > 0.12) {
-      leg.step = { fromX, toX, elapsed: 0, duration: 0.24 };
+      steppingLeg.step = { fromX, toX, elapsed: 0, duration: 0.18 };
     }
   }
 
