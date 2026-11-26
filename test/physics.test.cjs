@@ -164,15 +164,15 @@ test("stance swing foot target preserves its lift instead of being flattened to 
     `swing target should clear the planted ankle height: ${JSON.stringify(result)}`);
 });
 
-test("character-proportion rig remains symmetric on a continuous flat ground edge", () => {
-  const segmented = runRigSymmetryCase(false);
-  const continuous = runRigSymmetryCase(true);
-  assert.ok(segmented.initialError < 1e-6 && continuous.initialError < 1e-6,
-    `initial rig geometry is not symmetric: ${JSON.stringify({ segmented, continuous })}`);
-  assert.ok(continuous.oneStepError < 1e-3,
-    `one-step response is not symmetric even on a continuous ground edge: ${JSON.stringify({ segmented, continuous })}`);
-  assert.equal(continuous.contacts[0], continuous.contacts[1],
-    `left/right foot contacts differ on continuous flat ground: ${JSON.stringify(continuous)}`);
+test("character-proportion rig isolates controller-induced symmetry drift", () => {
+  const passive = runRigSymmetryCase(true, false);
+  const controlled = runRigSymmetryCase(true, true);
+  assert.ok(passive.initialError < 1e-6 && controlled.initialError < 1e-6,
+    `initial rig geometry is not symmetric: ${JSON.stringify({ passive, controlled })}`);
+  assert.ok(passive.oneStepError < 1e-3 && controlled.oneStepError < 1e-3,
+    `one-step symmetry drift: ${JSON.stringify({ passive, controlled })}`);
+  assert.equal(passive.contacts[0], passive.contacts[1]);
+  assert.equal(controlled.contacts[0], controlled.contacts[1]);
 });
 
 test("shared joint driver moves a revolute joint toward a positive target angle", () => {
