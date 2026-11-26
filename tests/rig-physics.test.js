@@ -29,9 +29,10 @@ function spawnRig(slope) {
   const { world, groundY, terrainProbe, angle } = makeSlopeWorld(slope);
   const leftX = -0.18;
   const rightX = 0.18;
+  const normal = { x: -Math.sin(angle), y: Math.cos(angle) };
   const footTargets = [
-    { x: leftX, y: groundY(leftX) + 0.06, angle },
-    { x: rightX, y: groundY(rightX) + 0.06, angle }
+    { x: leftX + normal.x * 0.06, y: groundY(leftX) + normal.y * 0.06, angle, probeX: leftX },
+    { x: rightX + normal.x * 0.06, y: groundY(rightX) + normal.y * 0.06, angle, probeX: rightX }
   ];
   const pelvisY = Math.min(footTargets[0].y, footTargets[1].y) + 0.95 * (0.41 + 0.34);
   const rig = globalThis.CharacterRig.buildRig(Planck, world, 0, 1,
