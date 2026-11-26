@@ -668,7 +668,19 @@
     }
   }
 
+  function setRecoveryHandContacts(ragdoll, enabled) {
+    for (const name of ["left-lower-arm", "right-lower-arm"]) {
+      const fixture = ragdoll.byName[name].body.getFixtureList();
+      if (!fixture) continue;
+      fixture.setSensor(!enabled);
+      fixture.setFriction(enabled ? 0.72 : 0.18);
+    }
+  }
+
   function beginRecovery(ragdoll) {
+    // During the tumble hands are sensors to avoid snagging. They become real
+    // colliders for the push-up and remain physical while the character stands.
+    setRecoveryHandContacts(ragdoll, true);
     ragdoll.gettingUp = true;
     ragdoll.standing = false;
     ragdoll.recoveryPhase = "roll";
@@ -692,8 +704,9 @@
 
     if (phase === "roll") {
       // First turn the torso face-up into a side/prone recovery orientation.
-      const direction = wrapAngle(torso.getAngle()) > 0 ? -1 : 1;
-      torso.applyTorque(direction * torso.getInertia() * 7 - torso.getAngularVelocity() * torso.getInertia() * 2.4, true);
+      const angle = wrapAngle(torso.getAngle());
+      torso.applyTorque(-angle * torso.getInertia() * 8 -
+        torso.getAngularVelocity() * torso.getInertia() * 2.8, true);
       applyRecoveryPose(ragdoll, "roll");
       if (torsoAngle < 0.48 && ragdollHasGroundContact(ragdoll) && ragdoll.phaseTime > 0.25) {
         ragdoll.recoveryPhase = "hands-knees";
@@ -884,6 +897,7 @@
       if (isDirectTarget || ragdollDeltaV > 3.5) {
         if (!character.ragdoll) createRagdoll(character, point, isDirectTarget ? directHit.location : "chest");
         if (character.ragdoll.standing || character.ragdoll.gettingUp) {
+          if (character.ragdoll.gettingUp) setRecoveryHandContacts(character.ragdoll, false);
           character.ragdoll.standing = false;
           character.ragdoll.gettingUp = false;
           character.ragdoll.elapsedTime = 0;
