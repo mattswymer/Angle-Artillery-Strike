@@ -530,11 +530,11 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1) {
       const minFootX = Math.min(...planted);
       const maxFootX = Math.max(...planted);
       if (centerX < minFootX - 0.04) {
-        walker.swingIndex = 1;
-        walker.stanceTargets[1] = centerX - halfStance;
-      } else if (centerX > maxFootX + 0.04) {
         walker.swingIndex = 0;
-        walker.stanceTargets[0] = centerX + halfStance;
+        walker.stanceTargets[0] = centerX - halfStance;
+      } else if (centerX > maxFootX + 0.04) {
+        walker.swingIndex = 1;
+        walker.stanceTargets[1] = centerX + halfStance;
       }
     }
   }
