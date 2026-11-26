@@ -48,3 +48,13 @@ for (const degrees of [0, 20, 35, 50]) {
     }
   });
 }
+
+test("diagnostic: flat and 20-degree stance without protective stepping", () => {
+  const flat = runSlopeCase(0, 12345, false);
+  const slope = runSlopeCase(20, 12345, false);
+  console.log("NO_STEP_DIAGNOSTIC", JSON.stringify({
+    flat: { stable: flat.stable, stableFor: flat.stableFor, everLimp: flat.everLimp, finalAngle: flat.finalAngle, trace: flat.trace },
+    slope20: { stable: slope.stable, stableFor: slope.stableFor, everLimp: slope.everLimp, finalAngle: slope.finalAngle, trace: slope.trace }
+  }));
+  assert.ok(Number.isFinite(flat.finalAngle) && Number.isFinite(slope.finalAngle));
+});
