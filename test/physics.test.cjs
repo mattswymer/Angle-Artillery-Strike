@@ -519,7 +519,7 @@ test("eight production rigs settle on a seeded uneven map without self-collision
   const rigs = positions.map((x, index) => {
     const angle = terrainAngleAt(x);
     const slope = Math.abs(angle) * 180 / Math.PI;
-    const settings = slope > 3
+    const settings = slope > 1.5
       ? {
           stance: 0.1, pelvis: 0.85, bend: "slope-adaptive",
           high: 0.4, low: 1, reach: 0.12, lookahead: 0.41,
