@@ -637,6 +637,12 @@ test("production jump crouches, extends, leaves the ground, tucks, and lands sof
   assert.ok(maxY > startY + 0.1, `jump height was ${maxY - startY}`);
   assert.equal(rig.jumping, false);
   assert.equal(rig.mode, "active");
+  assert.ok(rig.legs.every(leg => productionRig.isGroundContact(leg.foot)),
+    "jump must finish with both feet planted");
+  assert.ok(rig.hull.getPosition().y > startY - 0.1,
+    "jump must not finish with the torso collapsed below its standing height");
+  assert.ok(Math.abs(rig.hull.getAngle()) < 0.35,
+    "torso must remain upright through landing");
 });
 
 test("production rig module builds the same twelve-body, eleven-joint character", () => {
