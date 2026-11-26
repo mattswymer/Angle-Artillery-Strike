@@ -191,14 +191,19 @@ test("spawn settling phase records physical stability after 60 physics steps", (
 });
 
 test("stance contact-load trace captures the first second of flat-ground behavior", () => {
-  const result = runStanceCase(0, 1, 1);
+  const result = runStanceCase(0, 1, 3);
   console.log("flat stance load trace", JSON.stringify(result.trace));
-  assert.equal(result.trace.length, 6);
+  assert.equal(result.trace.length, 16);
   for (const sample of result.trace) {
     for (const leg of sample.legs) {
       assert.ok(Number.isFinite(leg.ankleTorque));
       assert.ok(Number.isFinite(leg.hipTorque));
       assert.ok(Number.isFinite(leg.kneeTorque));
+      assert.ok(Number.isFinite(leg.motorTorque.hip));
+      assert.ok(Number.isFinite(leg.motorTorque.knee));
+      assert.ok(Number.isFinite(leg.motorTorque.ankle));
+      assert.ok(leg.ankleAnchorError < 1e-5,
+        `ankle joint anchors separated: ${JSON.stringify(leg)}`);
     }
   }
 });
