@@ -19,17 +19,25 @@ function driveJoint(j, target, kp, wMax, tauMax, stiffness) {
 
 The two-bone IK solver clamps unreachable targets and has geometry tests for both bend directions. A separate Planck test verifies the revolute-motor sign convention. A regression test also verifies that a swing foot retains its computed lift; a previous assignment accidentally flattened the target back to planted height.
 
-## Important current limitation
+## Upright stance results
 
-**The stance rig is only partially validated.** It now passes three-second flat-ground and 20° slope tests across eight fixed seeds. It still does not pass the 35° slope requirement.
+**The character-proportion stance rig now uses a torso target upright relative to gravity.** The 20° and 35° slope cases do not tilt the torso to match the terrain.
 
-The current acceptance tests verify three seconds of support on flat ground and 20° terrain across eight fixed seeds. The 20° case uses a narrower stance and a torso target aligned to the terrain. The 35° case is retained as a characterization test and still falls. The original ±0.6-radian ankle limits leave the high-side foot unable to align to the 35° surface; the target ankle angle is about 0.9 radians in the initial pose.
+The key corrections were:
 
-The balance controller now measures the actual planted foot contact-patch bounds, rather than treating each foot as a point. This eliminated premature swing initiation and is the change that made the 20° test pass. Swing targets remain fixed until landing, and a regression test verifies that the swing lift is preserved. The remaining 35° issue is no longer an early-step trigger: the high-side ankle saturates before it can align the foot to the terrain.
+- Use the same knee-bend direction for the common leg posture, with a slope-adaptive bend on the high-side leg at 20°. This keeps the initial ankle joint angles inside the existing ±0.6-radian limits.
+- Base balance on the actual planted foot contact-patch bounds rather than treating each foot as a point.
+- Predict center-of-mass motion when deciding when to take a corrective step, then place the swing foot ahead of the predicted COM.
+- Blend the live hip anchor with the pelvis-height reference. The 35° case uses a 0.8 blend.
+- Use 6 Nm hip and knee motor limits for this test rig; ankle torque remains 1.5 Nm. All six motors still use the shared bounded joint driver.
 
-A bilateral diagnostic confirms that the rig's initial geometry and a free-flight physics step are mirror-symmetric. Independent terrain edge fixtures produced seam-sensitive results; the harness now simplifies collinear terrain samples before creating a connected Planck chain, matching the production terrain contour simplification. A separate diagnostic confirms that a 60-step controlled settling phase is not needed for the flat-ground acceptance case.
+The headless Planck acceptance tests now cover eight fixed seeds on flat, 20°, and 35° terrain. Flat and 20° cases maintain support for the full three seconds with no airtime. The 20° high-side bend is adapted to keep both initial ankle angles within ±0.6 radians.
 
-The reference gait controller and its existing slope results remain separate from this stance result. Passing the locomotion tests does not imply that the new stance rig is stable. A diagnostic ankle-limit sweep shows that ±0.8 radians improves 35° behavior but still does not produce a stable three-second stand; increasing ankle motor torque from 1.5 to 6 Nm has negligible effect. No change to the production ragdoll or its ±0.6-radian test limits has been made.
+The 35° case maintains an upright torso (under 10° maximum tilt) and at least 2.9 seconds of support in each three-second run. It can have a single 20 ms physics step with neither foot in contact during a corrective transfer; that is below the 0.3-second no-contact threshold intended to trigger limp. This is a controlled dynamic stance, not a perfectly motionless two-foot pose.
+
+The 50° case remains outside the stance controller's stable envelope. The reference gait controller and the character-proportion stance rig are separate experiments; passing one does not imply the other is stable.
+
+A bilateral diagnostic confirms that the rig's initial geometry and a free-flight physics step are mirror-symmetric. The harness simplifies collinear terrain samples before creating connected Planck chains, matching the production terrain contour simplification. A 60-step settling diagnostic remains available for spawn initialization.
 
 ## Reference locomotion cases
 
@@ -55,10 +63,10 @@ npm install
 npm test
 ```
 
-GitHub Actions is the authoritative execution environment when local dependency installation is unavailable. The suite currently contains 27 passing tests. It covers reference locomotion, rig structure and motor coverage, IK geometry, motor-sign verification, swing-clearance regression, bilateral symmetry, spawn settling, three-second flat/20° stance acceptance, and a 35° failure characterization. The 35° acceptance criterion remains unmet.
+GitHub Actions is the authoritative execution environment when local dependency installation is unavailable. The suite currently contains 24 tests. It covers reference locomotion, rig structure and motor coverage, IK geometry, motor-sign verification, swing-clearance regression, bilateral symmetry, spawn settling, and repeatable flat/20°/35° upright stance acceptance across eight fixed seeds. The 35° acceptance allows at most one 20 ms contact-transfer gap in a three-second run.
 
 ## Scope and next steps
 
 The harness remains isolated. The production game still uses its existing character implementation; `src/main.js` has not been modified by this experiment.
 
-Do not integrate the stance rig until it passes real physical acceptance criteria: stable for three seconds on 0°, 20°, and 35° terrain; no unintended limp transition at spawn; and deterministic results across fixed seeds. The unresolved design choice is whether the torso may lean with the local terrain and whether the ankle range/leg geometry may change to support 35° terrain. Once that is achieved, proceed to fall triggers, hit-driven limp, recovery, turn-safety handling, and only then walking/jumping.
+The headless stance milestone is sufficiently validated to begin a production integration pass, but it is not yet integrated or browser-tested. Preserve the gravity-upright torso, ±0.6 ankle limits, and seeded acceptance cases. Next, replace the production capsule/ragdoll split with one rig from spawn, add turn-safety handling, then implement limp and recovery. Walking and jumping remain last. Do not merge until the integrated build is tested in desktop and Android browsers.
