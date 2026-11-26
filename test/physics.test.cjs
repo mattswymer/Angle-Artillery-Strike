@@ -457,6 +457,21 @@ test("terrain-relative torso lean and pelvis-height sweep finds a feasible slope
   assert.equal(results.length, 18);
 });
 
+test("candidate terrain-aligned slope pose records its initial and failure state", () => {
+  const cases = [20, 35].map(degrees => {
+    const result = runStanceCase(degrees, 1, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25, 0.05, 1.0, 1.0);
+    return {
+      degrees,
+      support: result.supportedTime,
+      tilt: result.maxRelativeTiltDegrees,
+      air: result.maxAirTime,
+      trace: result.trace.slice(0, 8)
+    };
+  });
+  console.log("candidate slope pose trace", JSON.stringify(cases));
+  assert.equal(cases.length, 2);
+});
+
 test("shared joint driver moves a revolute joint toward a positive target angle", () => {
   const world = new planck.World({ gravity: planck.Vec2(0, 0) });
   const base = world.createBody();
