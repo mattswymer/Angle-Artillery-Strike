@@ -349,6 +349,44 @@ test("upright common-bend stance sweeps predictive COM lookahead for balance ste
   assert.equal(results.length, 20);
 });
 
+test("upright 20 degree near-pass tunes step reach and timing", () => {
+  const results = [];
+  for (const stepReach of [0.12, 0.18, 0.24, 0.3]) {
+    for (const stepLookahead of [0.3, 0.35, 0.4, 0.45]) {
+      const r = runStanceCase(
+        20, 1, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25,
+        0.25, 0.85, 0, 0, 0.6, 1.5, "same-positive", stepReach, stepLookahead, 6, 6
+      );
+      results.push({
+        stepReach, stepLookahead, support: r.supportedTime,
+        bothFeet: r.bothFeetContactTime, tilt: r.maxAbsoluteTiltDegrees,
+        air: r.maxAirTime, speed: r.maxSpeed
+      });
+    }
+  }
+  console.log("upright 20 degree near-pass step tuning", JSON.stringify(results));
+  assert.equal(results.length, 16);
+});
+
+test("upright 35 degree near-pass tunes step reach and timing", () => {
+  const results = [];
+  for (const stepReach of [0.12, 0.18, 0.24, 0.3]) {
+    for (const stepLookahead of [0.2, 0.25, 0.3, 0.35]) {
+      const r = runStanceCase(
+        35, 1, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25,
+        0.05, 0.95, 0, 0, 0.6, 1.5, "same-positive", stepReach, stepLookahead, 6, 6
+      );
+      results.push({
+        stepReach, stepLookahead, support: r.supportedTime,
+        bothFeet: r.bothFeetContactTime, tilt: r.maxAbsoluteTiltDegrees,
+        air: r.maxAirTime, speed: r.maxSpeed
+      });
+    }
+  }
+  console.log("upright 35 degree near-pass step tuning", JSON.stringify(results));
+  assert.equal(results.length, 16);
+});
+
 test("upright 20 degree stance sweeps width and pelvis height with stronger joints", () => {
   const results = [];
   for (const stanceHalfWidth of [0.1, 0.15, 0.2, 0.25]) {
