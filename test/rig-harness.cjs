@@ -422,7 +422,7 @@ function stepRig(world, rig, slopeRadians, dt = STEP, allowSteps = true) {
     // reference; using it as a fictitious hinge point makes the IK command a
     // pose the physical joint cannot actually reach when the torso moves.
     const actualHipAnchor = rig.torso.getWorldPoint(V(leg.side * 0.105, -0.25));
-    const hip = V(actualHipAnchor.x, pelvisTargetY);
+    const hip = actualHipAnchor;
     const ik = solveLegIK(hip, ankle, SEGMENT.thigh, SEGMENT.shin, leg.bend);
     const hipTarget = ik.thighAngle - rig.torso.getAngle();
     const kneeTarget = ik.kneeRelative;
