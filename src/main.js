@@ -161,16 +161,21 @@
 
   function randomTeamPositions(random, minX, maxX, count) {
     const positions = [];
+    const safeSlope = x => Math.abs(terrainAngleAt(x)) <= 35 * Math.PI / 180;
     let attempts = 0;
-    while (positions.length < count && attempts++ < 500) {
+    while (positions.length < count && attempts++ < 700) {
       const candidate = minX + random() * (maxX - minX);
-      if (positions.every(x => Math.abs(x - candidate) >= 1.35)) positions.push(candidate);
+      if (safeSlope(candidate) && positions.every(x => Math.abs(x - candidate) >= 1.35)) {
+        positions.push(candidate);
+      }
     }
     if (positions.length < count) {
-      positions.length = 0;
-      const spacing = (maxX - minX) / count;
-      for (let i = 0; i < count; i++) {
-        positions.push(minX + spacing * (i + 0.5));
+      const candidates = Array.from({ length: 161 }, (_, index) =>
+        minX + (index + 0.5) / 161 * (maxX - minX)
+      ).filter(safeSlope);
+      for (const candidate of shuffle(candidates, random)) {
+        if (positions.length >= count) break;
+        if (positions.every(x => Math.abs(x - candidate) >= 1.35)) positions.push(candidate);
       }
     }
     return shuffle(positions, random);
