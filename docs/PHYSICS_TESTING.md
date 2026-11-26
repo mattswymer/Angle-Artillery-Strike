@@ -4,10 +4,12 @@
 
 The earlier custom 12-body IK/stance experiment has been removed from the active test suite. The isolated prototype now ports the lower-body architecture and control pattern of Gymnasium's Box2D BipedalWalker into Planck.js:
 
-- one hull/torso plus two upper-leg and two lower-leg bodies
-- four revolute joints: hips and knees
-- the reference model's joint anchors, segment proportions, density/friction relationships, limits, and motor model
-- ground contact detected on the lower-leg bodies
+- one hull/torso, two upper-leg bodies, two lower-leg bodies, and two separate foot bodies
+- six revolute joints: hips, knees, and ankles
+- the reference model's joint anchors, segment proportions, density/friction relationships, limits, and hip/knee motor model
+- compact high-friction feet (0.9) with ankle limits of approximately ±0.6 radians
+- ankle target tracking through a bounded, stiffness-scaled joint driver
+- ground contact detected on the foot bodies
 - three-phase gait: stay on one leg, put the other down, push off
 - joint-angle feedback with normalized joint-speed damping
 - torso-angle/angular-velocity feedback shared by both hips
@@ -38,7 +40,7 @@ The headless Planck suite runs three-second locomotion cases on 0°, 20°, 35°,
 - 50° must exceed the controlled locomotion envelope (excessive downhill speed or a prolonged airborne interval)
 - On gently uneven 0°, 20°, and 35° terrain, all eight seeds must remain upright and accumulate at least 1.5 seconds of ground-supported time
 
-The 50° test currently measures loss of controlled gait across all eight seeds, not a completed knockdown animation. Physical fall detection and ragdoll response are separate integration work. The uneven-terrain cases use a smooth analytic profile represented by short Planck edge segments; they are not yet a test of abrupt cliffs, craters, or terrain destruction.
+The 50° test currently measures loss of controlled gait across all eight seeds using excessive downhill speed or prolonged airtime, not a completed knockdown animation. Physical fall detection and ragdoll response are separate integration work. The uneven-terrain cases use a smooth analytic profile represented by short Planck edge segments; they are not yet a test of abrupt cliffs, craters, or terrain destruction.
 
 GitHub Actions is the authoritative execution environment when local dependency installation is unavailable. The current headless Planck run result is reported by the latest GitHub Actions workflow.
 
