@@ -107,19 +107,19 @@
     rig.balanceTime = outsideSupport ? rig.balanceTime + dt : 0;
     if (rig.balanceTime > 0.25) {
       const side = com.x > supportMax ? 1 : 0;
-      rig.footTargets[side].x = com.x + (side === 0 ? -stanceHalf : stanceHalf);
+      rig.footTargets[side].probeX = com.x + (side === 0 ? -stanceHalf : stanceHalf);
       rig.balanceTime = 0;
     }
 
-    const samples = rig.footTargets.map((target, index) => {
-      const probeX = target.x;
+    const samples = rig.footTargets.map(target => {
+      const probeX = target.probeX ?? target.x;
       return terrainProbe(probeX, com.y + 1.0, com.y - 2.0);
     });
     if (samples.some(sample => !sample)) return;
 
     const footTargets = samples.map((sample, index) => ({
-      x: rig.footTargets[index].x,
-      y: sample.point.y + 0.06,
+      x: sample.point.x + sample.normal.x * 0.06,
+      y: sample.point.y + sample.normal.y * 0.06,
       angle: Math.atan2(-sample.normal.x, sample.normal.y),
       normal: sample.normal
     }));
@@ -322,7 +322,10 @@
       mode: "active",
       stiffness: 1,
       Planck,
-      footTargets: footTargets.map(target => ({ x: target.x, y: target.y, angle: target.angle || 0 })),
+      footTargets: footTargets.map(target => ({
+        x: target.x, y: target.y, angle: target.angle || 0,
+        probeX: target.probeX ?? target.x
+      })),
       balanceTime: 0,
       outsideSupportTime: 0,
       noContactTime: 0,
