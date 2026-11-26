@@ -404,7 +404,11 @@ function updateRigFallState(walker, deltaTime = FIXED_DT, jumping = false) {
   const predictedCenterX = centerX + walker.hull.getLinearVelocity().x * 0.25;
   const outsideSupport = support !== null &&
     (predictedCenterX < support.min - 0.04 || predictedCenterX > support.max + 0.04);
-  walker.outsideSupportTime = outsideSupport ? walker.outsideSupportTime + deltaTime : 0;
+  // An intentional jump has no planted support while airborne. Do not
+  // interpret the expected COM/support separation as an uncontrolled fall.
+  walker.outsideSupportTime = jumping
+    ? 0
+    : (outsideSupport ? walker.outsideSupportTime + deltaTime : 0);
 
   const torsoTilt = Math.abs(wrapAngle(walker.hull.getAngle()));
   let reason = null;
