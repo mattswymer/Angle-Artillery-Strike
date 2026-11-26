@@ -635,7 +635,11 @@ test("production jump crouches, extends, leaves the ground, tucks, and lands sof
     mode: rig.mode, jumpPhase: rig.jumpPhase, jumpLandContactTime: rig.jumpLandContactTime,
     contacts: rig.legs.map(leg => productionRig.isGroundContact(leg.foot)),
     feet: rig.legs.map(leg => ({ x: leg.foot.getPosition().x, y: leg.foot.getPosition().y })),
-    targets: rig.stanceTargets
+    targets: rig.stanceTargets,
+    kneeAngles: rig.legs.map(leg => leg.knee.getJointAngle()),
+    hipAngles: rig.legs.map(leg => leg.hip.getJointAngle()),
+    stiffness: rig.stiffness,
+    fallReason: rig.fallReason
   }));
   assert.ok(phases.has("crouch"));
   assert.ok(phases.has("extend"));
