@@ -292,7 +292,7 @@ const LOWER_HALF_WIDTH = 0.06;
 const FOOT_HALF_LENGTH = 0.09;
 const FOOT_HALF_HEIGHT = 0.03;
 
-function createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidth = 0.12, pelvisRatio = 0.95, terrainTiltBlend = 0, stanceCenterBlend = 0, ankleLimit = 0.6) {
+function createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidth = 0.12, pelvisRatio = 0.95, terrainTiltBlend = 0, stanceCenterBlend = 0, ankleLimit = 0.6, bendMode = "side") {
   // Start the torso aligned with the local terrain frame; the feet independently
   // align to the surface normal through their ankle joints.
   const initialTerrainAngle = terrainAngleAt(startX) * terrainTiltBlend;
@@ -325,7 +325,8 @@ function createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidt
     const ankleTarget = Vec2(targetX, heightAt(targetX) + FOOT_HALF_HEIGHT * 2);
     const actualHip = hull.getWorldPoint(Vec2(side * HIP_X, HIP_Y));
     const hipWorld = actualHip;
-    const solution = legIK(hipWorld, ankleTarget, UPPER_LENGTH, LOWER_LENGTH, side);
+    const bend = bendMode === "same-positive" ? 1 : bendMode === "same-negative" ? -1 : side;
+    const solution = legIK(hipWorld, ankleTarget, UPPER_LENGTH, LOWER_LENGTH, bend);
 
     const upperAngle = solution.thighDir + Math.PI / 2;
     const upperAnchorOffset = rotateLocal(Vec2(0, UPPER_LENGTH / 2), upperAngle);
@@ -381,8 +382,8 @@ function createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidt
       localAnchorB: Vec2(0, LOWER_LENGTH / 2),
       enableMotor: true,
       enableLimit: true,
-      lowerAngle: side < 0 ? -0.25 : -2.2,
-      upperAngle: side < 0 ? 2.2 : 0.25,
+      lowerAngle: bend < 0 ? -0.25 : -2.2,
+      upperAngle: bend < 0 ? 2.2 : 0.25,
       maxMotorTorque: 18,
       referenceAngle: 0,
       collideConnected: false
@@ -420,7 +421,7 @@ function createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidt
     }, lower, foot));
 
     legs.push({
-      side, upper, lower, foot, hip, knee, ankle,
+      side, bend, upper, lower, foot, hip, knee, ankle,
       upperLength: UPPER_LENGTH, lowerLength: LOWER_LENGTH,
       targetX
     });
@@ -670,7 +671,7 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1, balan
       pelvisTargetY + leg.side * HIP_X * Math.sin(hull.getAngle())
     );
     const ankleTarget = Vec2(target.x, target.y);
-    const solution = legIK(hipWorld, ankleTarget, leg.upperLength, leg.lowerLength, leg.side);
+    const solution = legIK(hipWorld, ankleTarget, leg.upperLength, leg.lowerLength, leg.bend);
 
     // Box long axes point down at body angle zero. Convert the IK's
     // mathematical +X segment direction into Planck body/joint angles.
@@ -839,7 +840,7 @@ function runRigSymmetryCase(continuousGround = false, runController = true) {
   };
 }
 
-function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmupSteps = 0, groundStyle = "chain", controllerEnabled = true, balanceKp = 3.5, balanceKd = 0.02, chainStep = 0.25, stanceHalfWidth = 0.12, pelvisRatio = 0.95, terrainTiltBlend = 0, stanceCenterBlend = 0, ankleLimit = 0.6, ankleTorqueMax = 1.5) {
+function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmupSteps = 0, groundStyle = "chain", controllerEnabled = true, balanceKp = 3.5, balanceKd = 0.02, chainStep = 0.25, stanceHalfWidth = 0.12, pelvisRatio = 0.95, terrainTiltBlend = 0, stanceCenterBlend = 0, ankleLimit = 0.6, ankleTorqueMax = 1.5, bendMode = "side") {
   const random = seededRandom(seed);
   const phaseA = random() * Math.PI * 2;
   const phaseB = random() * Math.PI * 2;
@@ -849,7 +850,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
       ? makeSegmentedWorld(degrees, roughness, phaseA, phaseB)
       : makeWorld(degrees, roughness, phaseA, phaseB, chainStep);
   const startX = (random() - 0.5) * 0.2;
-  const walker = createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidth, pelvisRatio, terrainTiltBlend, stanceCenterBlend, ankleLimit);
+  const walker = createStanceRig(world, startX, heightAt, terrainAngleAt, stanceHalfWidth, pelvisRatio, terrainTiltBlend, stanceCenterBlend, ankleLimit, bendMode);
   const initialPose = walker.legs.map(leg => {
     const footCorners = [
       leg.foot.getWorldPoint(Vec2(-FOOT_HALF_LENGTH, -FOOT_HALF_HEIGHT)),
@@ -997,6 +998,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
     stanceCenterBlend,
     ankleLimit,
     ankleTorqueMax,
+    bendMode,
     initialPose,
     supportedTime: Number(supportedTime.toFixed(3)),
     bothFeetContactTime: Number(bothFeetContactTime.toFixed(3)),
