@@ -129,5 +129,6 @@
     return rig;
   }
 
-  window.CharacterRig = { buildRig, driveJoint, wrapAngle };
+  const root = typeof window !== "undefined" ? window : globalThis;
+  root.CharacterRig = { buildRig, driveJoint, wrapAngle };
 })();
