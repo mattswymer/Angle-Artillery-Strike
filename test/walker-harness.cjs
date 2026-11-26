@@ -587,6 +587,9 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1) {
     heightAt(walker.stanceTargets[1]) + FOOT_HALF_HEIGHT * 2
   ) + 0.95 * (UPPER_LENGTH + LOWER_LENGTH);
 
+  const hipTargets = [];
+  const kneeTargets = [];
+  const ankleTargets = [];
   for (let i = 0; i < legs.length; i++) {
     const leg = legs[i];
     const target = footTargets[i];
@@ -605,17 +608,23 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1) {
     const lowerBodyAngle = solution.thighDir - solution.kneeRel + Math.PI / 2;
     const hipTarget = wrapAngle(upperBodyAngle - hull.getAngle());
     const kneeTarget = wrapAngle(lowerBodyAngle - upperBodyAngle);
+    hipTargets.push(hipTarget);
+    kneeTargets.push(kneeTarget);
     driveJoint(leg.hip, hipTarget, 13, 4, 4, stiffness);
     driveJoint(leg.knee, kneeTarget, 15, 5, 4, stiffness);
 
     const desiredFootAngle = terrainAngle;
     const ankleTargetAngle = wrapAngle(desiredFootAngle - leg.lower.getAngle());
+    ankleTargets.push(ankleTargetAngle);
     driveJoint(leg.ankle, ankleTargetAngle, 12, 3, 1.5, stiffness);
   }
 
   return {
     targets: footTargets,
     contacts: legs.map(leg => isGroundContact(leg.foot)),
+    hipTargets,
+    kneeTargets,
+    ankleTargets,
     hipAngles: legs.map(leg => leg.hip.getJointAngle())
   };
 }
@@ -812,6 +821,11 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
         },
         targets: control.targets.map(point => [Number(point.x.toFixed(3)), Number(point.y.toFixed(3))]),
         swingIndex: walker.swingIndex ?? null,
+        motorTargets: {
+          hip: control.hipTargets?.map(value => Number(value.toFixed(3))),
+          knee: control.kneeTargets?.map(value => Number(value.toFixed(3))),
+          ankle: control.ankleTargets?.map(value => Number(value.toFixed(3)))
+        },
         legs: walker.legs.map(leg => ({
           foot: [Number(leg.foot.getPosition().x.toFixed(3)), Number(leg.foot.getPosition().y.toFixed(3))],
           footAngle: Number((leg.foot.getAngle() * 180 / Math.PI).toFixed(1)),
@@ -825,6 +839,11 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
             hip: Number(leg.hip.getMotorTorque(50).toFixed(3)),
             knee: Number(leg.knee.getMotorTorque(50).toFixed(3)),
             ankle: Number(leg.ankle.getMotorTorque(50).toFixed(3))
+          },
+          motorSpeed: {
+            hip: Number(leg.hip.getMotorSpeed().toFixed(3)),
+            knee: Number(leg.knee.getMotorSpeed().toFixed(3)),
+            ankle: Number(leg.ankle.getMotorSpeed().toFixed(3))
           },
           ankleAnchorError: Number(Math.hypot(
             leg.lower.getWorldPoint(Vec2(0, -leg.lowerLength / 2)).x -
@@ -849,8 +868,6 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
   return {
     degrees,
     warmupSteps,
-    groundStyle,
-    controllerEnabled,
     groundStyle,
     controllerEnabled,
     supportedTime: Number(supportedTime.toFixed(3)),
