@@ -267,13 +267,15 @@ test("upright 20 degree stance checks spawn ankle limits across pelvis heights",
 test("upright 20 and 35 degree stance remains controlled for three seconds across eight seeds", () => {
   const candidates = [
     {
-      degrees: 20, stanceHalfWidth: 0.25, pelvisRatio: 0.85,
-      stepReach: 0.12, stepLookahead: 0.41, hipHeightBlend: 0.75,
+      degrees: 20, stanceHalfWidth: 0.1, pelvisRatio: 0.85,
+      bendMode: "slope-adaptive", highSideBend: 0.4, lowSideBend: 1,
+      stepReach: 0.12, stepLookahead: 0.41, hipHeightBlend: 1,
       swingHeight: 0.12, swingDuration: 0.2,
-      maxTilt: 15, minBothFeet: 0
+      maxTilt: 5, minBothFeet: 0
     },
     {
       degrees: 35, stanceHalfWidth: 0.1, pelvisRatio: 0.95,
+      bendMode: "same-positive", highSideBend: 1, lowSideBend: 1,
       stepReach: 0.34, stepLookahead: 0.36, hipHeightBlend: 0.8,
       swingHeight: 0.08, swingDuration: 0.2,
       maxTilt: 10, minBothFeet: 1.8
@@ -285,8 +287,9 @@ test("upright 20 and 35 degree stance remains controlled for three seconds acros
       const r = runStanceCase(
         candidate.degrees, seed, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25,
         candidate.stanceHalfWidth, candidate.pelvisRatio, 0, 0, 0.6, 1.5,
-        "same-positive", candidate.stepReach, candidate.stepLookahead, 6, 6,
-        candidate.swingHeight, candidate.swingDuration, 1, candidate.hipHeightBlend
+        candidate.bendMode, candidate.stepReach, candidate.stepLookahead, 6, 6,
+        candidate.swingHeight, candidate.swingDuration, 1, candidate.hipHeightBlend,
+        candidate.highSideBend, candidate.lowSideBend
       );
       return {
         seed, support: r.supportedTime, bothFeet: r.bothFeetContactTime,
