@@ -39,6 +39,25 @@ function makeTerrainFunctions(degrees, roughness, phaseA, phaseB) {
   return { slope, heightAt, terrainAngleAt };
 }
 
+function simplifyTerrainPoints(points, tolerance = 1e-9) {
+  if (points.length < 3) return points;
+  const result = [points[0]];
+  for (let i = 1; i < points.length - 1; i++) {
+    const previous = result[result.length - 1];
+    const current = points[i];
+    const next = points[i + 1];
+    const ax = current.x - previous.x;
+    const ay = current.y - previous.y;
+    const bx = next.x - current.x;
+    const by = next.y - current.y;
+    const cross = ax * by - ay * bx;
+    const dot = ax * bx + ay * by;
+    if (Math.abs(cross) > tolerance || dot <= 0) result.push(current);
+  }
+  result.push(points[points.length - 1]);
+  return result;
+}
+
 function makeWorld(degrees, roughness = 0, phaseA = 0, phaseB = 0, chainStep = 0.25) {
   const world = new planck.World({ gravity: Vec2(0, -GRAVITY) });
   world.setAllowSleeping(false);
@@ -48,8 +67,11 @@ function makeWorld(degrees, roughness = 0, phaseA = 0, phaseB = 0, chainStep = 0
   for (let x = -30; x <= 30.0001; x += chainStep) {
     points.push(Vec2(x, terrain.heightAt(x)));
   }
+  // Match TerrainSystem.simplifyLoop: merge collinear grid samples before
+  // building a chain so flat/slope runs are one child edge, not dozens of
+  // overlapping foot contacts at artificial sample boundaries.
   ground.createFixture({
-    shape: new planck.Chain(points, false),
+    shape: new planck.Chain(simplifyTerrainPoints(points), false),
     friction: 2.5,
     restitution: 0
   });
