@@ -648,7 +648,6 @@ function runPostureCase(degrees, seed = 12345, duration = 3, roughness = 0) {
   }
   return {
     degrees,
-    warmupSteps,
     supportedTime: Number(supportedTime.toFixed(3)),
     maxRelativeTiltDegrees: Number((maxRelativeTilt * 180 / Math.PI).toFixed(2)),
     maxSpeed: Number(maxSpeed.toFixed(3)),
@@ -789,6 +788,7 @@ function runStanceCase(degrees, seed = 12345, duration = 3, roughness = 0, warmu
 
   return {
     degrees,
+    warmupSteps,
     supportedTime: Number(supportedTime.toFixed(3)),
     maxRelativeTiltDegrees: Number((maxRelativeTilt * 180 / Math.PI).toFixed(2)),
     maxSpeed: Number(maxSpeed.toFixed(3)),
