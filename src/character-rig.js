@@ -31,7 +31,9 @@
       (2 * LEG_UPPER * LEG_LOWER)));
     const hipOffset = Math.acos(hipCos);
     const kneeInterior = Math.acos(kneeCos);
-    const thighDirection = direction + bend * hipOffset;
+    // Planck reports the relative joint angle as lower minus upper; use the
+    // mirrored bend direction so the requested kneeRel matches that sign.
+    const thighDirection = direction - bend * hipOffset;
     const knee = {
       x: hip.x + Math.cos(thighDirection) * LEG_UPPER,
       y: hip.y + Math.sin(thighDirection) * LEG_UPPER
