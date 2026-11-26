@@ -2,7 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { runSlopeCase, seededRandom, legIK } = require("./walker-harness.cjs");
+const { runSlopeCase, runStanceCase, seededRandom, legIK } = require("./walker-harness.cjs");
 
 const SEEDS = [1, 7, 42, 99, 314, 1337, 481516, 8675309];
 
@@ -142,3 +142,15 @@ test("two-bone IK clamps unreachable targets without producing invalid angles", 
   assert.ok(Number.isFinite(solution.kneeRel));
   assert.ok(solution.distance > 0);
 });
+
+for (const degrees of [0, 20, 35]) {
+  test(`IK stance controller remains numerically stable on ${degrees} degree terrain`, () => {
+    const results = SEEDS.slice(0, 4).map(seed => runStanceCase(degrees, seed, 3));
+    for (const result of results) {
+      assert.equal(result.finite, true, `non-finite state on ${degrees} degree terrain: ${JSON.stringify(result)}`);
+      assert.ok(Number.isFinite(result.maxSpeed));
+      assert.ok(Number.isFinite(result.maxRelativeTiltDegrees));
+      assert.ok(result.maxSpeed < 30, `stance controller became unbounded: ${JSON.stringify(result)}`);
+    }
+  });
+}
