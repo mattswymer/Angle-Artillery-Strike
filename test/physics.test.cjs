@@ -556,6 +556,75 @@ test("browser entry point creates eight articulated combatants before its first 
   assert.equal(elements.get("status").textContent, "Physics running");
 });
 
+test("production walking uses alternating physical steps and capped tangent force", () => {
+  const world = new planck.World({ gravity: planck.Vec2(0, -10) });
+  const ground = world.createBody();
+  ground.createFixture({ shape: new planck.Edge(planck.Vec2(-8, 0), planck.Vec2(8, 0)), friction: 2.5 });
+  const rig = productionRig.createStanceRig(world, 0, () => 0, () => 0);
+  const control = () => productionRig.stanceController(
+    rig, () => 0, () => 0, rig.stiffness,
+    3.5, 0.06, 1.5, 0.18, 0.25, 6, 6, 0.12, 0.2, 1, 1, 1
+  );
+  for (let i = 0; i < 30; i++) {
+    control();
+    world.step(1 / 50, 180, 60);
+  }
+  const startX = rig.hull.getPosition().x;
+  let previousSwing = rig.nextSwingIndex;
+  let completedAlternations = 0;
+  rig.walkDirection = 1;
+  for (let i = 0; i < 100; i++) {
+    productionRig.updateRigFallState(rig, 1 / 50, rig.jumping);
+    if (rig.mode === "active") control();
+    if (rig.nextSwingIndex !== previousSwing) {
+      completedAlternations++;
+      previousSwing = rig.nextSwingIndex;
+    }
+    world.step(1 / 50, 180, 60);
+    if (rig.mode === "limp") break;
+  }
+  rig.walkDirection = 0;
+  assert.ok(rig.hull.getPosition().x > startX + 0.4,
+    `walking displacement was ${rig.hull.getPosition().x - startX}`);
+  assert.ok(completedAlternations >= 2, `only ${completedAlternations} alternating steps began`);
+  assert.equal(rig.mode, "active");
+});
+
+test("production jump crouches, extends, leaves the ground, tucks, and lands softly", () => {
+  const world = new planck.World({ gravity: planck.Vec2(0, -10) });
+  const ground = world.createBody();
+  ground.createFixture({ shape: new planck.Edge(planck.Vec2(-8, 0), planck.Vec2(8, 0)), friction: 2.5 });
+  const rig = productionRig.createStanceRig(world, 0, () => 0, () => 0);
+  const control = () => productionRig.stanceController(
+    rig, () => 0, () => 0, rig.stiffness,
+    3.5, 0.06, 1.5, 0.18, 0.25, 6, 6, 0.12, 0.2, 1, 1, 1
+  );
+  for (let i = 0; i < 30; i++) {
+    control();
+    world.step(1 / 50, 180, 60);
+  }
+  const startY = rig.hull.getPosition().y;
+  assert.equal(productionRig.requestJump(rig), true);
+  const phases = new Set();
+  let maxY = startY;
+  for (let i = 0; i < 100; i++) {
+    productionRig.updateRigFallState(rig, 1 / 50, rig.jumping);
+    if (rig.mode === "active") control();
+    phases.add(rig.jumpPhase);
+    world.step(1 / 50, 180, 60);
+    maxY = Math.max(maxY, rig.hull.getPosition().y);
+    if (rig.jumpPhase === "idle" && i > 20) break;
+  }
+  assert.ok(phases.has("crouch"));
+  assert.ok(phases.has("extend"));
+  assert.ok(phases.has("air"));
+  assert.ok(phases.has("land"));
+  assert.ok(phases.has("idle"));
+  assert.ok(maxY > startY + 0.1, `jump height was ${maxY - startY}`);
+  assert.equal(rig.jumping, false);
+  assert.equal(rig.mode, "active");
+});
+
 test("production rig module builds the same twelve-body, eleven-joint character", () => {
   const world = new planck.World({ gravity: planck.Vec2(0, -10) });
   const ground = world.createBody();
