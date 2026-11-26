@@ -209,6 +209,34 @@ test("character-proportion stance rig stands for three seconds on flat and 20 de
   }
 });
 
+test("upright-torso slope geometry sweep records stance feasibility without terrain tilt", () => {
+  const results = [];
+  for (const degrees of [20, 35]) {
+    for (const stanceHalfWidth of [0.05, 0.1, 0.15, 0.2]) {
+      for (const pelvisRatio of [0.85, 0.95, 1.05]) {
+        const result = runStanceCase(
+          degrees, 1, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25,
+          stanceHalfWidth, pelvisRatio, 0, 0, 0.6
+        );
+        results.push({
+          degrees, stanceHalfWidth, pelvisRatio,
+          support: result.supportedTime,
+          absoluteTilt: result.maxAbsoluteTiltDegrees,
+          relativeTilt: result.maxRelativeTiltDegrees,
+          air: result.maxAirTime,
+          speed: result.maxSpeed,
+          trace: result.trace.slice(0, 4).map(point => ({
+            t: point.t, angle: point.angle, contacts: point.contacts,
+            hips: point.hip, knees: point.knee, ankles: point.ankle
+          }))
+        });
+      }
+    }
+  }
+  console.log("upright torso geometry sweep", JSON.stringify(results));
+  assert.equal(results.length, 24);
+});
+
 test("35 degree stance remains outside the stable envelope with the current ±0.6 ankle limits", () => {
   const results = SEEDS.slice(0, 4).map(seed =>
     runStanceCase(35, seed, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25, 0.05, 1.0, 1.0)
