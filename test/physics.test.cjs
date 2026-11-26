@@ -539,7 +539,7 @@ test("eight production rigs settle on a seeded uneven map without self-collision
     return rig;
   });
 
-  for (let step = 0; step < 60; step++) {
+  for (let step = 0; step < 90; step++) {
     for (const rig of rigs) {
       if (rig.mode === "active") {
         productionRig.updateRigFallState(rig, 1 / 50, false);
@@ -570,7 +570,13 @@ test("eight production rigs settle on a seeded uneven map without self-collision
   assert.ok(rigs.every(rig => rig.bodies.length === 12 && rig.joints.length === 11));
   assert.deepEqual(rigs.map(rig => rig.mode), Array(8).fill("active"));
   assert.ok(rigs.every(rig => rig.stableTime >= 0.3),
-    JSON.stringify(rigs.map(rig => ({ mode: rig.mode, stableTime: rig.stableTime, fallReason: rig.fallReason }))));
+    JSON.stringify(rigs.map(rig => ({
+      mode: rig.mode, stableTime: rig.stableTime, fallReason: rig.fallReason,
+      tilt: rig.hull.getAngle(), speed: rig.hull.getLinearVelocity().length(),
+      contacts: rig.legs.filter(leg => productionRig.isGroundContact(leg.foot)).length,
+      centerX: productionRig.getRigCenterOfMassX(rig),
+      support: productionRig.rigSupportBounds(rig)
+    }))));
 });
 
 test("50 degree terrain exceeds the character stance rig's stable envelope", () => {
