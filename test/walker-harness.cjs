@@ -515,16 +515,28 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1) {
   if (!walker.stanceTargets) {
     walker.stanceTargets = [centerX - halfStance, centerX + halfStance];
   }
-  // Feet remain planted at world positions. Only the foot on the side the
-  // COM has escaped from is replanted, and only after leaving the support
-  // interval by 4 cm.
-  if (centerX < walker.stanceTargets[0] - 0.04) {
-    // The right leg is the swing leg when balance escapes left.
-    walker.stanceTargets[1] = centerX - halfStance;
-  } else if (centerX > walker.stanceTargets[1] + 0.04) {
-    // The left leg steps ahead when balance escapes right; keep the
-    // currently supporting right foot planted.
-    walker.stanceTargets[0] = centerX + halfStance;
+  // Support is determined by feet that are actually touching terrain,
+  // not by planned foot locations. A swing target is assigned once and held
+  // until that foot lands, so it cannot chase the torso every physics step.
+  const contacts = legs.map(leg => isGroundContact(leg.foot));
+  if (walker.swingIndex !== undefined && walker.swingIndex !== null && contacts[walker.swingIndex]) {
+    walker.swingIndex = null;
+  }
+  if (walker.swingIndex === undefined || walker.swingIndex === null) {
+    const planted = walker.stanceTargets
+      .map((x, i) => contacts[i] ? x : null)
+      .filter(x => x !== null);
+    if (planted.length) {
+      const minFootX = Math.min(...planted);
+      const maxFootX = Math.max(...planted);
+      if (centerX < minFootX - 0.04) {
+        walker.swingIndex = 1;
+        walker.stanceTargets[1] = centerX - halfStance;
+      } else if (centerX > maxFootX + 0.04) {
+        walker.swingIndex = 0;
+        walker.stanceTargets[0] = centerX + halfStance;
+      }
+    }
   }
   const footTargets = walker.stanceTargets.map(x => ({ x, y: heightAt(x) + FOOT_HALF_HEIGHT * 2 }));
   const pelvisTargetY = Math.min(footTargets[0].y, footTargets[1].y) +
