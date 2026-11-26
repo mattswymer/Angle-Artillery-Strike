@@ -75,7 +75,7 @@ function createWalker(world, slope, startX, random = () => 0.5, heightAt = x => 
   for (const side of [-1, 1]) {
     const hipOffset = options.separatedHips ? side * 0.16 : 0;
     const stanceTargetX = startX + side * 0.12;
-    const stanceTarget = Vec2(stanceTargetX, heightAt(stanceTargetX) + 0.03);
+    const stanceTarget = Vec2(stanceTargetX, heightAt(stanceTargetX) + 0.06);
     const hipWorld = hull.getWorldPoint(Vec2(hipOffset, LEG_DOWN));
     const initialIK = options.alignToTerrain
       ? legIK(hipWorld, stanceTarget, LEG_H, LEG_H, 1)
@@ -381,7 +381,7 @@ function stanceController(walker, heightAt, terrainAngleAt, stiffness = 1) {
     const target = footTargets[i];
     const surfaceY = heightAt(target.x);
     const terrainAngle = terrainAngleAt(target.x);
-    target.y = surfaceY + 0.03;
+    target.y = surfaceY + 0.06;
     const hipWorld = hull.getWorldPoint(Vec2(0, LEG_DOWN));
     const ankleTarget = Vec2(target.x, target.y);
     const solution = legIK(hipWorld, ankleTarget, LEG_H, LEG_H, 1);
