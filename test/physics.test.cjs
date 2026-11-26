@@ -3,7 +3,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const planck = require("planck");
-const { runSlopeCase, runStanceCase, runPostureCase, seededRandom, legIK, driveJoint } = require("./walker-harness.cjs");
+const { runSlopeCase, runStanceCase, runPostureCase, runSwingTargetCase, runRigSymmetryCase, seededRandom, legIK, driveJoint } = require("./walker-harness.cjs");
 
 const SEEDS = [1, 7, 42, 99, 314, 1337, 481516, 8675309];
 
@@ -156,6 +156,23 @@ for (const degrees of [0, 20, 35]) {
     }
   });
 }
+
+test("stance swing foot target preserves its lift instead of being flattened to the ground", () => {
+  const result = runSwingTargetCase();
+  assert.equal(result.swingIndex, 0);
+  assert.ok(result.targetY > result.plantedY + 0.05,
+    `swing target should clear the planted ankle height: ${JSON.stringify(result)}`);
+});
+
+test("character-proportion rig starts and remains mirror-symmetric for one flat-ground step", () => {
+  const result = runRigSymmetryCase();
+  assert.ok(result.initialError < 1e-6,
+    `initial rig geometry is not symmetric: ${JSON.stringify(result)}`);
+  assert.ok(result.oneStepError < 1e-3,
+    `one-step controller/physics response is not symmetric: ${JSON.stringify(result)}`);
+  assert.equal(result.contacts[0], result.contacts[1],
+    `left/right foot contacts differ on flat ground: ${JSON.stringify(result)}`);
+});
 
 test("shared joint driver moves a revolute joint toward a positive target angle", () => {
   const world = new planck.World({ gravity: planck.Vec2(0, 0) });
