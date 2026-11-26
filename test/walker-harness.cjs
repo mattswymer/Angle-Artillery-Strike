@@ -638,18 +638,9 @@ function runPostureCase(degrees, seed = 12345, duration = 3, roughness = 0) {
   const random = seededRandom(seed);
   const phaseA = random() * Math.PI * 2;
   const phaseB = random() * Math.PI * 2;
-  const { world, slope, heightAt, terrainAngleAt } = groundStyle === "continuous"
-    ? makeContinuousWorld(degrees)
-    : makeWorld(degrees, roughness, phaseA, phaseB);
+  const { world, slope, heightAt, terrainAngleAt } = makeWorld(degrees, roughness, phaseA, phaseB);
   const startX = (random() - 0.5) * 0.2;
   const walker = createStanceRig(world, startX, heightAt, terrainAngleAt);
-  if (!controllerEnabled) {
-    for (const leg of walker.legs) {
-      leg.hip.enableMotor(false);
-      leg.knee.enableMotor(false);
-      leg.ankle.enableMotor(false);
-    }
-  }
   const steps = Math.ceil(duration / FIXED_DT);
   let supportedTime = 0;
   let maxRelativeTilt = 0;
