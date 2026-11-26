@@ -205,6 +205,13 @@ test("character-proportion stance rig stands for three seconds on flat terrain a
     `flat stance must remain stable for three seconds: ${JSON.stringify(failures)}`);
 });
 
+test("character-proportion rig includes a head, two articulated arms, two feet, and eleven driven joints", () => {
+  const r = runStanceCase(0, 1, 0.5, 0, 0, "chain", true);
+  assert.equal(r.bodyCount, 12);
+  assert.equal(r.jointCount, 11);
+  assert.equal(r.finite, true);
+});
+
 test("one slope-adaptive knee-bend policy works at 20 and 35 degrees", () => {
   const results = [];
   for (const degrees of [0, 20, 35]) {
