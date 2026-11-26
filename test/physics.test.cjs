@@ -385,6 +385,26 @@ test("upright 35 degree final candidate tunes swing arc and duration", () => {
   assert.equal(results.length, 25);
 });
 
+test("upright 35 degree swing arc is fine-tuned around the two-foot near-pass", () => {
+  const results = [];
+  for (const swingHeight of [0.07, 0.075, 0.08, 0.085, 0.09]) {
+    for (const swingDuration of [0.19, 0.2, 0.21, 0.22]) {
+      const r = runStanceCase(
+        35, 1, 3, 0, 0, "chain", true, 3.5, 0.02, 0.25,
+        0.1, 0.95, 0, 0, 0.6, 1.5, "same-positive", 0.34, 0.36, 6, 6,
+        swingHeight, swingDuration
+      );
+      results.push({
+        swingHeight, swingDuration,
+        support: r.supportedTime, bothFeet: r.bothFeetContactTime,
+        tilt: r.maxAbsoluteTiltDegrees, air: r.maxAirTime, speed: r.maxSpeed
+      });
+    }
+  }
+  console.log("upright 35 degree swing fine tuning", JSON.stringify(results));
+  assert.equal(results.length, 20);
+});
+
 test("upright 35 degree final candidate is checked across eight fixed seeds", () => {
   const results = SEEDS.map(seed => {
     const r = runStanceCase(
