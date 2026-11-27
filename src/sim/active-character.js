@@ -206,7 +206,7 @@
         const shoulderAngle = moving ? Math.sin(armPhase) * 30 : side * 6;
         const elbowBend = moving
           ? 24 + Math.max(0, -Math.sin(armPhase)) * 28
-          : 5;
+          : side * 5;
         const shoulderRad = shoulderAngle * Math.PI / 180;
         const handRad = (shoulderAngle + elbowBend) * Math.PI / 180;
         const elbow = {
