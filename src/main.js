@@ -623,18 +623,43 @@
       ctx.lineWidth = Math.max(2.5, scale * width);
       ctx.lineCap = "round"; ctx.stroke();
     };
+    const jointDot = value => {
+      const p = point(value);
+      ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(2, scale * 0.027), 0, Math.PI * 2);
+      ctx.fillStyle = "#17232b"; ctx.fill();
+    };
     const radius = 0.135;
     const headBottom = { x: pose.head.x, y: pose.head.y - radius };
-    const hips = { x: pose.x, y: pose.y + 0.40 };
-    const armRoot = { x: pose.x, y: (headBottom.y + hips.y) / 2 };
+    const hips = { x: pose.x, y: pose.y + 0.44 };
+    const armRoot = {
+      x: pose.x,
+      y: headBottom.y + (hips.y - headBottom.y) * 0.36
+    };
+    const hands = {
+      left: { x: pose.x - 0.29, y: pose.y + 0.39 },
+      right: { x: pose.x + 0.29, y: pose.y + 0.39 }
+    };
+    const elbows = {
+      left: { x: (armRoot.x + hands.left.x) / 2 - 0.025, y: (armRoot.y + hands.left.y) / 2 },
+      right: { x: (armRoot.x + hands.right.x) / 2 + 0.025, y: (armRoot.y + hands.right.y) / 2 }
+    };
+    const knees = {
+      left: { x: pose.x - 0.15, y: pose.y + 0.23 },
+      right: { x: pose.x + 0.15, y: pose.y + 0.23 }
+    };
+    const feet = {
+      left: { x: pose.leftFoot.x, y: pose.leftFoot.y },
+      right: { x: pose.rightFoot.x, y: pose.rightFoot.y }
+    };
     const head = point(pose.head);
     ctx.save();
     ctx.strokeStyle = "#17232b";
     stroke(headBottom, hips, 0.052);
-    stroke(armRoot, pose.leftHand);
-    stroke(armRoot, pose.rightHand);
-    stroke(hips, pose.leftFoot);
-    stroke(hips, pose.rightFoot);
+    stroke(armRoot, elbows.left); stroke(elbows.left, hands.left);
+    stroke(armRoot, elbows.right); stroke(elbows.right, hands.right);
+    stroke(hips, knees.left); stroke(knees.left, feet.left);
+    stroke(hips, knees.right); stroke(knees.right, feet.right);
+    [elbows.left, elbows.right, knees.left, knees.right].forEach(jointDot);
     ctx.beginPath(); ctx.arc(head.x, head.y, radius * scale, 0, Math.PI * 2);
     ctx.fillStyle = "#ffffff"; ctx.fill();
     ctx.strokeStyle = "#17232b"; ctx.lineWidth = Math.max(2, scale * 0.035); ctx.stroke();
@@ -662,18 +687,30 @@
     const radius = 0.135;
     const headBottom = { x: headPosition.x, y: headPosition.y - radius };
     const leftHip = joint("leftHip"), rightHip = joint("rightHip");
+    const leftKnee = joint("leftKnee"), rightKnee = joint("rightKnee");
+    const leftElbow = joint("leftElbow"), rightElbow = joint("rightElbow");
     const hips = { x: (leftHip.x + rightHip.x) / 2, y: (leftHip.y + rightHip.y) / 2 };
-    const armRoot = { x: (headBottom.x + hips.x) / 2, y: (headBottom.y + hips.y) / 2 };
+    const armRoot = {
+      x: headBottom.x + (hips.x - headBottom.x) * 0.36,
+      y: headBottom.y + (hips.y - headBottom.y) * 0.36
+    };
     const leftHand = rig.byName["left-lower-arm"].body.getWorldPoint(V(0, -0.17));
     const rightHand = rig.byName["right-lower-arm"].body.getWorldPoint(V(0, -0.17));
     const leftFoot = rig.byName["left-foot"].body.getWorldPoint(V(0.12, 0));
     const rightFoot = rig.byName["right-foot"].body.getWorldPoint(V(0.12, 0));
     ctx.save(); ctx.strokeStyle = "#17232b";
     stroke(headBottom, hips, 0.052);
-    stroke(armRoot, { x: leftHand.x, y: leftHand.y });
-    stroke(armRoot, { x: rightHand.x, y: rightHand.y });
-    stroke(hips, { x: leftFoot.x, y: leftFoot.y });
-    stroke(hips, { x: rightFoot.x, y: rightFoot.y });
+    stroke(armRoot, leftElbow); stroke(leftElbow, { x: leftHand.x, y: leftHand.y });
+    stroke(armRoot, rightElbow); stroke(rightElbow, { x: rightHand.x, y: rightHand.y });
+    stroke(hips, leftKnee); stroke(leftKnee, { x: leftFoot.x, y: leftFoot.y });
+    stroke(hips, rightKnee); stroke(rightKnee, { x: rightFoot.x, y: rightFoot.y });
+    for (const p of [leftElbow, rightElbow, leftKnee, rightKnee]) {
+      const screenPoint = point(p);
+      ctx.beginPath();
+      ctx.arc(screenPoint.x, screenPoint.y, Math.max(2, scale * 0.027), 0, Math.PI * 2);
+      ctx.fillStyle = "#17232b";
+      ctx.fill();
+    }
     const head = point(headPosition);
     ctx.beginPath(); ctx.arc(head.x, head.y, radius * scale, 0, Math.PI * 2);
     ctx.fillStyle = "#ffffff"; ctx.fill();
