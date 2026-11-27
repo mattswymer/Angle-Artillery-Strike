@@ -480,7 +480,7 @@ test("recovery assist never exceeds 1.3 times body weight and requires foot cont
 });
 
 test("production browser scripts parse without syntax errors", () => {
-  for (const path of ["src/main.js", "src/character-rig.js"]) {
+  for (const path of ["src/main.js", "src/character-rig.js", "src/sim/active-character.js"]) {
     const source = fs.readFileSync(path, "utf8");
     assert.doesNotThrow(() => new vm.Script(source, { filename: path }));
   }
@@ -531,6 +531,7 @@ test("browser entry point creates eight articulated combatants before its first 
     requestAnimationFrame() {}, console, Date
   });
   vm.runInContext(fs.readFileSync("src/terrain.js", "utf8"), context, { filename: "src/terrain.js" });
+  vm.runInContext(fs.readFileSync("src/sim/active-character.js", "utf8"), context, { filename: "src/sim/active-character.js" });
   vm.runInContext(fs.readFileSync("src/main.js", "utf8"), context, { filename: "src/main.js" });
 
   assert.equal(worlds.length, 1);
@@ -547,12 +548,12 @@ test("browser entry point creates eight articulated combatants before its first 
     const position = body.getPosition();
     assert.ok(Number.isFinite(position.x) && Number.isFinite(position.y));
   }
-  assert.equal(characterBodies.length, 96);
+  assert.equal(characterBodies.length, 8);
   assert.equal(roster.size, 8);
-  assert.ok([...roster.values()].every(count => count === 12));
+  assert.ok([...roster.values()].every(count => count === 1));
   let jointCount = 0;
   for (let joint = world.getJointList(); joint; joint = joint.getNext()) jointCount++;
-  assert.equal(jointCount, 88);
+  assert.equal(jointCount, 0);
   assert.equal(elements.get("status").textContent, "Physics running");
 });
 
