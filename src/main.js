@@ -617,47 +617,53 @@
   function drawActiveCharacter(character, scale, offsetX) {
     const pose = character.pose();
     const point = value => worldToScreen(value.x, value.y, scale, offsetX);
-    const segment = (a, b, width) => {
+    const segment = (a, b, width = 0.052) => {
       const from = point(a), to = point(b);
       ctx.beginPath();
       ctx.moveTo(from.x, from.y);
       ctx.lineTo(to.x, to.y);
       ctx.lineWidth = Math.max(3, scale * width);
       ctx.lineCap = "round";
+      ctx.lineJoin = "round";
       ctx.strokeStyle = "#17232b";
       ctx.stroke();
     };
-    const circle = (value, radius, fill) => {
-      const p = point(value);
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, scale * radius, 0, Math.PI * 2);
-      ctx.fillStyle = fill;
-      ctx.fill();
-      ctx.strokeStyle = "#17232b";
-      ctx.lineWidth = Math.max(1.5, scale * 0.022);
-      ctx.stroke();
+    const midpoint = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+    const pelvis = {
+      x: pose.x,
+      y: pose.y + 0.40
+    };
+    const neck = {
+      x: pose.head.x,
+      y: pose.head.y - 0.135
+    };
+    const armRoot = {
+      x: pose.x,
+      y: pose.y + 0.68
     };
 
-    // One continuous skeleton: shoulders meet the spine, elbows meet the
-    // forearms, hips meet the spine, and knees meet the lower legs.
-    const shoulders = {
-      x: (pose.leftShoulder.x + pose.rightShoulder.x) / 2,
-      y: (pose.leftShoulder.y + pose.rightShoulder.y) / 2
-    };
-    const hips = {
-      x: (pose.leftKnee.x + pose.rightKnee.x) / 2,
-      y: (pose.leftKnee.y + pose.rightKnee.y) / 2
-    };
-    segment(shoulders, hips, 0.052);
-    segment(pose.leftShoulder, pose.leftHand, 0.052);
-    segment(pose.rightShoulder, pose.rightHand, 0.052);
-    segment(pose.leftShoulder, pose.leftKnee, 0.052);
-    segment(pose.rightShoulder, pose.rightKnee, 0.052);
-    segment(pose.leftKnee, pose.leftFoot, 0.052);
-    segment(pose.rightKnee, pose.rightFoot, 0.052);
-    circle(pose.head, 0.135, character.color);
+    ctx.save();
+    // Head, neck and one uninterrupted spine.
+    segment(neck, pelvis);
+    // Arms branch from the middle of the spine, then hang down and outward.
+    segment(armRoot, pose.leftHand);
+    segment(armRoot, pose.rightHand);
+    // The spine ends at the pelvis; both legs branch from that same point.
+    segment(pelvis, pose.leftKnee);
+    segment(pose.leftKnee, pose.leftFoot);
+    segment(pelvis, pose.rightKnee);
+    segment(pose.rightKnee, pose.rightFoot);
 
     const head = point(pose.head);
+    ctx.beginPath();
+    ctx.arc(head.x, head.y, scale * 0.135, 0, Math.PI * 2);
+    ctx.fillStyle = character.color;
+    ctx.fill();
+    ctx.strokeStyle = "#17232b";
+    ctx.lineWidth = Math.max(1.5, scale * 0.022);
+    ctx.stroke();
+    ctx.restore();
+
     const barWidth = scale * 0.72, barHeight = Math.max(3, scale * 0.055);
     const barY = head.y - scale * 0.23;
     ctx.fillStyle = "#17232b";
@@ -714,11 +720,13 @@
     const midpoint = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
     const spineTop = neck;
     const spineBottom = midpoint(leftHip, rightHip);
+    const armBranch = midpoint(spineTop, spineBottom);
     line(spineTop, spineBottom, 0.052);
+    // Join each shoulder to the same central spine before drawing the arms.
+    line(armBranch, leftShoulder);
+    line(armBranch, rightShoulder);
     line(leftShoulder, leftElbow);
     line(rightShoulder, rightElbow);
-    line(leftShoulder, leftHip);
-    line(rightShoulder, rightHip);
     line(leftHip, leftKnee);
     line(leftKnee, leftAnkle);
     line(rightHip, rightKnee);
