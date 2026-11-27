@@ -301,8 +301,11 @@
     for (const character of characters) {
       if (character.eliminated) continue;
       if (character.mode === "active") {
-        character.active.update(FIXED_STEP, character === activeCharacter()
-          ? (held.right ? 1 : 0) - (held.left ? 1 : 0) : 0);
+        const moveDirection = character === activeCharacter()
+          ? ((held.right ? 1 : 0) - (held.left ? 1 : 0) ||
+            (tapMoveRemaining > 0 ? tapMoveDirection : 0))
+          : null;
+        character.active.update(FIXED_STEP, moveDirection);
         character.grounded = character.active.grounded();
         continue;
       }
