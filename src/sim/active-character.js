@@ -62,6 +62,7 @@
     let jumpLock = false;
     let gaitPhase = 0;
     let lastGroundY = surface;
+    let lockedX = x;
     let facing = team === 0 ? 1 : -1;
 
     function rayGround(sampleX, originY) {
@@ -83,9 +84,9 @@
 
     function snapToGround(direction = 0) {
       const position = body.getPosition();
-      // Always sample beneath the body's current horizontal position. A cached
-      // pre-jump X coordinate pulls airborne characters back when input changes.
-      const sampleX = position.x;
+      // Keep a stable support sample while standing on a slope, but refresh it
+      // continuously during a jump so releasing direction cannot snap backward.
+      const sampleX = direction === 0 ? lockedX : position.x;
       const centerHit = rayGround(sampleX, position.y);
       if (!centerHit) {
         grounded = false;
@@ -103,6 +104,7 @@
       const velocity = body.getLinearVelocity();
       const canSnap = !jumpLock && velocity.y <= 0.65 &&
         gap <= BODY.snapDistance && gap >= -BODY.snapDownDistance;
+      if (direction !== 0) lockedX = sampleX;
       if (!canSnap) {
         grounded = false;
         return false;
@@ -136,10 +138,14 @@
 
     function update(dt = 1 / 50, direction = 0) {
       const velocity = body.getLinearVelocity();
+      if (jumpLock) lockedX = body.getPosition().x;
       if (jumpLock && velocity.y <= 0) jumpLock = false;
       if (direction !== null) {
         if (direction === 0) body.setLinearVelocity(Vec2(0, velocity.y));
-        else body.setLinearVelocity(Vec2(direction * BODY.walkSpeed, velocity.y));
+        else {
+          body.setLinearVelocity(Vec2(direction * BODY.walkSpeed, velocity.y));
+          lockedX = body.getPosition().x;
+        }
       }
       if (!jumpLock) snapToGround(direction || 0);
     }
