@@ -4,6 +4,8 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const Planck = require("planck");
 const CharacterRig = require("../src/character-rig.js").create(Planck);
+const ActiveCharacter = require("../src/sim/active-character.js");
+const Combatant = require("../src/sim/combatant.js");
 const TerrainSystem = (() => {
   const fs = require("node:fs");
   const vm = require("node:vm");
@@ -86,4 +88,37 @@ test("ragdoll terrain contacts remain valid after terrain physics is rebuilt mid
   stepAndCheck(world, rig, 35);
   terrain.rebuildPhysics();
   stepAndCheck(world, rig, 325, 35);
+});
+
+
+test("active-to-ragdoll handoff cannot place any physical segment inside terrain", () => {
+  const { world } = createFlatArena();
+  const actor = Combatant.create(Planck, world, CharacterRig, {
+    ActiveCharacter,
+    x: 5,
+    heightAt: () => 1,
+    terrainAngleAt: () => 0,
+    settingsForX: () => ({
+      stanceHalfWidth: 0.12,
+      pelvisRatio: 0.95,
+      bendMode: "side",
+      highSideBend: 0.4,
+      lowSideBend: 1,
+      stepReach: 0.12,
+      stepLookahead: 0.25,
+      swingHeight: 0.12,
+      swingDuration: 0.2,
+      hipHeightBlend: 1,
+      upperBodyTorqueScale: 0.1
+    }),
+    collisionGroup: -17,
+    worldWidth: 10,
+    isOccupied: () => false
+  });
+
+  assert.equal(actor.mode, "active");
+  assert.equal(actor.enterRagdoll(Planck.Vec2(0, -24)), true);
+  assert.equal(actor.mode, "ragdoll");
+  stepAndCheck(world, actor.rig, 360);
+  actor.destroy();
 });
