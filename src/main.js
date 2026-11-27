@@ -249,9 +249,15 @@
     }
   }
 
+  // Posture is not a turn requirement: a knocked-down combatant can
+  // still aim and fire. Only locomotion requires a recovered, stable rig.
   function canAct(character) {
-    return Boolean(!pendingTurnChange && character && !character.eliminated &&
-      character.rig.mode === "active" && character.rig.stableTime >= 0.3);
+    return Boolean(!pendingTurnChange && character && !character.eliminated);
+  }
+
+  function canMove(character) {
+    return Boolean(canAct(character) && !projectile &&
+      character.rig.mode === "active" && character.rig.stableTime >= 0.12);
   }
 
   function createWorld() {
@@ -325,7 +331,7 @@
 
   function moveActive() {
     const character = activeCharacter();
-    if (!canAct(character) || projectile || activeAction === "attack") return;
+    if (!canMove(character) || activeAction === "attack") return;
     const rig = character.rig;
     const heldDirection = (held.right ? 1 : 0) - (held.left ? 1 : 0);
     let direction = heldDirection || (tapMoveRemaining > 0 ? tapMoveDirection : 0);
