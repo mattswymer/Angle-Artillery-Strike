@@ -220,7 +220,7 @@
       if (rig.mode !== "active") return;
       CharacterRig.stanceController(
         rig, heightAt, terrainAngleAt, rig.stiffness,
-        3.5, 0.06, 1.5, settings.stepReach, settings.stepLookahead,
+        0.65, 0.02, 1.5, settings.stepReach, settings.stepLookahead,
         6, 6, settings.swingHeight, settings.swingDuration,
         1, settings.hipHeightBlend, settings.upperBodyTorqueScale
       );
