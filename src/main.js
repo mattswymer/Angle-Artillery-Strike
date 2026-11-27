@@ -673,48 +673,40 @@
     const rig = character.rig;
     const screen = worldToScreen(character.body.getPosition().x, character.body.getPosition().y, scale, offsetX);
 
-    // Render the actual rigid bodies. The old stick-figure renderer only drew
-    // joint-to-joint lines, hiding the rotation and independent motion that make
-    // the articulated ragdoll readable during impacts and recovery.
+    // Draw the articulated physics pose as a classic stickman: a circular
+    // head and thin jointed lines. The rigid bodies remain invisible; their
+    // transforms determine every segment, so impacts still animate naturally.
     ctx.save();
+    ctx.strokeStyle = "#17232b";
+    ctx.fillStyle = "#ffffff";
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
     for (const piece of rig.pieces) {
       const body = piece.body;
-      const position = body.getPosition();
-      const point = worldToScreen(position.x, position.y, scale, offsetX);
-      const angle = body.getAngle();
-
-      ctx.save();
-      ctx.translate(point.x, point.y);
-      ctx.rotate(-angle);
-      ctx.lineWidth = Math.max(1.25, scale * 0.018);
-      ctx.strokeStyle = "#17232b";
-      ctx.fillStyle = piece.name === "head" ? character.color : "#263944";
-      if (piece.name === "torso") ctx.fillStyle = character.color;
-
       if (piece.circle) {
+        const position = body.getPosition();
+        const point = worldToScreen(position.x, position.y, scale, offsetX);
         const radius = piece.halfWidth * scale;
+        ctx.lineWidth = Math.max(2, scale * 0.035);
         ctx.beginPath();
-        ctx.arc(0, 0, radius, 0, Math.PI * 2);
+        ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
-
-        // A small face marker makes head rotation visible without imposing
-        // a fixed facing direction on the physics body.
-        ctx.fillStyle = "#17232b";
-        ctx.beginPath();
-        ctx.arc(radius * 0.38, -radius * 0.12, Math.max(1.2, radius * 0.11), 0, Math.PI * 2);
-        ctx.fill();
-      } else {
-        const widthScale = piece.name === "torso" ? 0.58 : 0.62;
-        const halfWidth = piece.halfWidth * scale * widthScale;
-        const halfHeight = piece.halfHeight * scale;
-        const radius = Math.min(halfWidth, halfHeight, Math.max(2, scale * 0.035));
-        ctx.beginPath();
-        ctx.roundRect(-halfWidth, -halfHeight, halfWidth * 2, halfHeight * 2, radius);
-        ctx.fill();
-        ctx.stroke();
+        continue;
       }
-      ctx.restore();
+
+      const isFoot = piece.name.includes("foot");
+      const halfLength = (isFoot ? piece.halfWidth : piece.halfHeight) * 1.02;
+      const axis = isFoot ? V(halfLength, 0) : V(0, halfLength);
+      const fromWorld = body.getWorldPoint(V(-axis.x, -axis.y));
+      const toWorld = body.getWorldPoint(axis);
+      const from = worldToScreen(fromWorld.x, fromWorld.y, scale, offsetX);
+      const to = worldToScreen(toWorld.x, toWorld.y, scale, offsetX);
+      ctx.lineWidth = Math.max(2.5, scale * (piece.name === "torso" ? 0.052 : 0.042));
+      ctx.beginPath();
+      ctx.moveTo(from.x, from.y);
+      ctx.lineTo(to.x, to.y);
+      ctx.stroke();
     }
     ctx.restore();
 
@@ -724,7 +716,7 @@
       const position = piece.body.getPosition();
       return position.y + (piece.circle ? piece.halfWidth : piece.halfHeight);
     }));
-    const barY = worldToScreen(screen.x, highestPiece + 0.16, scale, offsetX).y - screen.y;
+    const barY = worldToScreen(screen.x, highestPiece + 0.28, scale, offsetX).y - screen.y;
     ctx.fillStyle = "#17232b";
     ctx.fillRect(screen.x - barWidth / 2, screen.y + barY, barWidth, barHeight);
     ctx.fillStyle = character.team === 0 ? "#58a8ff" : "#ff7770";
