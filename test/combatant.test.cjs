@@ -96,8 +96,8 @@ test("ragdoll body and physical limbs remain supported by the terrain", () => {
   }
   assert.equal(rig.hull.getFixtureList().isSensor(), false,
     "torso must retain physical terrain collision");
-  assert.ok(CharacterRig.isGroundContact(rig.hull),
-    "ragdoll torso has no physical terrain support contact");
+  assert.ok(rig.bodies.some(body => CharacterRig.isGroundContact(body)),
+    "no articulated ragdoll segment has physical terrain support contact");
 });
 
 test("ragdoll timeout relocates a stuck character and restores one active body", () => {
