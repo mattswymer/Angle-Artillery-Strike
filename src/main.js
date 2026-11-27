@@ -240,7 +240,8 @@
 
   function canMove(character) {
     return Boolean(canAct(character) && !projectile &&
-      character.mode === "active" && character.stableTime >= 0.08);
+      character.mode === "active" &&
+      (activeAction === "move" || character.stableTime >= 0.08));
   }
 
   function createWorld() {
@@ -652,7 +653,7 @@
       scale * 0.34, scale * 0.58, scale * 0.07);
     ctx.fill(); ctx.stroke();
     circle(pose.head, 0.135, character.color);
-    const barAnchor = point({ x: pose.x, y: pose.y + 1.18 });
+    const barAnchor = point({ x: pose.x, y: pose.head.y + 0.19 });
     const barWidth = scale * 0.72, barHeight = Math.max(3, scale * 0.055);
     ctx.fillStyle = "#17232b";
     ctx.fillRect(barAnchor.x - barWidth / 2, barAnchor.y, barWidth, barHeight);
@@ -716,7 +717,11 @@
 
     const barWidth = scale * 0.72;
     const barHeight = Math.max(3, scale * 0.055);
-    const barY = -scale * 1.02;
+    const highestPiece = Math.max(...rig.pieces.map(piece => {
+      const position = piece.body.getPosition();
+      return position.y + (piece.circle ? piece.halfWidth : piece.halfHeight);
+    }));
+    const barY = worldToScreen(screen.x, highestPiece + 0.16, scale, offsetX).y - screen.y;
     ctx.fillStyle = "#17232b";
     ctx.fillRect(screen.x - barWidth / 2, screen.y + barY, barWidth, barHeight);
     ctx.fillStyle = character.team === 0 ? "#58a8ff" : "#ff7770";
@@ -735,7 +740,9 @@
     const p = character.body.getPosition();
     const angle = Number(angleInput.value) * Math.PI / 180;
     const power = Number(powerInput.value) / 100;
-    const start = worldToScreen(p.x, p.y + 0.04, scale, offsetX);
+    // The projectile and its preview originate around chest/shoulder height,
+    // not at the collider's ground-level origin.
+    const start = worldToScreen(p.x, p.y + 0.72, scale, offsetX);
     const length = scale * (0.42 + power * 1.05);
     const endX = start.x + Math.cos(angle) * length;
     const endY = start.y - Math.sin(angle) * length;
