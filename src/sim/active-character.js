@@ -154,7 +154,7 @@
       const p = body.getPosition();
       const moving = Math.abs(body.getLinearVelocity().x) > 0.15 && grounded;
       const phase = gaitPhase % (Math.PI * 2);
-      const H = 2.16;
+      const H = 1.65;
       const headRadius = 0.135; // Match the physical ragdoll head exactly.
       const neckLength = H / 16;
       const torsoLength = H * 5 / 16;
