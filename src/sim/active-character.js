@@ -203,10 +203,10 @@
 
       const arm = (armPhase, side) => {
         // Opposing idle angles distinguish the near and far arms.
-        const shoulderAngle = moving ? Math.sin(armPhase) * 30 : side * 9;
+        const shoulderAngle = moving ? Math.sin(armPhase) * 30 : side * 6;
         const elbowBend = moving
           ? 24 + Math.max(0, -Math.sin(armPhase)) * 28
-          : 8;
+          : 5;
         const shoulderRad = shoulderAngle * Math.PI / 180;
         const handRad = (shoulderAngle + elbowBend) * Math.PI / 180;
         const elbow = {
