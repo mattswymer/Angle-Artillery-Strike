@@ -617,160 +617,77 @@
   function drawActiveCharacter(character, scale, offsetX) {
     const pose = character.pose();
     const point = value => worldToScreen(value.x, value.y, scale, offsetX);
-    const segment = (a, b, width = 0.052) => {
-      const from = point(a), to = point(b);
-      ctx.beginPath();
-      ctx.moveTo(from.x, from.y);
-      ctx.lineTo(to.x, to.y);
-      ctx.lineWidth = Math.max(3, scale * width);
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      ctx.strokeStyle = "#17232b";
-      ctx.stroke();
+    const stroke = (from, to, width = 0.042) => {
+      const a = point(from), b = point(to);
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+      ctx.lineWidth = Math.max(2.5, scale * width);
+      ctx.lineCap = "round"; ctx.stroke();
     };
-    const midpoint = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
-    const pelvis = {
-      x: pose.x,
-      y: pose.y + 0.40
-    };
-    const neck = {
-      x: pose.head.x,
-      y: pose.head.y - 0.135
-    };
-    const armRoot = {
-      x: pose.x,
-      y: pose.y + 0.68
-    };
-
-    ctx.save();
-    // Head, neck and one uninterrupted spine.
-    segment(neck, pelvis);
-    // Arms branch from the middle of the spine, then hang down and outward.
-    segment(armRoot, pose.leftHand);
-    segment(armRoot, pose.rightHand);
-    // The spine ends at the pelvis; both legs branch from that same point.
-    segment(pelvis, pose.leftKnee);
-    segment(pose.leftKnee, pose.leftFoot);
-    segment(pelvis, pose.rightKnee);
-    segment(pose.rightKnee, pose.rightFoot);
-
+    const radius = 0.135;
+    const headBottom = { x: pose.head.x, y: pose.head.y - radius };
+    const hips = { x: pose.x, y: pose.y + 0.40 };
+    const armRoot = { x: pose.x, y: (headBottom.y + hips.y) / 2 };
     const head = point(pose.head);
-    ctx.beginPath();
-    ctx.arc(head.x, head.y, scale * 0.135, 0, Math.PI * 2);
-    ctx.fillStyle = character.color;
-    ctx.fill();
+    ctx.save();
     ctx.strokeStyle = "#17232b";
-    ctx.lineWidth = Math.max(1.5, scale * 0.022);
-    ctx.stroke();
+    stroke(headBottom, hips, 0.052);
+    stroke(armRoot, pose.leftHand);
+    stroke(armRoot, pose.rightHand);
+    stroke(hips, pose.leftFoot);
+    stroke(hips, pose.rightFoot);
+    ctx.beginPath(); ctx.arc(head.x, head.y, radius * scale, 0, Math.PI * 2);
+    ctx.fillStyle = "#ffffff"; ctx.fill();
+    ctx.strokeStyle = "#17232b"; ctx.lineWidth = Math.max(2, scale * 0.035); ctx.stroke();
     ctx.restore();
-
     const barWidth = scale * 0.72, barHeight = Math.max(3, scale * 0.055);
     const barY = head.y - scale * 0.23;
-    ctx.fillStyle = "#17232b";
-    ctx.fillRect(head.x - barWidth / 2, barY, barWidth, barHeight);
+    ctx.fillStyle = "#17232b"; ctx.fillRect(head.x - barWidth / 2, barY, barWidth, barHeight);
     ctx.fillStyle = character.team === 0 ? "#58a8ff" : "#ff7770";
-    ctx.fillRect(head.x - barWidth / 2, barY,
-      barWidth * Math.max(0, character.health / character.maxHealth), barHeight);
+    ctx.fillRect(head.x - barWidth / 2, barY, barWidth * Math.max(0, character.health / character.maxHealth), barHeight);
   }
 
   function drawCharacter(character, scale, offsetX) {
-    if (character.mode === "active") {
-      drawActiveCharacter(character, scale, offsetX);
-      return;
-    }
+    if (character.mode === "active") { drawActiveCharacter(character, scale, offsetX); return; }
     if (!character.rig) return;
     const rig = character.rig;
-    const screen = worldToScreen(character.body.getPosition().x, character.body.getPosition().y, scale, offsetX);
-
-    // Draw directly between the actual physics joint anchors. Drawing each
-    // body's approximate endpoints created visible gaps even though the
-    // physical joints were connected.
-    const jointPoint = name => {
-      const joint = rig.jointMap[name];
-      const anchor = joint.getAnchorA();
-      return worldToScreen(anchor.x, anchor.y, scale, offsetX);
-    };
-    const line = (from, to, width = 0.052) => {
-      ctx.beginPath();
-      ctx.moveTo(from.x, from.y);
-      ctx.lineTo(to.x, to.y);
+    const point = value => worldToScreen(value.x, value.y, scale, offsetX);
+    const joint = name => { const p = rig.jointMap[name].getAnchorA(); return { x: p.x, y: p.y }; };
+    const stroke = (from, to, width = 0.042) => {
+      const a = point(from), b = point(to);
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
       ctx.lineWidth = Math.max(2.5, scale * width);
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      ctx.stroke();
+      ctx.lineCap = "round"; ctx.stroke();
     };
-    ctx.save();
-    ctx.strokeStyle = "#17232b";
-    ctx.fillStyle = character.color;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-
-    const neck = jointPoint("neck");
-    const leftShoulder = jointPoint("leftShoulder");
-    const rightShoulder = jointPoint("rightShoulder");
-    const leftElbow = jointPoint("leftElbow");
-    const rightElbow = jointPoint("rightElbow");
-    const leftHip = jointPoint("leftHip");
-    const rightHip = jointPoint("rightHip");
-    const leftKnee = jointPoint("leftKnee");
-    const rightKnee = jointPoint("rightKnee");
-    const leftAnkle = jointPoint("leftAnkle");
-    const rightAnkle = jointPoint("rightAnkle");
-
-    const midpoint = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
-    const spineTop = neck;
-    const spineBottom = midpoint(leftHip, rightHip);
-    const armBranch = midpoint(spineTop, spineBottom);
-    line(spineTop, spineBottom, 0.052);
-    // Join each shoulder to the same central spine before drawing the arms.
-    line(armBranch, leftShoulder);
-    line(armBranch, rightShoulder);
-    line(leftShoulder, leftElbow);
-    line(rightShoulder, rightElbow);
-    line(leftHip, leftKnee);
-    line(leftKnee, leftAnkle);
-    line(rightHip, rightKnee);
-    line(rightKnee, rightAnkle);
-
-    // Hands and feet extend from the terminal physical joints.
-    const leftHandWorld = rig.byName["left-lower-arm"].body.getWorldPoint(V(0, -0.17));
-    const rightHandWorld = rig.byName["right-lower-arm"].body.getWorldPoint(V(0, -0.17));
-    const leftFootWorld = rig.byName["left-foot"].body.getWorldPoint(V(0.12, 0));
-    const rightFootWorld = rig.byName["right-foot"].body.getWorldPoint(V(0.12, 0));
-    line(leftElbow, worldToScreen(leftHandWorld.x, leftHandWorld.y, scale, offsetX));
-    line(rightElbow, worldToScreen(rightHandWorld.x, rightHandWorld.y, scale, offsetX));
-    line(leftAnkle, worldToScreen(leftFootWorld.x, leftFootWorld.y, scale, offsetX));
-    line(rightAnkle, worldToScreen(rightFootWorld.x, rightFootWorld.y, scale, offsetX));
-
     const headPosition = rig.head.getPosition();
-    const head = worldToScreen(headPosition.x, headPosition.y, scale, offsetX);
-    const headRadius = 0.135 * scale;
-    const headBottom = { x: head.x, y: head.y + headRadius };
-    line(neck, headBottom);
-    ctx.beginPath();
-    ctx.arc(head.x, head.y, headRadius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "#17232b";
-    ctx.lineWidth = Math.max(2, scale * 0.035);
-    ctx.stroke();
+    const radius = 0.135;
+    const headBottom = { x: headPosition.x, y: headPosition.y - radius };
+    const leftHip = joint("leftHip"), rightHip = joint("rightHip");
+    const hips = { x: (leftHip.x + rightHip.x) / 2, y: (leftHip.y + rightHip.y) / 2 };
+    const armRoot = { x: (headBottom.x + hips.x) / 2, y: (headBottom.y + hips.y) / 2 };
+    const leftHand = rig.byName["left-lower-arm"].body.getWorldPoint(V(0, -0.17));
+    const rightHand = rig.byName["right-lower-arm"].body.getWorldPoint(V(0, -0.17));
+    const leftFoot = rig.byName["left-foot"].body.getWorldPoint(V(0.12, 0));
+    const rightFoot = rig.byName["right-foot"].body.getWorldPoint(V(0.12, 0));
+    ctx.save(); ctx.strokeStyle = "#17232b";
+    stroke(headBottom, hips, 0.052);
+    stroke(armRoot, { x: leftHand.x, y: leftHand.y });
+    stroke(armRoot, { x: rightHand.x, y: rightHand.y });
+    stroke(hips, { x: leftFoot.x, y: leftFoot.y });
+    stroke(hips, { x: rightFoot.x, y: rightFoot.y });
+    const head = point(headPosition);
+    ctx.beginPath(); ctx.arc(head.x, head.y, radius * scale, 0, Math.PI * 2);
+    ctx.fillStyle = "#ffffff"; ctx.fill();
+    ctx.strokeStyle = "#17232b"; ctx.lineWidth = Math.max(2, scale * 0.035); ctx.stroke();
     ctx.restore();
-
-    const barWidth = scale * 0.72;
-    const barHeight = Math.max(3, scale * 0.055);
+    const barWidth = scale * 0.72, barHeight = Math.max(3, scale * 0.055);
     const highestPiece = Math.max(...rig.pieces.map(piece => {
-      const position = piece.body.getPosition();
-      return position.y + (piece.circle ? piece.halfWidth : piece.halfHeight);
+      const p = piece.body.getPosition(); return p.y + (piece.circle ? piece.halfWidth : piece.halfHeight);
     }));
+    const screen = point(headPosition);
     const barY = worldToScreen(screen.x, highestPiece + 0.28, scale, offsetX).y - screen.y;
-    ctx.fillStyle = "#17232b";
-    ctx.fillRect(screen.x - barWidth / 2, screen.y + barY, barWidth, barHeight);
+    ctx.fillStyle = "#17232b"; ctx.fillRect(screen.x - barWidth / 2, screen.y + barY, barWidth, barHeight);
     ctx.fillStyle = character.team === 0 ? "#58a8ff" : "#ff7770";
-    ctx.fillRect(
-      screen.x - barWidth / 2,
-      screen.y + barY,
-      barWidth * Math.max(0, character.health / character.maxHealth),
-      barHeight
-    );
+    ctx.fillRect(screen.x - barWidth / 2, screen.y + barY, barWidth * Math.max(0, character.health / character.maxHealth), barHeight);
   }
 
   function drawAim(scale, offsetX) {
