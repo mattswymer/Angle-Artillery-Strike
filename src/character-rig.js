@@ -46,6 +46,7 @@ const FOOT_HALF_HEIGHT = 0.03;
     linearDamping: 0.08,
     angularDamping: 0.08,
     allowSleep: false,
+      bullet: true,
     userData: { part: "torso" }
   });
   hull.createFixture({
@@ -64,6 +65,7 @@ const FOOT_HALF_HEIGHT = 0.03;
       linearDamping: 0.08,
       angularDamping: 0.08,
       allowSleep: false,
+      bullet: true,
       userData: { part: name }
     });
     body.createFixture({
@@ -122,6 +124,7 @@ const FOOT_HALF_HEIGHT = 0.03;
       linearDamping: 0.08,
       angularDamping: 0.08,
       allowSleep: false,
+      bullet: true,
       userData: { part: side < 0 ? "left-upper-leg" : "right-upper-leg" }
     });
     upper.createFixture({
@@ -153,6 +156,7 @@ const FOOT_HALF_HEIGHT = 0.03;
       linearDamping: 0.08,
       angularDamping: 0.08,
       allowSleep: false,
+      bullet: true,
       userData: { part: side < 0 ? "left-lower-leg" : "right-lower-leg" }
     });
     lower.createFixture({
@@ -184,6 +188,7 @@ const FOOT_HALF_HEIGHT = 0.03;
       linearDamping: 0.08,
       angularDamping: 0.08,
       allowSleep: false,
+      bullet: true,
       userData: { part: side < 0 ? "left-foot" : "right-foot" }
     });
     foot.createFixture({
