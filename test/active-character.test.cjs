@@ -238,3 +238,27 @@ test("active stickman arms hang beside the torso instead of forming a T pose", (
       side + " arm should stay close to torso, not extend sideways");
   }
 });
+
+
+test("active stickman idle stance is upright and separates both near/far limb pairs", () => {
+  const { world, heightAt } = flatWorld();
+  const character = ActiveCharacter.create(Planck, world, { x: 0, heightAt });
+  const pose = character.pose();
+
+  assert.ok(Math.abs(pose.torsoTop.x - pose.hips.x) < 1e-9,
+    "idle torso should be vertical, not leaning toward the camera");
+  assert.ok(Math.abs(pose.head.x - pose.hips.x) < 0.03,
+    "head should remain aligned over the upright torso");
+  assert.ok(Math.abs(pose.leftElbow.x - pose.rightElbow.x) > 0.05,
+    "both arms should remain visible instead of overlapping");
+  assert.ok(Math.abs(pose.leftHand.x - pose.rightHand.x) > 0.1,
+    "both hands should remain visible in the idle profile");
+  assert.ok(Math.abs(pose.leftFoot.x - pose.rightFoot.x) > 0.1,
+    "both legs should remain visible instead of overlapping");
+  for (const side of ["left", "right"]) {
+    assert.ok(pose[side + "Shoulder"].y > pose[side + "Elbow"].y);
+    assert.ok(pose[side + "Elbow"].y > pose[side + "Hand"].y);
+    assert.ok(pose.hips.y > pose[side + "Knee"].y);
+    assert.ok(pose[side + "Knee"].y > pose[side + "Foot"].y);
+  }
+});
