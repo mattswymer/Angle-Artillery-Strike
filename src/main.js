@@ -630,23 +630,14 @@
     };
     const radius = 0.135;
     const headBottom = { x: pose.head.x, y: pose.head.y - radius };
-    const hips = { x: pose.x, y: pose.y + 0.44 };
+    const hips = pose.hips;
     const armRoot = {
       x: pose.x,
-      y: headBottom.y + (hips.y - headBottom.y) * 0.36
+      y: headBottom.y + (hips.y - headBottom.y) * 0.34
     };
-    const hands = {
-      left: { x: pose.x - 0.29, y: pose.y + 0.39 },
-      right: { x: pose.x + 0.29, y: pose.y + 0.39 }
-    };
-    const elbows = {
-      left: { x: (armRoot.x + hands.left.x) / 2 - 0.025, y: (armRoot.y + hands.left.y) / 2 },
-      right: { x: (armRoot.x + hands.right.x) / 2 + 0.025, y: (armRoot.y + hands.right.y) / 2 }
-    };
-    const knees = {
-      left: { x: pose.x - 0.15, y: pose.y + 0.23 },
-      right: { x: pose.x + 0.15, y: pose.y + 0.23 }
-    };
+    const hands = { left: pose.leftHand, right: pose.rightHand };
+    const elbows = { left: pose.leftElbow, right: pose.rightElbow };
+    const knees = { left: pose.leftKnee, right: pose.rightKnee };
     const feet = {
       left: { x: pose.leftFoot.x, y: pose.leftFoot.y },
       right: { x: pose.rightFoot.x, y: pose.rightFoot.y }
