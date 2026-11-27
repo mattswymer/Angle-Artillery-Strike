@@ -183,22 +183,22 @@
       const torsoTop = { x: hip.x, y: hip.y + torsoLength };
       const neckTop = { x: torsoTop.x, y: torsoTop.y + neckLength };
       const head = { x: neckTop.x, y: neckTop.y + headRadius };
-      const armSwing = moving ? -stride * 0.045 : 0;
-      const shoulder = side => ({
-        x: torsoTop.x + side * 0.012,
-        y: torsoTop.y
-      });
+      // Keep the active stickman on the same segment measurements as the
+      // articulated figure: each arm segment is 3/16 of total height.
+      // Arms start at the torso/neck junction and hang beside the body.
+      const armSwing = moving ? -stride * 0.035 : 0;
+      const shoulder = side => ({ x: torsoTop.x + side * 0.012, y: torsoTop.y });
       const elbow = side => ({
-        x: torsoTop.x + side * (upperLimbLength * 0.28) + armSwing,
-        y: torsoTop.y - upperLimbLength * 0.72
+        x: torsoTop.x + side * 0.025 + armSwing,
+        y: torsoTop.y - upperLimbLength
       });
       const hand = side => ({
-        x: torsoTop.x + side * (upperLimbLength * 0.34) + armSwing * 1.5,
-        y: torsoTop.y - upperLimbLength * 1.5
+        x: torsoTop.x + side * 0.035 + armSwing * 1.6,
+        y: torsoTop.y - upperLimbLength * 2
       });
       return {
         x: p.x, y: p.y, facing, grounded, head,
-        neckTop, torsoTop, hips: hip,
+        neckTop, torsoTop, torso: torsoTop, hips: hip,
         leftFoot, rightFoot, leftKnee, rightKnee,
         leftShoulder: shoulder(-1), rightShoulder: shoulder(1),
         leftElbow: elbow(-1), rightElbow: elbow(1),
