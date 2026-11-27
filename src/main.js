@@ -614,8 +614,7 @@
     terrainSystem.draw(ctx, (x, y) => worldToScreen(x, y, scale, offsetX));
   }
 
-  function drawActiveCharacter(character, scale, offsetX) {
-    const pose = character.pose();
+  function drawStickmanPose(character, pose, scale, offsetX) {
     const point = value => worldToScreen(value.x, value.y, scale, offsetX);
     const stroke = (from, to, width = 0.042) => {
       const a = point(from), b = point(to);
@@ -628,94 +627,87 @@
       ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(2, scale * 0.027), 0, Math.PI * 2);
       ctx.fillStyle = "#17232b"; ctx.fill();
     };
-    const radius = 1.28 / 16;
+    const radius = pose.headRadius;
     const headBottom = { x: pose.head.x, y: pose.head.y - radius };
-    const hips = pose.hips;
-    const armRoot = pose.torsoTop;
-    const hands = { left: pose.leftHand, right: pose.rightHand };
-    const elbows = { left: pose.leftElbow, right: pose.rightElbow };
-    const knees = { left: pose.leftKnee, right: pose.rightKnee };
-    const feet = {
-      left: { x: pose.leftFoot.x, y: pose.leftFoot.y },
-      right: { x: pose.rightFoot.x, y: pose.rightFoot.y }
-    };
     const head = point(pose.head);
     ctx.save();
     ctx.strokeStyle = "#17232b";
     stroke(headBottom, pose.neckTop, 0.052);
     stroke(pose.neckTop, pose.torsoTop, 0.052);
-    stroke(pose.torsoTop, hips, 0.052);
-    // Arms attach directly to the neck/torso junction; no shoulder crossbar.
-    stroke(armRoot, elbows.left); stroke(elbows.left, hands.left);
-    stroke(armRoot, elbows.right); stroke(elbows.right, hands.right);
-    stroke(hips, knees.left); stroke(knees.left, feet.left);
-    stroke(hips, knees.right); stroke(knees.right, feet.right);
-    [elbows.left, elbows.right, knees.left, knees.right].forEach(jointDot);
+    stroke(pose.torsoTop, pose.hips, 0.052);
+    // Both modes use this exact connected stickman renderer.
+    stroke(pose.torsoTop, pose.leftElbow);
+    stroke(pose.leftElbow, pose.leftHand);
+    stroke(pose.torsoTop, pose.rightElbow);
+    stroke(pose.rightElbow, pose.rightHand);
+    stroke(pose.hips, pose.leftKnee);
+    stroke(pose.leftKnee, pose.leftFoot);
+    stroke(pose.hips, pose.rightKnee);
+    stroke(pose.rightKnee, pose.rightFoot);
+    [pose.leftElbow, pose.rightElbow, pose.leftKnee, pose.rightKnee].forEach(jointDot);
     ctx.beginPath(); ctx.arc(head.x, head.y, radius * scale, 0, Math.PI * 2);
     ctx.fillStyle = "#ffffff"; ctx.fill();
     ctx.strokeStyle = "#17232b"; ctx.lineWidth = Math.max(2, scale * 0.035); ctx.stroke();
     ctx.restore();
+
     const barWidth = scale * 0.72, barHeight = Math.max(3, scale * 0.055);
-    const barY = head.y - scale * 0.23;
-    ctx.fillStyle = "#17232b"; ctx.fillRect(head.x - barWidth / 2, barY, barWidth, barHeight);
+    const barPoint = worldToScreen(pose.head.x, pose.healthBarY, scale, offsetX);
+    const barY = barPoint.y;
+    ctx.fillStyle = "#17232b";
+    ctx.fillRect(head.x - barWidth / 2, barY, barWidth, barHeight);
     ctx.fillStyle = character.team === 0 ? "#58a8ff" : "#ff7770";
-    ctx.fillRect(head.x - barWidth / 2, barY, barWidth * Math.max(0, character.health / character.maxHealth), barHeight);
+    ctx.fillRect(head.x - barWidth / 2, barY,
+      barWidth * Math.max(0, character.health / character.maxHealth), barHeight);
   }
 
-  function drawCharacter(character, scale, offsetX) {
-    if (character.mode === "active") { drawActiveCharacter(character, scale, offsetX); return; }
-    if (!character.rig) return;
+  function ragdollStickmanPose(character) {
     const rig = character.rig;
-    const point = value => worldToScreen(value.x, value.y, scale, offsetX);
-    const joint = name => { const p = rig.jointMap[name].getAnchorA(); return { x: p.x, y: p.y }; };
-    const stroke = (from, to, width = 0.042) => {
-      const a = point(from), b = point(to);
-      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
-      ctx.lineWidth = Math.max(2.5, scale * width);
-      ctx.lineCap = "round"; ctx.stroke();
+    const joint = name => {
+      const p = rig.jointMap[name].getAnchorA();
+      return { x: p.x, y: p.y };
     };
-    const headPosition = rig.head.getPosition();
-    const radius = 0.135;
-    const headBottom = { x: headPosition.x, y: headPosition.y - radius };
-    const leftHip = joint("leftHip"), rightHip = joint("rightHip");
-    const leftKnee = joint("leftKnee"), rightKnee = joint("rightKnee");
-    const leftElbow = joint("leftElbow"), rightElbow = joint("rightElbow");
-    const hips = { x: (leftHip.x + rightHip.x) / 2, y: (leftHip.y + rightHip.y) / 2 };
-    const armRoot = {
+    const head = rig.head.getPosition();
+    const headRadius = 0.135;
+    const headBottom = { x: head.x, y: head.y - headRadius };
+    const hipsLeft = joint("leftHip"), hipsRight = joint("rightHip");
+    const hips = { x: (hipsLeft.x + hipsRight.x) / 2, y: (hipsLeft.y + hipsRight.y) / 2 };
+    const torsoTop = {
       x: headBottom.x + (hips.x - headBottom.x) * 0.36,
       y: headBottom.y + (hips.y - headBottom.y) * 0.36
+    };
+    const neckTop = {
+      x: headBottom.x + (torsoTop.x - headBottom.x) * 0.45,
+      y: headBottom.y + (torsoTop.y - headBottom.y) * 0.45
     };
     const leftHand = rig.byName["left-lower-arm"].body.getWorldPoint(V(0, -0.17));
     const rightHand = rig.byName["right-lower-arm"].body.getWorldPoint(V(0, -0.17));
     const leftFoot = rig.byName["left-foot"].body.getWorldPoint(V(0.12, 0));
     const rightFoot = rig.byName["right-foot"].body.getWorldPoint(V(0.12, 0));
-    ctx.save(); ctx.strokeStyle = "#17232b";
-    stroke(headBottom, hips, 0.052);
-    stroke(armRoot, leftElbow); stroke(leftElbow, { x: leftHand.x, y: leftHand.y });
-    stroke(armRoot, rightElbow); stroke(rightElbow, { x: rightHand.x, y: rightHand.y });
-    stroke(hips, leftKnee); stroke(leftKnee, { x: leftFoot.x, y: leftFoot.y });
-    stroke(hips, rightKnee); stroke(rightKnee, { x: rightFoot.x, y: rightFoot.y });
-    for (const p of [leftElbow, rightElbow, leftKnee, rightKnee]) {
-      const screenPoint = point(p);
-      ctx.beginPath();
-      ctx.arc(screenPoint.x, screenPoint.y, Math.max(2, scale * 0.027), 0, Math.PI * 2);
-      ctx.fillStyle = "#17232b";
-      ctx.fill();
-    }
-    const head = point(headPosition);
-    ctx.beginPath(); ctx.arc(head.x, head.y, radius * scale, 0, Math.PI * 2);
-    ctx.fillStyle = "#ffffff"; ctx.fill();
-    ctx.strokeStyle = "#17232b"; ctx.lineWidth = Math.max(2, scale * 0.035); ctx.stroke();
-    ctx.restore();
-    const barWidth = scale * 0.72, barHeight = Math.max(3, scale * 0.055);
     const highestPiece = Math.max(...rig.pieces.map(piece => {
-      const p = piece.body.getPosition(); return p.y + (piece.circle ? piece.halfWidth : piece.halfHeight);
+      const p = piece.body.getPosition();
+      return p.y + (piece.circle ? piece.halfWidth : piece.halfHeight);
     }));
-    const screen = point(headPosition);
-    const barY = worldToScreen(screen.x, highestPiece + 0.28, scale, offsetX).y - screen.y;
-    ctx.fillStyle = "#17232b"; ctx.fillRect(screen.x - barWidth / 2, screen.y + barY, barWidth, barHeight);
-    ctx.fillStyle = character.team === 0 ? "#58a8ff" : "#ff7770";
-    ctx.fillRect(screen.x - barWidth / 2, screen.y + barY, barWidth * Math.max(0, character.health / character.maxHealth), barHeight);
+    return {
+      head, headRadius, neckTop, torsoTop, hips,
+      leftElbow: joint("leftElbow"), rightElbow: joint("rightElbow"),
+      leftKnee: joint("leftKnee"), rightKnee: joint("rightKnee"),
+      leftHand: { x: leftHand.x, y: leftHand.y },
+      rightHand: { x: rightHand.x, y: rightHand.y },
+      leftFoot: { x: leftFoot.x, y: leftFoot.y },
+      rightFoot: { x: rightFoot.x, y: rightFoot.y },
+      healthBarY: highestPiece + 0.28
+    };
+  }
+
+  function drawCharacter(character, scale, offsetX) {
+    if (character.mode === "active") {
+      const pose = character.pose();
+      drawStickmanPose(character, { ...pose, headRadius: 1.28 / 16,
+        healthBarY: pose.head.y + 0.23 }, scale, offsetX);
+      return;
+    }
+    if (!character.rig) return;
+    drawStickmanPose(character, ragdollStickmanPose(character), scale, offsetX);
   }
 
   function drawAim(scale, offsetX) {
