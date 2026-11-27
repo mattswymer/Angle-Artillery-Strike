@@ -80,9 +80,9 @@ const FOOT_HALF_HEIGHT = 0.03;
   };
   const head = makeUpperBodyPart("head", [0, 0.47], 0.135, 0.135, 1.05, true);
   const leftUpperArm = makeUpperBodyPart("left-upper-arm", [-0.17, 0.03], 0.065, 0.19, 0.8);
-  const leftLowerArm = makeUpperBodyPart("left-lower-arm", [-0.17, -0.33], 0.055, 0.17, 0.8, false, true);
+  const leftLowerArm = makeUpperBodyPart("left-lower-arm", [-0.17, -0.33], 0.055, 0.17, 0.8);
   const rightUpperArm = makeUpperBodyPart("right-upper-arm", [0.17, 0.03], 0.065, 0.19, 0.8);
-  const rightLowerArm = makeUpperBodyPart("right-lower-arm", [0.17, -0.33], 0.055, 0.17, 0.8, false, true);
+  const rightLowerArm = makeUpperBodyPart("right-lower-arm", [0.17, -0.33], 0.055, 0.17, 0.8);
 
   const makeUpperJoint = (bodyA, bodyB, anchorA, anchorB, lowerAngle, upperAngle, maxTorque) => {
     const joint = world.createJoint(planck.RevoluteJoint({
