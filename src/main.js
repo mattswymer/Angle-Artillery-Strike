@@ -373,10 +373,10 @@
     const dx = Math.cos(angle);
     const dy = Math.sin(angle);
     const p = character.body.getPosition();
-    const startX = Math.max(0.05, Math.min(WORLD_WIDTH - 0.05, p.x + dx * 0.62));
-    // A prone torso may be partly inside the ground. Lift the muzzle clear
-    // before launching so the first collision is not the shooter's own crater.
-    const startY = Math.max(p.y + dy * 0.62 + 0.05, heightAt(startX) + 0.18);
+    const muzzleHeight = 0.72;
+    const startX = Math.max(0.05, Math.min(WORLD_WIDTH - 0.05, p.x + dx * 0.42));
+    // Match the preview arrow's shoulder-height origin.
+    const startY = Math.max(p.y + muzzleHeight + dy * 0.12, heightAt(startX) + 0.18);
     const start = V(startX, startY);
     const body = world.createBody({
       type: "dynamic",
