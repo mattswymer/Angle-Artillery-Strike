@@ -154,41 +154,55 @@
       const p = body.getPosition();
       const moving = Math.abs(body.getLinearVelocity().x) > 0.15 && grounded;
       const phase = gaitPhase % (Math.PI * 2);
-      // Four readable walk-cycle beats: contact, down, passing, up.
       const stride = moving ? Math.sin(phase) : 0;
       const oppositeStride = -stride;
-      const bob = moving ? 0.025 * (1 - Math.cos(phase * 2)) : 0;
-      const hipSway = moving ? Math.sin(phase) * 0.025 : 0;
-      const hip = { x: p.x + hipSway, y: p.y + 0.44 + bob };
-      const head = { x: p.x + hipSway * 0.35, y: p.y + 1.16 + bob };
-      const shoulderY = p.y + 0.91 + bob;
+      // Proportions are fractions of the complete foot-to-head height.
+      const H = 1.28;
+      const headDiameter = H / 8;
+      const headRadius = headDiameter / 2;
+      const neckLength = H / 16;
+      const torsoLength = H * 5 / 16;
+      const upperLimbLength = H * 3 / 16;
+      const legSegmentLength = H / 4;
+      const bob = moving ? 0.018 * (1 - Math.cos(phase * 2)) : 0;
+      const hipSway = moving ? Math.sin(phase) * 0.018 : 0;
+      const footY = p.y + BODY.skin;
+      const hip = { x: p.x + hipSway, y: footY + legSegmentLength * 2 + bob };
+      const knee = (side, swing) => ({
+        x: hip.x + side * 0.035 + swing * 0.12,
+        y: footY + legSegmentLength + Math.max(0, swing) * 0.035 + bob * 0.5
+      });
+      const leftKnee = knee(-1, stride);
+      const rightKnee = knee(1, oppositeStride);
       const foot = (side, swing) => ({
-        x: p.x + side * 0.13 + swing * 0.20,
-        y: p.y + BODY.skin + (moving ? Math.max(0, swing) * 0.10 : 0)
+        x: p.x + side * 0.11 + swing * 0.18,
+        y: footY + (moving ? Math.max(0, swing) * 0.07 : 0)
       });
       const leftFoot = foot(-1, stride);
       const rightFoot = foot(1, oppositeStride);
-      const knee = (side, swing, targetFoot) => ({
-        x: hip.x + (targetFoot.x - hip.x) * 0.5 + swing * 0.035,
-        y: hip.y + (targetFoot.y - hip.y) * 0.5 + 0.035 + Math.max(0, swing) * 0.035
+      const torsoTop = { x: hip.x, y: hip.y + torsoLength };
+      const neckTop = { x: torsoTop.x, y: torsoTop.y + neckLength };
+      const head = { x: neckTop.x, y: neckTop.y + headRadius };
+      const armSwing = moving ? -stride * 0.045 : 0;
+      const shoulder = side => ({
+        x: torsoTop.x + side * 0.012,
+        y: torsoTop.y
       });
-      const leftKnee = knee(-1, stride, leftFoot);
-      const rightKnee = knee(1, oppositeStride, rightFoot);
-      // Arms hang close to the torso instead of extending sideways.
-      const armSwing = moving ? -stride * 0.065 : 0;
-      const leftShoulder = { x: hip.x - 0.14, y: shoulderY };
-      const rightShoulder = { x: hip.x + 0.14, y: shoulderY };
-      const leftElbow = { x: hip.x - 0.17 + armSwing, y: shoulderY - 0.34 };
-      const rightElbow = { x: hip.x + 0.17 + armSwing, y: shoulderY - 0.34 };
-      const leftHand = { x: hip.x - 0.18 + armSwing * 1.5, y: shoulderY - 0.68 };
-      const rightHand = { x: hip.x + 0.18 + armSwing * 1.5, y: shoulderY - 0.68 };
+      const elbow = side => ({
+        x: torsoTop.x + side * (upperLimbLength * 0.28) + armSwing,
+        y: torsoTop.y - upperLimbLength * 0.72
+      });
+      const hand = side => ({
+        x: torsoTop.x + side * (upperLimbLength * 0.34) + armSwing * 1.5,
+        y: torsoTop.y - upperLimbLength * 1.5
+      });
       return {
-        x: p.x, y: p.y, facing, grounded,
-        head, torso: { x: hip.x, y: (head.y + hip.y) / 2 },
-        hips: hip,
+        x: p.x, y: p.y, facing, grounded, head,
+        neckTop, torsoTop, hips: hip,
         leftFoot, rightFoot, leftKnee, rightKnee,
-        leftShoulder, rightShoulder,
-        leftElbow, rightElbow, leftHand, rightHand
+        leftShoulder: shoulder(-1), rightShoulder: shoulder(1),
+        leftElbow: elbow(-1), rightElbow: elbow(1),
+        leftHand: hand(-1), rightHand: hand(1)
       };
     }
 
