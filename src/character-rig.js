@@ -73,7 +73,10 @@ const FOOT_HALF_HEIGHT = 0.03;
       density,
       friction: sensor ? 0.18 : 0.35,
       restitution: 0,
-      isSensor: sensor,
+      // Only the torso collides physically during ragdoll. Limbs remain
+      // jointed and can be queried for contact, but cannot pile up against
+      // terrain or one another and inject solver jitter.
+      isSensor: true,
       filterGroupIndex: collisionGroup
     });
     return body;
@@ -132,7 +135,8 @@ const FOOT_HALF_HEIGHT = 0.03;
       density: 1.15,
       friction: 0.2,
       restitution: 0,
-      filterGroupIndex: collisionGroup
+      filterGroupIndex: collisionGroup,
+      isSensor: true
     });
 
     const hip = world.createJoint(planck.RevoluteJoint({
@@ -164,7 +168,8 @@ const FOOT_HALF_HEIGHT = 0.03;
       density: 1.1,
       friction: 0.2,
       restitution: 0,
-      filterGroupIndex: collisionGroup
+      filterGroupIndex: collisionGroup,
+      isSensor: true
     });
 
     const knee = world.createJoint(planck.RevoluteJoint({
@@ -196,7 +201,8 @@ const FOOT_HALF_HEIGHT = 0.03;
       density: 0.65,
       friction: 0.9,
       restitution: 0,
-      filterGroupIndex: collisionGroup
+      filterGroupIndex: collisionGroup,
+      isSensor: true
     });
 
     const ankle = world.createJoint(planck.RevoluteJoint({
