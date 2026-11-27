@@ -143,10 +143,49 @@
       this.body = this.world.createBody({ type: "static", userData: { kind: "terrain" } });
       this.loops = this.buildContours();
 
-      // Build the physical terrain from solid grid rectangles, not one-sided
-      // contour chains. Every rectangle is a two-sided solid fixture, so a
-      // character cannot pass through the terrain from either direction.
-      // Merge identical horizontal runs vertically to keep fixture count low.
+      // Keep the smooth one-sided contour as the visible/top collision surface.
+      // The solid grid backing below it is a two-sided safety barrier: if a
+      // fast or awkwardly oriented ragdoll segment ever crosses a contour,
+      // it can penetrate only a fraction of one grid cell before being stopped.
+      for (const loop of this.loops) {
+        const hasOpenBoundary = loop.some((point, index) =>
+          this.isWorldExitEdge(point, loop[(index + 1) % loop.length]));
+
+        if (!hasOpenBoundary) {
+          if (loop.length >= 3) {
+            this.body.createFixture({
+              shape: new this.Planck.Chain(loop.slice().reverse().map(point => this.toWorld(point)), true),
+              friction: 0.95
+            });
+          }
+          continue;
+        }
+
+        let segment = [];
+        const flush = () => {
+          if (segment.length >= 2) {
+            this.body.createFixture({
+              shape: new this.Planck.Chain(segment.slice().reverse().map(point => this.toWorld(point))),
+              friction: 0.95
+            });
+          }
+          segment = [];
+        };
+        for (let i = 0; i < loop.length; i++) {
+          const start = loop[i];
+          const end = loop[(i + 1) % loop.length];
+          if (this.isWorldExitEdge(start, end)) flush();
+          else {
+            if (!segment.length) segment.push(start);
+            segment.push(end);
+          }
+        }
+        flush();
+      }
+
+      // Decompose the occupancy grid into merged solid rectangles. Their top
+      // edges sit half a cell below exposed contour edges, preserving smooth
+      // character movement while providing a two-sided collision backstop.
       const active = new Map();
       const finished = [];
       for (let y = 0; y < this.rows; y++) {
@@ -160,7 +199,6 @@
             runStart = -1;
           }
         }
-
         const next = new Map();
         for (const [start, end] of runs) {
           const runKey = start + ":" + end;
@@ -177,19 +215,20 @@
       }
       for (const rectangle of active.values()) finished.push(rectangle);
 
-      const seamOverlap = Math.min(0.002, this.cellSize * 0.04);
       for (const rectangle of finished) {
         const left = rectangle.start * this.cellSize;
         const right = rectangle.end * this.cellSize;
         const bottom = this.originY + rectangle.bottom * this.cellSize;
         const top = this.originY + rectangle.top * this.cellSize;
-        const halfWidth = (right - left) / 2 + seamOverlap;
-        const halfHeight = (top - bottom) / 2 + seamOverlap;
+        const inset = Math.min(this.cellSize * 0.5, (top - bottom) * 0.45);
+        const backingTop = top - inset;
+        if (backingTop <= bottom) continue;
+        const seamOverlap = Math.min(0.002, this.cellSize * 0.04);
         this.body.createFixture({
           shape: new this.Planck.Box(
-            halfWidth,
-            halfHeight,
-            this.Planck.Vec2((left + right) / 2, (bottom + top) / 2)
+            (right - left) / 2 + seamOverlap,
+            (backingTop - bottom) / 2 + seamOverlap,
+            this.Planck.Vec2((left + right) / 2, (backingTop + bottom) / 2)
           ),
           friction: 0.95,
           restitution: 0
