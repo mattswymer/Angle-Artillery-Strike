@@ -62,6 +62,7 @@
     let jumpLock = false;
     let gaitPhase = 0;
     let lastGroundY = surface;
+    let lockedX = x;
     let facing = team === 0 ? 1 : -1;
 
     function rayGround(sampleX, originY) {
@@ -83,14 +84,15 @@
 
     function snapToGround(direction = 0) {
       const position = body.getPosition();
-      const centerHit = rayGround(position.x, position.y);
+      const sampleX = direction === 0 ? lockedX : position.x;
+      const centerHit = rayGround(sampleX, position.y);
       if (!centerHit) {
         grounded = false;
         return false;
       }
       let target = centerHit;
       if (direction !== 0) {
-        const ahead = rayGround(position.x + direction * 0.3, position.y);
+        const ahead = rayGround(sampleX + direction * 0.3, position.y);
         if (ahead && ahead.y - centerHit.y <= BODY.maxStepHeight) {
           if (ahead.y > centerHit.y) target = ahead;
         }
@@ -105,16 +107,9 @@
         return false;
       }
       const nextY = target.y - BODY.footCenterY + BODY.radius + BODY.skin;
-      body.setTransform(Vec2(position.x, nextY), 0);
+      body.setTransform(Vec2(sampleX, nextY), 0);
       body.setLinearVelocity(Vec2(direction === 0 ? 0 : velocity.x, 0));
-      if (direction === 0) {
-        // Cancel the gravity component along the support tangent. This gives
-        // the simple collider a true standing state on slopes without ankle
-        // motors or a balancing controller.
-        const tangent = Vec2(target.normal.y, -target.normal.x);
-        const supportForce = body.getMass() * 10 * tangent.y;
-        body.applyForceToCenter(Vec2(tangent.x * supportForce, tangent.y * supportForce), true);
-      }
+      if (direction !== 0) lockedX = sampleX;
       grounded = true;
       lastGroundY = target.y;
       return true;
