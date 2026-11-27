@@ -42,6 +42,7 @@
   let pullbackOrigin = null;
   let pullbackDistance = 0;
   let projectile = null;
+  let projectileOwner = null;
   let projectilePrevious = null;
   let impactPoint = null;
   let projectileHit = null;
@@ -204,7 +205,7 @@
     }
     rig.settings = settings;
     return {
-      body: rig.hull, rig, team, number, color: COLORS[team],
+      body: rig.hull, rig, team, number, color: COLORS[team], collisionGroup,
       grounded: false, eliminated: false,
       health: 100, maxHealth: 100,
       aimAngle: team === 0 ? 0 : 180, aimPower: 100
@@ -297,6 +298,7 @@
     blockedTurnTime = 0;
     activeCanActLastFrame = false;
     projectile = null;
+    projectileOwner = null;
     projectilePrevious = null;
     impactPoint = null;
     projectileHit = null;
@@ -387,7 +389,11 @@
     const dx = Math.cos(angle);
     const dy = Math.sin(angle);
     const p = character.body.getPosition();
-    const start = V(p.x + dx * 0.42, p.y + dy * 0.72 + 0.05);
+    const startX = Math.max(0.05, Math.min(WORLD_WIDTH - 0.05, p.x + dx * 0.62));
+    // A prone torso may be partly inside the ground. Lift the muzzle clear
+    // before launching so the first collision is not the shooter's own crater.
+    const startY = Math.max(p.y + dy * 0.62 + 0.05, heightAt(startX) + 0.18);
+    const start = V(startX, startY);
     const body = world.createBody({
       type: "dynamic",
       position: start,
@@ -395,11 +401,17 @@
       linearDamping: 0,
       userData: { kind: "projectile" }
     });
-    const fixture = body.createFixture({ shape: new P.Circle(0.105), density: 0.18, restitution: 0.18, friction: 0.2 });
+    const fixture = body.createFixture({
+      shape: new P.Circle(0.105), density: 0.18, restitution: 0.18, friction: 0.2,
+      // Negative group index disables collision with the firing character's
+      // own articulated bodies, without making the shot ghost through others.
+      filterGroupIndex: character.collisionGroup
+    });
     fixture.setUserData({ kind: "projectile" });
     const speed = POWER_100_SPEED * power;
     body.setLinearVelocity(V(dx * speed, dy * speed));
     projectile = body;
+    projectileOwner = character;
     projectilePrevious = V(start.x, start.y);
     impactPoint = null;
     projectileHit = null;
@@ -451,6 +463,7 @@
     const point = impactPoint || currentPosition;
     world.destroyBody(projectile);
     projectile = null;
+    projectileOwner = null;
     projectilePrevious = null;
     impactPoint = null;
     const directHit = projectileHit;
@@ -544,6 +557,11 @@
       if (fixture.getUserData()?.kind === "projectile") return -1;
       const bodyKind = fixture.getBody().getUserData()?.kind;
       if (bodyKind === "terrain" || bodyKind === "character") {
+        if (bodyKind === "character") {
+          const target = characters.find(character =>
+            character.rig.bodies.some(body => body === fixture.getBody()));
+          if (target && target === projectileOwner) return -1;
+        }
         impactPoint = V(point.x, point.y);
         if (bodyKind === "character") {
           const target = characters.find(character =>
