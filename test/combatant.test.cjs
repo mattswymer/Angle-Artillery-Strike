@@ -86,6 +86,9 @@ test("ragdoll timeout relocates a stuck character and restores one active body",
   assert.equal(actor.recoveryReason, "timeout-relocation");
   assert.equal(countDynamicBodies(world), 1);
   assert.equal(countJoints(world), 0);
+  actor.update(1 / 50, 0);
+  world.step(1 / 50, 8, 3);
+  actor.update(1 / 50, 0);
   assert.equal(actor.active.grounded(), true);
 });
 
