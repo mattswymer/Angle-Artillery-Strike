@@ -172,3 +172,31 @@ test("active pose supplies renderer-only articulated limbs without physics joint
   for (let joint = world.getJointList(); joint; joint = joint.getNext()) joints++;
   assert.equal(joints, 0);
 });
+
+
+test("active stickman walk cycle moves the hips and alternates full leg and arm swings", () => {
+  const { world, heightAt } = flatWorld();
+  const character = ActiveCharacter.create(Planck, world, { x: 0, heightAt });
+  character.update(1 / 50, 0);
+  const standing = character.pose();
+  const samples = [];
+  for (let i = 0; i < 40; i++) {
+    character.setMove(1, 1 / 50);
+    world.step(1 / 50, 8, 3);
+    character.update(1 / 50, 1);
+    samples.push(character.pose());
+  }
+  const hipHeights = samples.map(p => p.hips.y);
+  const leftFootXs = samples.map(p => p.leftFoot.x - p.x);
+  const rightFootXs = samples.map(p => p.rightFoot.x - p.x);
+  const leftHandXs = samples.map(p => p.leftHand.x - p.x);
+  assert.ok(Math.max(...hipHeights) - Math.min(...hipHeights) > 0.015,
+    "hips should rise and fall through the walk cycle");
+  assert.ok(Math.max(...leftFootXs) - Math.min(...leftFootXs) > 0.2,
+    "left leg should swing from the hip");
+  assert.ok(Math.max(...rightFootXs) - Math.min(...rightFootXs) > 0.2,
+    "right leg should swing from the hip");
+  assert.ok(Math.max(...leftHandXs) - Math.min(...leftHandXs) > 0.04,
+    "arms should counter-swing with the legs");
+  assert.notEqual(standing.hips.y, samples[10].hips.y);
+});
