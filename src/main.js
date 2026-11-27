@@ -637,20 +637,22 @@
       ctx.lineWidth = Math.max(1.2, scale * 0.018);
       ctx.stroke();
     };
-    segment(pose.leftShoulder, pose.leftHand, 0.105);
-    segment(pose.rightShoulder, pose.rightHand, 0.105);
-    segment(pose.leftShoulder, pose.rightShoulder, 0.09);
-    segment(pose.leftShoulder, pose.leftKnee, 0.12);
-    segment(pose.rightShoulder, pose.rightKnee, 0.12);
-    segment(pose.leftKnee, pose.leftFoot, 0.105);
-    segment(pose.rightKnee, pose.rightFoot, 0.105);
+    // Keep the original slim stickman silhouette; the physical collider is
+    // deliberately broader than the character art.
+    segment(pose.leftShoulder, pose.leftHand, 0.062);
+    segment(pose.rightShoulder, pose.rightHand, 0.062);
+    segment(pose.leftShoulder, pose.rightShoulder, 0.052);
+    segment(pose.leftShoulder, pose.leftKnee, 0.072);
+    segment(pose.rightShoulder, pose.rightKnee, 0.072);
+    segment(pose.leftKnee, pose.leftFoot, 0.062);
+    segment(pose.rightKnee, pose.rightFoot, 0.062);
     const torso = point(pose.torso);
     ctx.fillStyle = character.color;
     ctx.strokeStyle = "#17232b";
     ctx.lineWidth = Math.max(1.2, scale * 0.018);
     ctx.beginPath();
-    ctx.roundRect(torso.x - scale * 0.17, torso.y - scale * 0.29,
-      scale * 0.34, scale * 0.58, scale * 0.07);
+    ctx.roundRect(torso.x - scale * 0.085, torso.y - scale * 0.29,
+      scale * 0.17, scale * 0.58, scale * 0.045);
     ctx.fill(); ctx.stroke();
     circle(pose.head, 0.135, character.color);
     const barAnchor = point({ x: pose.x, y: pose.head.y + 0.19 });
@@ -703,7 +705,8 @@
         ctx.arc(radius * 0.38, -radius * 0.12, Math.max(1.2, radius * 0.11), 0, Math.PI * 2);
         ctx.fill();
       } else {
-        const halfWidth = piece.halfWidth * scale;
+        const widthScale = piece.name === "torso" ? 0.58 : 0.62;
+        const halfWidth = piece.halfWidth * scale * widthScale;
         const halfHeight = piece.halfHeight * scale;
         const radius = Math.min(halfWidth, halfHeight, Math.max(2, scale * 0.035));
         ctx.beginPath();
