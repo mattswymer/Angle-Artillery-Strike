@@ -624,7 +624,7 @@
       ctx.lineTo(to.x, to.y);
       ctx.lineWidth = Math.max(3, scale * width);
       ctx.lineCap = "round";
-      ctx.strokeStyle = "#263944";
+      ctx.strokeStyle = "#17232b";
       ctx.stroke();
     };
     const circle = (value, radius, fill) => {
@@ -634,33 +634,36 @@
       ctx.fillStyle = fill;
       ctx.fill();
       ctx.strokeStyle = "#17232b";
-      ctx.lineWidth = Math.max(1.2, scale * 0.018);
+      ctx.lineWidth = Math.max(1.5, scale * 0.022);
       ctx.stroke();
     };
-    // Keep the original slim stickman silhouette; the physical collider is
-    // deliberately broader than the character art.
-    segment(pose.leftShoulder, pose.leftHand, 0.062);
-    segment(pose.rightShoulder, pose.rightHand, 0.062);
-    segment(pose.leftShoulder, pose.rightShoulder, 0.052);
-    segment(pose.leftShoulder, pose.leftKnee, 0.072);
-    segment(pose.rightShoulder, pose.rightKnee, 0.072);
-    segment(pose.leftKnee, pose.leftFoot, 0.062);
-    segment(pose.rightKnee, pose.rightFoot, 0.062);
-    const torso = point(pose.torso);
-    ctx.fillStyle = character.color;
-    ctx.strokeStyle = "#17232b";
-    ctx.lineWidth = Math.max(1.2, scale * 0.018);
-    ctx.beginPath();
-    ctx.roundRect(torso.x - scale * 0.085, torso.y - scale * 0.29,
-      scale * 0.17, scale * 0.58, scale * 0.045);
-    ctx.fill(); ctx.stroke();
+
+    // One continuous skeleton: shoulders meet the spine, elbows meet the
+    // forearms, hips meet the spine, and knees meet the lower legs.
+    const shoulders = {
+      x: (pose.leftShoulder.x + pose.rightShoulder.x) / 2,
+      y: (pose.leftShoulder.y + pose.rightShoulder.y) / 2
+    };
+    const hips = {
+      x: (pose.leftKnee.x + pose.rightKnee.x) / 2,
+      y: (pose.leftKnee.y + pose.rightKnee.y) / 2
+    };
+    segment(shoulders, hips, 0.052);
+    segment(pose.leftShoulder, pose.leftHand, 0.052);
+    segment(pose.rightShoulder, pose.rightHand, 0.052);
+    segment(pose.leftShoulder, pose.leftKnee, 0.052);
+    segment(pose.rightShoulder, pose.rightKnee, 0.052);
+    segment(pose.leftKnee, pose.leftFoot, 0.052);
+    segment(pose.rightKnee, pose.rightFoot, 0.052);
     circle(pose.head, 0.135, character.color);
-    const barAnchor = point({ x: pose.x, y: pose.head.y + 0.19 });
+
+    const head = point(pose.head);
     const barWidth = scale * 0.72, barHeight = Math.max(3, scale * 0.055);
+    const barY = head.y - scale * 0.23;
     ctx.fillStyle = "#17232b";
-    ctx.fillRect(barAnchor.x - barWidth / 2, barAnchor.y, barWidth, barHeight);
+    ctx.fillRect(head.x - barWidth / 2, barY, barWidth, barHeight);
     ctx.fillStyle = character.team === 0 ? "#58a8ff" : "#ff7770";
-    ctx.fillRect(barAnchor.x - barWidth / 2, barAnchor.y,
+    ctx.fillRect(head.x - barWidth / 2, barY,
       barWidth * Math.max(0, character.health / character.maxHealth), barHeight);
   }
 
@@ -673,41 +676,74 @@
     const rig = character.rig;
     const screen = worldToScreen(character.body.getPosition().x, character.body.getPosition().y, scale, offsetX);
 
-    // Draw the articulated physics pose as a classic stickman: a circular
-    // head and thin jointed lines. The rigid bodies remain invisible; their
-    // transforms determine every segment, so impacts still animate naturally.
-    ctx.save();
-    ctx.strokeStyle = "#17232b";
-    ctx.fillStyle = "#ffffff";
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    for (const piece of rig.pieces) {
-      const body = piece.body;
-      if (piece.circle) {
-        const position = body.getPosition();
-        const point = worldToScreen(position.x, position.y, scale, offsetX);
-        const radius = piece.halfWidth * scale;
-        ctx.lineWidth = Math.max(2, scale * 0.035);
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        continue;
-      }
-
-      const isFoot = piece.name.includes("foot");
-      const halfLength = (isFoot ? piece.halfWidth : piece.halfHeight) * 1.02;
-      const axis = isFoot ? V(halfLength, 0) : V(0, halfLength);
-      const fromWorld = body.getWorldPoint(V(-axis.x, -axis.y));
-      const toWorld = body.getWorldPoint(axis);
-      const from = worldToScreen(fromWorld.x, fromWorld.y, scale, offsetX);
-      const to = worldToScreen(toWorld.x, toWorld.y, scale, offsetX);
-      ctx.lineWidth = Math.max(2.5, scale * (piece.name === "torso" ? 0.052 : 0.042));
+    // Draw directly between the actual physics joint anchors. Drawing each
+    // body's approximate endpoints created visible gaps even though the
+    // physical joints were connected.
+    const jointPoint = name => {
+      const joint = rig.jointMap[name];
+      const anchor = joint.getAnchorA();
+      return worldToScreen(anchor.x, anchor.y, scale, offsetX);
+    };
+    const line = (from, to, width = 0.052) => {
       ctx.beginPath();
       ctx.moveTo(from.x, from.y);
       ctx.lineTo(to.x, to.y);
+      ctx.lineWidth = Math.max(2.5, scale * width);
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
       ctx.stroke();
-    }
+    };
+    ctx.save();
+    ctx.strokeStyle = "#17232b";
+    ctx.fillStyle = character.color;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    const neck = jointPoint("neck");
+    const leftShoulder = jointPoint("leftShoulder");
+    const rightShoulder = jointPoint("rightShoulder");
+    const leftElbow = jointPoint("leftElbow");
+    const rightElbow = jointPoint("rightElbow");
+    const leftHip = jointPoint("leftHip");
+    const rightHip = jointPoint("rightHip");
+    const leftKnee = jointPoint("leftKnee");
+    const rightKnee = jointPoint("rightKnee");
+    const leftAnkle = jointPoint("leftAnkle");
+    const rightAnkle = jointPoint("rightAnkle");
+
+    const midpoint = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+    const spineTop = neck;
+    const spineBottom = midpoint(leftHip, rightHip);
+    line(spineTop, spineBottom, 0.052);
+    line(leftShoulder, leftElbow);
+    line(leftElbow, jointPoint("leftElbow")); // joint anchor keeps elbow endpoint exact
+    line(rightShoulder, rightElbow);
+    line(leftShoulder, leftHip);
+    line(rightShoulder, rightHip);
+    line(leftHip, leftKnee);
+    line(leftKnee, leftAnkle);
+    line(rightHip, rightKnee);
+    line(rightKnee, rightAnkle);
+
+    // Hands and feet extend from the terminal physical joints.
+    const leftHandWorld = rig.byName["left-lower-arm"].body.getWorldPoint(V(0, -0.17));
+    const rightHandWorld = rig.byName["right-lower-arm"].body.getWorldPoint(V(0, -0.17));
+    const leftFootWorld = rig.byName["left-foot"].body.getWorldPoint(V(0.12, 0));
+    const rightFootWorld = rig.byName["right-foot"].body.getWorldPoint(V(0.12, 0));
+    line(leftElbow, worldToScreen(leftHandWorld.x, leftHandWorld.y, scale, offsetX));
+    line(rightElbow, worldToScreen(rightHandWorld.x, rightHandWorld.y, scale, offsetX));
+    line(leftAnkle, worldToScreen(leftFootWorld.x, leftFootWorld.y, scale, offsetX));
+    line(rightAnkle, worldToScreen(rightFootWorld.x, rightFootWorld.y, scale, offsetX));
+
+    const headPosition = rig.head.getPosition();
+    const head = worldToScreen(headPosition.x, headPosition.y, scale, offsetX);
+    const headRadius = 0.135 * scale;
+    ctx.beginPath();
+    ctx.arc(head.x, head.y, headRadius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#17232b";
+    ctx.lineWidth = Math.max(2, scale * 0.035);
+    ctx.stroke();
     ctx.restore();
 
     const barWidth = scale * 0.72;
