@@ -80,9 +80,9 @@ const FOOT_HALF_HEIGHT = 0.03;
   };
   const head = makeUpperBodyPart("head", [0, 0.47], 0.135, 0.135, 1.05, true);
   const leftUpperArm = makeUpperBodyPart("left-upper-arm", [-0.17, 0.03], 0.065, 0.19, 0.8);
-  const leftLowerArm = makeUpperBodyPart("left-lower-arm", [-0.17, -0.33], 0.055, 0.17, 0.8);
+  const leftLowerArm = makeUpperBodyPart("left-lower-arm", [-0.17, -0.33], 0.055, 0.17, 0.8, false, true);
   const rightUpperArm = makeUpperBodyPart("right-upper-arm", [0.17, 0.03], 0.065, 0.19, 0.8);
-  const rightLowerArm = makeUpperBodyPart("right-lower-arm", [0.17, -0.33], 0.055, 0.17, 0.8);
+  const rightLowerArm = makeUpperBodyPart("right-lower-arm", [0.17, -0.33], 0.055, 0.17, 0.8, false, true);
 
   const makeUpperJoint = (bodyA, bodyB, anchorA, anchorB, lowerAngle, upperAngle, maxTorque) => {
     const joint = world.createJoint(planck.RevoluteJoint({
@@ -273,6 +273,7 @@ const FOOT_HALF_HEIGHT = 0.03;
     bodies,
     joints,
     legs,
+    ragdollTerrainFixtures: [leftLowerArm.getFixtureList(), rightLowerArm.getFixtureList()],
     stanceTargets: [stanceCenterX - stanceHalfWidth, stanceCenterX + stanceHalfWidth],
     stanceHalfWidth,
     pelvisRatio,
@@ -301,6 +302,7 @@ const FOOT_HALF_HEIGHT = 0.03;
     outsideSupportTime: 0,
     fallReason: null,
     hit(dv = Vec2(0, 0), targetBody = this.hull, impactPoint = null) {
+      setRagdollTerrainCollision(this, true);
       this.mode = "limp";
       this.stiffness = 0;
       this.falling = false;
@@ -384,8 +386,15 @@ function rigSupportBounds(walker) {
   };
 }
 
+function setRagdollTerrainCollision(walker, solid) {
+  for (const fixture of walker.ragdollTerrainFixtures || []) {
+    fixture.setSensor(!solid);
+  }
+}
+
 function updateRigFallState(walker, deltaTime = FIXED_DT, jumping = false) {
   if (walker.mode === "limp") {
+    setRagdollTerrainCollision(walker, true);
     walker.limpElapsed += deltaTime;
     walker.stiffness = 0;
     return { mode: walker.mode, stiffness: walker.stiffness, reason: walker.fallReason };
@@ -433,7 +442,10 @@ function updateRigFallState(walker, deltaTime = FIXED_DT, jumping = false) {
   if (walker.falling) {
     walker.limpElapsed += deltaTime;
     walker.stiffness = Math.max(0, 1 - walker.limpElapsed / 0.1);
-    if (walker.stiffness <= 0) walker.mode = "limp";
+    if (walker.stiffness <= 0) {
+      walker.mode = "limp";
+      setRagdollTerrainCollision(walker, true);
+    }
   }
   return { mode: walker.mode, stiffness: walker.stiffness, reason: walker.fallReason };
 }
@@ -515,6 +527,7 @@ function updateRigRecovery(walker, deltaTime = FIXED_DT, heightAt = () => 0) {
   walker.recoveryStableTime = stable ? walker.recoveryStableTime + deltaTime : 0;
   if (walker.recoveryStableTime >= 0.3) {
     walker.mode = "active";
+    setRagdollTerrainCollision(walker, false);
     walker.stiffness = 1;
     walker.recovering = false;
     walker.falling = false;
