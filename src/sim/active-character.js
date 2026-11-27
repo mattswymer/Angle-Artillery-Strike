@@ -197,8 +197,8 @@
         };
         return { knee, foot: ankle };
       };
-      const leftLeg = leg(-1, phase);
-      const rightLeg = leg(1, phase + Math.PI);
+      const leftLeg = leg(-1, phase + Math.PI);
+      const rightLeg = leg(1, phase);
 
       const arm = (armPhase) => {
         const shoulderAngle = moving ? Math.sin(armPhase) * 30 : 0;
