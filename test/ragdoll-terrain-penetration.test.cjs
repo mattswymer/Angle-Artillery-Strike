@@ -122,3 +122,49 @@ test("active-to-ragdoll handoff cannot place any physical segment inside terrain
   stepAndCheck(world, actor.rig, 360);
   actor.destroy();
 });
+
+
+test("ragdoll segments remain outside sloped terrain during a downward impact", () => {
+  const slope = 0.12;
+  const heightAt = x => 0.4 + slope * x;
+  const surfaceHeights = Array.from({ length: 101 }, (_, index) =>
+    heightAt(index / 10)
+  );
+  const world = new Planck.World({ gravity: Planck.Vec2(0, -10) });
+  const terrain = new TerrainSystem(
+    Planck, world, 10, 5, 0.1, -1, surfaceHeights
+  );
+  terrain.rebuildPhysics();
+  const rig = CharacterRig.createStanceRig(
+    world, 5, heightAt, () => Math.atan(slope),
+    0.12, 0.95, 0, 0, 0.6, "side", 0.4, 1, -17
+  );
+  rig.hit(Planck.Vec2(0, -20), rig.hull);
+
+  for (let step = 0; step < 320; step++) {
+    world.step(1 / 50, 180, 60);
+    for (const piece of rig.pieces) {
+      const body = piece.body;
+      if (piece.circle) {
+        const center = body.getPosition();
+        const lowest = center.y - piece.halfWidth * Math.sqrt(1 + slope * slope);
+        assert.ok(
+          lowest >= heightAt(center.x) - 0.14,
+          `${piece.name} penetrated sloped terrain at step ${step}: ${lowest.toFixed(4)}`
+        );
+        continue;
+      }
+      for (const x of [-1, 1]) {
+        for (const y of [-1, 1]) {
+          const corner = body.getWorldPoint(Planck.Vec2(
+            x * piece.halfWidth, y * piece.halfHeight
+          ));
+          assert.ok(
+            corner.y >= heightAt(corner.x) - 0.14,
+            `${piece.name} penetrated sloped terrain at step ${step}`
+          );
+        }
+      }
+    }
+  }
+});
