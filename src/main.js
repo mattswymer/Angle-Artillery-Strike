@@ -631,10 +631,7 @@
     const radius = 0.135;
     const headBottom = { x: pose.head.x, y: pose.head.y - radius };
     const hips = pose.hips;
-    const armRoot = {
-      x: pose.x,
-      y: headBottom.y + (hips.y - headBottom.y) * 0.34
-    };
+    const armRoot = { x: pose.x, y: pose.leftShoulder.y };
     const hands = { left: pose.leftHand, right: pose.rightHand };
     const elbows = { left: pose.leftElbow, right: pose.rightElbow };
     const knees = { left: pose.leftKnee, right: pose.rightKnee };
@@ -646,8 +643,11 @@
     ctx.save();
     ctx.strokeStyle = "#17232b";
     stroke(headBottom, hips, 0.052);
-    stroke(armRoot, elbows.left); stroke(elbows.left, hands.left);
-    stroke(armRoot, elbows.right); stroke(elbows.right, hands.right);
+    // Short shoulder branches, then relaxed arms that hang beside the torso.
+    stroke(armRoot, pose.leftShoulder);
+    stroke(pose.leftShoulder, elbows.left); stroke(elbows.left, hands.left);
+    stroke(armRoot, pose.rightShoulder);
+    stroke(pose.rightShoulder, elbows.right); stroke(elbows.right, hands.right);
     stroke(hips, knees.left); stroke(knees.left, feet.left);
     stroke(hips, knees.right); stroke(knees.right, feet.right);
     [elbows.left, elbows.right, knees.left, knees.right].forEach(jointDot);
