@@ -41,6 +41,7 @@
         x, heightAt, collisionGroup, team, number
       });
       state.body = state.active.body;
+      state.active.snapToGround(0);
       state.body.setUserData({ kind: "character", team, number, part: "active-body" });
       for (let fixture = state.body.getFixtureList(); fixture; fixture = fixture.getNext()) {
         const data = fixture.getUserData() || {};
