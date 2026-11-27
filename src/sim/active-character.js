@@ -84,6 +84,8 @@
 
     function snapToGround(direction = 0) {
       const position = body.getPosition();
+      // Keep a stable support sample while standing on a slope, but refresh it
+      // continuously during a jump so releasing direction cannot snap backward.
       const sampleX = direction === 0 ? lockedX : position.x;
       const centerHit = rayGround(sampleX, position.y);
       if (!centerHit) {
@@ -102,6 +104,7 @@
       const velocity = body.getLinearVelocity();
       const canSnap = !jumpLock && velocity.y <= 0.65 &&
         gap <= BODY.snapDistance && gap >= -BODY.snapDownDistance;
+      if (direction !== 0) lockedX = sampleX;
       if (!canSnap) {
         grounded = false;
         return false;
@@ -109,7 +112,6 @@
       const nextY = target.y - BODY.footCenterY + BODY.radius + BODY.skin;
       body.setTransform(Vec2(sampleX, nextY), 0);
       body.setLinearVelocity(Vec2(direction === 0 ? 0 : velocity.x, 0));
-      if (direction !== 0) lockedX = sampleX;
       grounded = true;
       lastGroundY = target.y;
       return true;
@@ -121,7 +123,7 @@
       const velocity = body.getLinearVelocity();
       if (direction !== 0) gaitPhase += dt * BODY.walkSpeed * 3.2;
       body.setLinearVelocity(Vec2(direction * BODY.walkSpeed, velocity.y));
-      snapToGround(direction);
+      if (!jumpLock) snapToGround(direction);
       return grounded;
     }
 
@@ -136,12 +138,16 @@
 
     function update(dt = 1 / 50, direction = 0) {
       const velocity = body.getLinearVelocity();
+      if (jumpLock) lockedX = body.getPosition().x;
       if (jumpLock && velocity.y <= 0) jumpLock = false;
       if (direction !== null) {
         if (direction === 0) body.setLinearVelocity(Vec2(0, velocity.y));
-        else body.setLinearVelocity(Vec2(direction * BODY.walkSpeed, velocity.y));
+        else {
+          body.setLinearVelocity(Vec2(direction * BODY.walkSpeed, velocity.y));
+          lockedX = body.getPosition().x;
+        }
       }
-      snapToGround(direction || 0);
+      if (!jumpLock) snapToGround(direction || 0);
     }
 
     function pose() {

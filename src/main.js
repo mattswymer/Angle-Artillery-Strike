@@ -240,7 +240,8 @@
 
   function canMove(character) {
     return Boolean(canAct(character) && !projectile &&
-      character.mode === "active" && character.stableTime >= 0.08);
+      character.mode === "active" &&
+      (activeAction === "move" || character.stableTime >= 0.08));
   }
 
   function createWorld() {
@@ -372,10 +373,10 @@
     const dx = Math.cos(angle);
     const dy = Math.sin(angle);
     const p = character.body.getPosition();
-    const startX = Math.max(0.05, Math.min(WORLD_WIDTH - 0.05, p.x + dx * 0.62));
-    // A prone torso may be partly inside the ground. Lift the muzzle clear
-    // before launching so the first collision is not the shooter's own crater.
-    const startY = Math.max(p.y + dy * 0.62 + 0.05, heightAt(startX) + 0.18);
+    const muzzleHeight = 0.72;
+    const startX = Math.max(0.05, Math.min(WORLD_WIDTH - 0.05, p.x + dx * 0.42));
+    // Match the preview arrow's shoulder-height origin.
+    const startY = Math.max(p.y + muzzleHeight + dy * 0.12, heightAt(startX) + 0.18);
     const start = V(startX, startY);
     const body = world.createBody({
       type: "dynamic",
@@ -636,23 +637,25 @@
       ctx.lineWidth = Math.max(1.2, scale * 0.018);
       ctx.stroke();
     };
-    segment(pose.leftShoulder, pose.leftHand, 0.105);
-    segment(pose.rightShoulder, pose.rightHand, 0.105);
-    segment(pose.leftShoulder, pose.rightShoulder, 0.09);
-    segment(pose.leftShoulder, pose.leftKnee, 0.12);
-    segment(pose.rightShoulder, pose.rightKnee, 0.12);
-    segment(pose.leftKnee, pose.leftFoot, 0.105);
-    segment(pose.rightKnee, pose.rightFoot, 0.105);
+    // Keep the original slim stickman silhouette; the physical collider is
+    // deliberately broader than the character art.
+    segment(pose.leftShoulder, pose.leftHand, 0.062);
+    segment(pose.rightShoulder, pose.rightHand, 0.062);
+    segment(pose.leftShoulder, pose.rightShoulder, 0.052);
+    segment(pose.leftShoulder, pose.leftKnee, 0.072);
+    segment(pose.rightShoulder, pose.rightKnee, 0.072);
+    segment(pose.leftKnee, pose.leftFoot, 0.062);
+    segment(pose.rightKnee, pose.rightFoot, 0.062);
     const torso = point(pose.torso);
     ctx.fillStyle = character.color;
     ctx.strokeStyle = "#17232b";
     ctx.lineWidth = Math.max(1.2, scale * 0.018);
     ctx.beginPath();
-    ctx.roundRect(torso.x - scale * 0.17, torso.y - scale * 0.29,
-      scale * 0.34, scale * 0.58, scale * 0.07);
+    ctx.roundRect(torso.x - scale * 0.085, torso.y - scale * 0.29,
+      scale * 0.17, scale * 0.58, scale * 0.045);
     ctx.fill(); ctx.stroke();
     circle(pose.head, 0.135, character.color);
-    const barAnchor = point({ x: pose.x, y: pose.y + 1.18 });
+    const barAnchor = point({ x: pose.x, y: pose.head.y + 0.19 });
     const barWidth = scale * 0.72, barHeight = Math.max(3, scale * 0.055);
     ctx.fillStyle = "#17232b";
     ctx.fillRect(barAnchor.x - barWidth / 2, barAnchor.y, barWidth, barHeight);
@@ -702,7 +705,8 @@
         ctx.arc(radius * 0.38, -radius * 0.12, Math.max(1.2, radius * 0.11), 0, Math.PI * 2);
         ctx.fill();
       } else {
-        const halfWidth = piece.halfWidth * scale;
+        const widthScale = piece.name === "torso" ? 0.58 : 0.62;
+        const halfWidth = piece.halfWidth * scale * widthScale;
         const halfHeight = piece.halfHeight * scale;
         const radius = Math.min(halfWidth, halfHeight, Math.max(2, scale * 0.035));
         ctx.beginPath();
@@ -716,7 +720,11 @@
 
     const barWidth = scale * 0.72;
     const barHeight = Math.max(3, scale * 0.055);
-    const barY = -scale * 1.02;
+    const highestPiece = Math.max(...rig.pieces.map(piece => {
+      const position = piece.body.getPosition();
+      return position.y + (piece.circle ? piece.halfWidth : piece.halfHeight);
+    }));
+    const barY = worldToScreen(screen.x, highestPiece + 0.16, scale, offsetX).y - screen.y;
     ctx.fillStyle = "#17232b";
     ctx.fillRect(screen.x - barWidth / 2, screen.y + barY, barWidth, barHeight);
     ctx.fillStyle = character.team === 0 ? "#58a8ff" : "#ff7770";
@@ -735,7 +743,9 @@
     const p = character.body.getPosition();
     const angle = Number(angleInput.value) * Math.PI / 180;
     const power = Number(powerInput.value) / 100;
-    const start = worldToScreen(p.x, p.y + 0.04, scale, offsetX);
+    // The projectile and its preview originate around chest/shoulder height,
+    // not at the collider's ground-level origin.
+    const start = worldToScreen(p.x, p.y + 0.72, scale, offsetX);
     const length = scale * (0.42 + power * 1.05);
     const endX = start.x + Math.cos(angle) * length;
     const endY = start.y - Math.sin(angle) * length;

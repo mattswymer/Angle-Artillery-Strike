@@ -150,7 +150,10 @@
         if (!hasOpenBoundary) {
           if (loop.length >= 3) {
             this.body.createFixture({
-              shape: new this.Planck.Chain(loop.map(point => this.toWorld(point)), true),
+              // Contours are traced clockwise around solid cells. Planck's one-sided
+              // chain front faces the opposite side, so reverse to expose the
+              // solid terrain's outward collision surface.
+              shape: new this.Planck.Chain(loop.slice().reverse().map(point => this.toWorld(point)), true),
               friction: 0.95
             });
           }
@@ -161,7 +164,7 @@
         const flush = () => {
           if (segment.length >= 2) {
             this.body.createFixture({
-              shape: new this.Planck.Chain(segment.map(point => this.toWorld(point))),
+              shape: new this.Planck.Chain(segment.slice().reverse().map(point => this.toWorld(point))),
               friction: 0.95
             });
           }
