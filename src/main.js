@@ -628,10 +628,10 @@
       ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(2, scale * 0.027), 0, Math.PI * 2);
       ctx.fillStyle = "#17232b"; ctx.fill();
     };
-    const radius = 0.135;
+    const radius = 1.28 / 16;
     const headBottom = { x: pose.head.x, y: pose.head.y - radius };
     const hips = pose.hips;
-    const armRoot = { x: pose.x, y: pose.leftShoulder.y };
+    const armRoot = pose.torsoTop;
     const hands = { left: pose.leftHand, right: pose.rightHand };
     const elbows = { left: pose.leftElbow, right: pose.rightElbow };
     const knees = { left: pose.leftKnee, right: pose.rightKnee };
@@ -642,12 +642,12 @@
     const head = point(pose.head);
     ctx.save();
     ctx.strokeStyle = "#17232b";
-    stroke(headBottom, hips, 0.052);
-    // Short shoulder branches, then relaxed arms that hang beside the torso.
-    stroke(armRoot, pose.leftShoulder);
-    stroke(pose.leftShoulder, elbows.left); stroke(elbows.left, hands.left);
-    stroke(armRoot, pose.rightShoulder);
-    stroke(pose.rightShoulder, elbows.right); stroke(elbows.right, hands.right);
+    stroke(headBottom, pose.neckTop, 0.052);
+    stroke(pose.neckTop, pose.torsoTop, 0.052);
+    stroke(pose.torsoTop, hips, 0.052);
+    // Arms attach directly to the neck/torso junction; no shoulder crossbar.
+    stroke(armRoot, elbows.left); stroke(elbows.left, hands.left);
+    stroke(armRoot, elbows.right); stroke(elbows.right, hands.right);
     stroke(hips, knees.left); stroke(knees.left, feet.left);
     stroke(hips, knees.right); stroke(knees.right, feet.right);
     [elbows.left, elbows.right, knees.left, knees.right].forEach(jointDot);
