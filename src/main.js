@@ -716,7 +716,6 @@
     const spineBottom = midpoint(leftHip, rightHip);
     line(spineTop, spineBottom, 0.052);
     line(leftShoulder, leftElbow);
-    line(leftElbow, jointPoint("leftElbow")); // joint anchor keeps elbow endpoint exact
     line(rightShoulder, rightElbow);
     line(leftShoulder, leftHip);
     line(rightShoulder, rightHip);
@@ -738,6 +737,8 @@
     const headPosition = rig.head.getPosition();
     const head = worldToScreen(headPosition.x, headPosition.y, scale, offsetX);
     const headRadius = 0.135 * scale;
+    const headBottom = { x: head.x, y: head.y + headRadius };
+    line(neck, headBottom);
     ctx.beginPath();
     ctx.arc(head.x, head.y, headRadius, 0, Math.PI * 2);
     ctx.fill();
