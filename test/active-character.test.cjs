@@ -59,9 +59,12 @@ for (const degrees of [0, 20, 35, 45]) {
     }
     character.update(1 / 50, 0);
     assert.equal(character.grounded(), true);
-    assert.ok(Math.abs(character.body.getPosition().y - (heightAt(5) + 0.055)) < 0.05,
-      "body y=" + character.body.getPosition().y + " expected=" + (heightAt(5) + 0.055) +
-      " lastGroundY=" + character.lastGroundY);
+    const position = character.body.getPosition();
+    assert.ok(Math.abs(position.y - (heightAt(position.x) + 0.055)) < 0.05,
+      "body y=" + position.y + " expected=" + (heightAt(position.x) + 0.055) +
+      " x=" + position.x + " lastGroundY=" + character.lastGroundY);
+    assert.ok(Math.abs(position.x - 5) < 0.12,
+      "standing character slid along slope to x=" + position.x);
     assert.equal(character.body.getAngle(), 0);
   });
 }
