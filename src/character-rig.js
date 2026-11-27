@@ -296,6 +296,7 @@ const FOOT_HALF_HEIGHT = 0.03;
     recoveryElapsed: 0,
     recoveryStableTime: 0,
     recoverySettleTime: 0,
+    recoveryGroundTime: 0,
     noContactTime: 0,
     outsideSupportTime: 0,
     fallReason: null,
@@ -305,6 +306,7 @@ const FOOT_HALF_HEIGHT = 0.03;
       this.falling = false;
       this.recovering = false;
       this.recoverySettleTime = 0;
+      this.recoveryGroundTime = 0;
       this.walkDirection = 0;
       this.jumpPhase = "idle";
       this.jumpAirborne = false;
@@ -480,10 +482,18 @@ function updateRigRecovery(walker, deltaTime = FIXED_DT, heightAt = () => 0) {
       (sum, body) => sum + body.getLinearVelocity().length(), 0
     ) / walker.bodies.length;
     const grounded = hasRigGroundContact(walker);
-    walker.recoverySettleTime = averageSpeed < 1 && grounded
+    // A ragdoll can keep jittering against uneven terrain forever. Track
+    // grounded time separately so contact jitter cannot permanently prevent
+    // the get-up controller from engaging.
+    walker.recoveryGroundTime = grounded
+      ? walker.recoveryGroundTime + deltaTime
+      : 0;
+    walker.recoverySettleTime = averageSpeed < 1.5 && grounded
       ? walker.recoverySettleTime + deltaTime
       : 0;
-    if (walker.recoverySettleTime >= 0.2) {
+    const settledEnough = walker.recoverySettleTime >= 0.18;
+    const groundedTimeout = walker.recoveryGroundTime >= 0.75;
+    if (settledEnough || groundedTimeout) {
       walker.recovering = true;
       walker.recoveryElapsed = 0;
       walker.recoveryStableTime = 0;
@@ -511,6 +521,8 @@ function updateRigRecovery(walker, deltaTime = FIXED_DT, heightAt = () => 0) {
     walker.fallReason = null;
     walker.noContactTime = 0;
     walker.outsideSupportTime = 0;
+    walker.recoveryGroundTime = 0;
+    walker.recoverySettleTime = 0;
   } else if (walker.recoveryElapsed > 0.15 && !stable) {
     // A limp rig cannot get up by asking the normal walking IK to solve a
     // sideways or inverted pelvis. Give the torso a bounded physical righting
