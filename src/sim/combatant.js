@@ -102,6 +102,15 @@
         settings.stanceHalfWidth, settings.pelvisRatio, 0, 0, 0.6,
         settings.bendMode, settings.highSideBend, settings.lowSideBend, collisionGroup
       );
+      // The torso is the ragdoll's only physical terrain collider. All
+      // articulated parts remain jointed and retain sensor contacts for
+      // recovery/support queries, but cannot snag or fight the terrain solver.
+      for (const piece of rig.pieces) {
+        if (piece.name === "torso") continue;
+        for (let fixture = piece.body.getFixtureList(); fixture; fixture = fixture.getNext()) {
+          fixture.setSensor(true);
+        }
+      }
       const target = Vec2(sourcePosition.x, sourcePosition.y + 0.95);
       const original = rig.hull.getPosition();
       const offset = Vec2(target.x - original.x, target.y - original.y);
