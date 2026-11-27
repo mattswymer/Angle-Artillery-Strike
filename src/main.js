@@ -39,6 +39,7 @@
   let characters = [];
   let damagePopups = [];
   let activeIndex = 0;
+  let matchWinner = null;
   let aimMode = "pullback";
   let pullbackPointer = null;
   let pullbackOrigin = null;
@@ -235,7 +236,24 @@
   // Posture is not a turn requirement: a knocked-down combatant can
   // still aim and fire. Only locomotion requires a recovered, stable rig.
   function canAct(character) {
-    return Boolean(!pendingTurnChange && character && !character.eliminated);
+    return Boolean(!matchWinner && !pendingTurnChange && character && !character.eliminated);
+  }
+
+  function checkMatchWinner() {
+    const blueAlive = characters.some(character => character.team === 0 && !character.eliminated);
+    const redAlive = characters.some(character => character.team === 1 && !character.eliminated);
+    if (blueAlive && redAlive) return false;
+    matchWinner = blueAlive ? 0 : redAlive ? 1 : "draw";
+    pendingTurnChange = false;
+    activeAction = null;
+    held = { left: false, right: false, jump: false };
+    tapMoveRemaining = 0;
+    jumpQueued = false;
+    statusEl.textContent = matchWinner === "draw"
+      ? "Draw — both teams eliminated"
+      : (matchWinner === 0 ? "Blue" : "Red") + " team wins";
+    updateHud();
+    return true;
   }
 
   function canMove(character) {
@@ -275,6 +293,7 @@
     }
     damagePopups = [];
     activeIndex = 0;
+    matchWinner = null;
     activeAction = null;
     pendingTurnChange = false;
     turnTransitionElapsed = 0;
@@ -303,6 +322,7 @@
     seedLabel.textContent = "Seed " + seed;
     fireButton.textContent = "Fire";
     fireButton.disabled = !canAct(active) || activeAction === "move" || activeAction === "attack" || Boolean(projectile);
+    endTurnButton.disabled = Boolean(matchWinner) || pendingTurnChange;
   }
 
   function setAimLabels() {
@@ -518,6 +538,7 @@
       }
     }
 
+    checkMatchWinner();
     const damageSummary = damageEvents.map(event =>
       (event.character.team === 0 ? "Blue " : "Red ") + event.character.number +
       " -" + event.damage + (event.direct ? " direct " + event.location : " splash")
@@ -594,6 +615,7 @@
         statusEl.textContent = (character.team === 0 ? "Blue" : "Red") + " character crossed a lethal boundary";
       }
     }
+    checkMatchWinner();
   }
 
   function resize() {
@@ -830,6 +852,22 @@
     drawProjectile(scale, offsetX);
     drawDamagePopups(scale, offsetX);
 
+    if (matchWinner !== null) {
+      ctx.fillStyle = "#101820c9";
+      ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "800 " + Math.max(28, Math.min(54, canvasWidth * 0.075)) + "px system-ui";
+      ctx.fillText(
+        matchWinner === "draw" ? "DRAW" : (matchWinner === 0 ? "BLUE" : "RED") + " WINS",
+        canvasWidth / 2, canvasHeight / 2 - 16
+      );
+      ctx.font = "600 15px system-ui";
+      ctx.fillStyle = "#d7e1e8";
+      ctx.fillText("Select New Map to play again", canvasWidth / 2, canvasHeight / 2 + 28);
+    }
+
     if (characters.some(c => c.eliminated)) {
       ctx.fillStyle = "#101820b9";
       ctx.fillRect(0, canvasHeight - 34, canvasWidth, 34);
@@ -917,11 +955,12 @@
     blockedTurnTime = 0;
     activeCanActLastFrame = canAct(activeCharacter());
     restoreActiveAim();
+    if (checkMatchWinner()) return;
     updateHud();
   }
 
   function changeTurn() {
-    if (projectile || pendingTurnChange) return;
+    if (matchWinner || projectile || pendingTurnChange) return;
     saveActiveAim();
     held = { left: false, right: false, jump: false };
     jumpBufferTime = 0;
@@ -938,6 +977,7 @@
   }
 
   function updateTurnTransition() {
+    if (matchWinner) return;
     if (pendingTurnChange) {
       turnTransitionElapsed += FIXED_STEP;
       const allSlow = characters.every(character => {
