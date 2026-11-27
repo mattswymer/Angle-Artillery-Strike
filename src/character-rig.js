@@ -794,11 +794,11 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
     // Keep balance feedback corrective but bounded. Large torso angles
     // during a jump landing must not rotate the thighs sideways and prevent
     // the feet from reaching the ground.
-    // Negative feedback: tilt and angular velocity must command the hips
-    // in the opposite direction. Positive feedback makes the idle rig hunt
-    // between its feet and is the source of the visible standing vibration.
+    // Hip motors counter-rotate the torso through their reaction torque.
+    // Keep this feedback deliberately modest so the stance controller settles
+    // instead of continually hunting around its target.
     const rawBalanceCorrection =
-      -balanceKp * torsoTilt - balanceKd * hull.getAngularVelocity();
+      balanceKp * torsoTilt + balanceKd * hull.getAngularVelocity();
     const balanceCorrection = walker.jumpPhase === "idle"
       ? rawBalanceCorrection
       : Math.max(-0.35, Math.min(0.35, rawBalanceCorrection));
