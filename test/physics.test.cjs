@@ -524,6 +524,7 @@ test("browser entry point creates eight articulated combatants before its first 
     planck: P,
     CharacterRig: require("../src/character-rig.js"),
     ActiveCharacter: require("../src/sim/active-character.js"),
+    Combatant: require("../src/sim/combatant.js"),
     devicePixelRatio: 1,
     addEventListener() {}
   };
