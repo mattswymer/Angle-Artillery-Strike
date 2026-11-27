@@ -143,46 +143,59 @@
       this.body = this.world.createBody({ type: "static", userData: { kind: "terrain" } });
       this.loops = this.buildContours();
 
-      for (const loop of this.loops) {
-        const hasOpenBoundary = loop.some((point, index) =>
-          this.isWorldExitEdge(point, loop[(index + 1) % loop.length]));
-
-        if (!hasOpenBoundary) {
-          if (loop.length >= 3) {
-            this.body.createFixture({
-              // Contours are traced clockwise around solid cells. Planck's one-sided
-              // chain front faces the opposite side, so reverse to expose the
-              // solid terrain's outward collision surface.
-              shape: new this.Planck.Chain(loop.slice().reverse().map(point => this.toWorld(point)), true),
-              friction: 0.95
-            });
-          }
-          continue;
-        }
-
-        let segment = [];
-        const flush = () => {
-          if (segment.length >= 2) {
-            this.body.createFixture({
-              shape: new this.Planck.Chain(segment.slice().reverse().map(point => this.toWorld(point))),
-              friction: 0.95
-            });
-          }
-          segment = [];
-        };
-
-        for (let i = 0; i < loop.length; i++) {
-          const start = loop[i];
-          const end = loop[(i + 1) % loop.length];
-          if (this.isWorldExitEdge(start, end)) {
-            flush();
-          } else {
-            if (!segment.length) segment.push(start);
-            segment.push(end);
+      // Build the physical terrain from solid grid rectangles, not one-sided
+      // contour chains. Every rectangle is a two-sided solid fixture, so a
+      // character cannot pass through the terrain from either direction.
+      // Merge identical horizontal runs vertically to keep fixture count low.
+      const active = new Map();
+      const finished = [];
+      for (let y = 0; y < this.rows; y++) {
+        const runs = [];
+        let runStart = -1;
+        for (let x = 0; x <= this.columns; x++) {
+          const solid = x < this.columns && this.isSolid(x, y);
+          if (solid && runStart < 0) runStart = x;
+          if (!solid && runStart >= 0) {
+            runs.push([runStart, x]);
+            runStart = -1;
           }
         }
-        flush();
+
+        const next = new Map();
+        for (const [start, end] of runs) {
+          const runKey = start + ":" + end;
+          const previous = active.get(runKey);
+          next.set(runKey, previous
+            ? { start, end, bottom: previous.bottom, top: y + 1 }
+            : { start, end, bottom: y, top: y + 1 });
+        }
+        for (const [runKey, rectangle] of active) {
+          if (!next.has(runKey)) finished.push(rectangle);
+        }
+        active.clear();
+        for (const [runKey, rectangle] of next) active.set(runKey, rectangle);
       }
+      for (const rectangle of active.values()) finished.push(rectangle);
+
+      const seamOverlap = Math.min(0.002, this.cellSize * 0.04);
+      for (const rectangle of finished) {
+        const left = rectangle.start * this.cellSize;
+        const right = rectangle.end * this.cellSize;
+        const bottom = this.originY + rectangle.bottom * this.cellSize;
+        const top = this.originY + rectangle.top * this.cellSize;
+        const halfWidth = (right - left) / 2 + seamOverlap;
+        const halfHeight = (top - bottom) / 2 + seamOverlap;
+        this.body.createFixture({
+          shape: new this.Planck.Box(
+            halfWidth,
+            halfHeight,
+            this.Planck.Vec2((left + right) / 2, (bottom + top) / 2)
+          ),
+          friction: 0.95,
+          restitution: 0
+        });
+      }
+      this.physicsRectangleCount = finished.length;
     }
 
     carveCircle(centerX, centerY, radius) {
