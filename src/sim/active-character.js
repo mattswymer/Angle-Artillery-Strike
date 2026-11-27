@@ -154,55 +154,78 @@
       const p = body.getPosition();
       const moving = Math.abs(body.getLinearVelocity().x) > 0.15 && grounded;
       const phase = gaitPhase % (Math.PI * 2);
-      const stride = moving ? Math.sin(phase) : 0;
-      const oppositeStride = -stride;
-      // Proportions are fractions of the complete foot-to-head height.
-      const H = 1.28;
-      const headDiameter = H / 8;
-      const headRadius = headDiameter / 2;
+      const H = 2.16;
+      const headRadius = 0.135; // Match the physical ragdoll head exactly.
       const neckLength = H / 16;
       const torsoLength = H * 5 / 16;
-      const upperLimbLength = H * 3 / 16;
-      const legSegmentLength = H / 4;
-      const bob = moving ? 0.018 * (1 - Math.cos(phase * 2)) : 0;
-      const hipSway = moving ? Math.sin(phase) * 0.018 : 0;
-      const footY = p.y + BODY.skin;
-      const hip = { x: p.x + hipSway, y: footY + legSegmentLength * 2 + bob };
-      const knee = (side, swing) => ({
-        x: hip.x + side * 0.035 + swing * 0.12,
-        y: footY + legSegmentLength + Math.max(0, swing) * 0.035 + bob * 0.5
-      });
-      const leftKnee = knee(-1, stride);
-      const rightKnee = knee(1, oppositeStride);
-      const foot = (side, swing) => ({
-        x: p.x + side * 0.11 + swing * 0.18,
-        y: footY + (moving ? Math.max(0, swing) * 0.07 : 0)
-      });
-      const leftFoot = foot(-1, stride);
-      const rightFoot = foot(1, oppositeStride);
-      const torsoTop = { x: hip.x, y: hip.y + torsoLength };
-      const neckTop = { x: torsoTop.x, y: torsoTop.y + neckLength };
-      const head = { x: neckTop.x, y: neckTop.y + headRadius };
-      // Keep the active stickman on the same segment measurements as the
-      // articulated figure: each arm segment is 3/16 of total height.
-      // Arms start at the torso/neck junction and hang beside the body.
-      const armSwing = moving ? -stride * 0.035 : 0;
-      const shoulder = side => ({ x: torsoTop.x + side * 0.012, y: torsoTop.y });
-      const elbow = side => ({
-        x: torsoTop.x + side * 0.025 + armSwing,
-        y: torsoTop.y - upperLimbLength
-      });
-      const hand = side => ({
-        x: torsoTop.x + side * 0.035 + armSwing * 1.6,
-        y: torsoTop.y - upperLimbLength * 2
-      });
+      const armLength = H * 3 / 16;
+      const legLength = H / 4;
+      const direction = facing >= 0 ? 1 : -1;
+      const bob = moving ? Math.abs(Math.sin(phase)) * 0.065 : 0;
+      const hip = { x: p.x, y: p.y + BODY.skin + legLength * 2 + bob };
+      
+      // The reference walk is a forward-leaning, alternating two-leg gait.
+      // Positive angles swing a limb in the facing direction.
+      const torsoLean = 10 - (moving ? Math.sin(phase) * 3 : 0);
+      const upperTorso = {
+        x: hip.x + direction * Math.sin(torsoLean * Math.PI / 180) * torsoLength,
+        y: hip.y + Math.cos(torsoLean * Math.PI / 180) * torsoLength
+      };
+      const neckTip = {
+        x: upperTorso.x + direction * Math.sin((torsoLean - 2) * Math.PI / 180) * neckLength,
+        y: upperTorso.y + Math.cos((torsoLean - 2) * Math.PI / 180) * neckLength
+      };
+      const head = {
+        x: neckTip.x + direction * Math.sin((torsoLean - 4) * Math.PI / 180) * headRadius,
+        y: neckTip.y + Math.cos((torsoLean - 4) * Math.PI / 180) * headRadius
+      };
+
+      const leg = (side, legPhase) => {
+        const swing = moving ? Math.sin(legPhase) : 0;
+        const hipAngle = swing * 34;
+        const kneeBend = moving ? -Math.max(0, Math.cos(legPhase)) * 42 : 0;
+        const hipRad = hipAngle * Math.PI / 180;
+        const kneeRad = (hipAngle + kneeBend) * Math.PI / 180;
+        const knee = {
+          x: hip.x + direction * Math.sin(hipRad) * legLength,
+          y: hip.y - Math.cos(hipRad) * legLength
+        };
+        const ankle = {
+          x: knee.x + direction * Math.sin(kneeRad) * legLength,
+          y: knee.y - Math.cos(kneeRad) * legLength +
+            (moving ? Math.max(0, swing) * 0.11 : 0)
+        };
+        return { knee, foot: ankle };
+      };
+      const leftLeg = leg(-1, phase);
+      const rightLeg = leg(1, phase + Math.PI);
+
+      const arm = (armPhase) => {
+        const shoulderAngle = moving ? Math.sin(armPhase) * 30 : 0;
+        const elbowBend = 24 + (moving ? Math.max(0, -Math.sin(armPhase)) * 28 : 0);
+        const shoulderRad = shoulderAngle * Math.PI / 180;
+        const handRad = (shoulderAngle + elbowBend) * Math.PI / 180;
+        const elbow = {
+          x: upperTorso.x + direction * Math.sin(shoulderRad) * armLength,
+          y: upperTorso.y - Math.cos(shoulderRad) * armLength
+        };
+        const hand = {
+          x: elbow.x + direction * Math.sin(handRad) * armLength,
+          y: elbow.y - Math.cos(handRad) * armLength
+        };
+        return { elbow, hand };
+      };
+      const leftArm = arm(phase);
+      const rightArm = arm(phase + Math.PI);
+
       return {
         x: p.x, y: p.y, facing, grounded, head, headRadius,
-        neckTop, torsoTop, torso: torsoTop, hips: hip,
-        leftFoot, rightFoot, leftKnee, rightKnee,
-        leftShoulder: shoulder(-1), rightShoulder: shoulder(1),
-        leftElbow: elbow(-1), rightElbow: elbow(1),
-        leftHand: hand(-1), rightHand: hand(1)
+        neckTop: neckTip, torsoTop: upperTorso, torso: upperTorso, hips: hip,
+        leftFoot: leftLeg.foot, rightFoot: rightLeg.foot,
+        leftKnee: leftLeg.knee, rightKnee: rightLeg.knee,
+        leftShoulder: upperTorso, rightShoulder: upperTorso,
+        leftElbow: leftArm.elbow, rightElbow: rightArm.elbow,
+        leftHand: leftArm.hand, rightHand: rightArm.hand
       };
     }
 
