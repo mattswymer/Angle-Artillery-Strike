@@ -33,7 +33,7 @@
       position: Vec2(x, surface + BODY.skin),
       fixedRotation: true,
       bullet: true,
-      linearDamping: 0,
+      linearDamping: 0.45,
       angularDamping: 0,
       allowSleep: false,
       userData: { kind: "character", team, number, part: "active-body" }
@@ -133,8 +133,11 @@
     function update(dt = 1 / 50, direction = 0) {
       const velocity = body.getLinearVelocity();
       if (jumpLock && velocity.y <= 0) jumpLock = false;
-      if (direction === 0) body.setLinearVelocity(Vec2(0, velocity.y));
-      snapToGround(direction);
+      if (direction !== null) {
+        if (direction === 0) body.setLinearVelocity(Vec2(0, velocity.y));
+        else body.setLinearVelocity(Vec2(direction * BODY.walkSpeed, velocity.y));
+      }
+      snapToGround(direction || 0);
     }
 
     function pose() {
