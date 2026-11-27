@@ -24,6 +24,7 @@
   const V = P.Vec2;
   const CharacterRig = window.CharacterRig.create(P);
   const ActiveCharacter = window.ActiveCharacter;
+  const Combatant = window.Combatant;
   const WORLD_WIDTH = 24;
   const WORLD_HEIGHT = 13.5;
   const TERRAIN_SAMPLES = 121;
@@ -189,145 +190,30 @@
 
   function makeCharacter(team, number, x) {
     const collisionGroup = -((team * 4) + number);
-    const active = ActiveCharacter.create(P, world, {
-      x, heightAt, collisionGroup, team, number
+    const actor = Combatant.create(P, world, CharacterRig, {
+      ActiveCharacter, x, heightAt, terrainAngleAt,
+      settingsForX: rigSettingsForX,
+      collisionGroup, team, number, worldWidth: WORLD_WIDTH,
+      isOccupied: (candidateX, self) => characters.some(other =>
+        other !== self && !other.eliminated &&
+        Math.abs(other.body.getPosition().x - candidateX) < 0.48)
     });
-    const body = active.body;
-    body.setUserData({ kind: "character", team, number, part: "active-body" });
-    for (let fixture = body.getFixtureList(); fixture; fixture = fixture.getNext()) {
-      fixture.setUserData({
-        kind: "character",
-        location: fixture.getUserData()?.location || "chest",
-        part: fixture.getUserData()?.part || "active-body"
-      });
-    }
-    return {
-      body, active, rig: null, mode: "active", ragdollElapsed: 0,
-      team, number, color: COLORS[team], collisionGroup,
-      grounded: false, stableTime: 0, eliminated: false,
+    Object.assign(actor, {
+      color: COLORS[team], eliminated: false,
       health: 100, maxHealth: 100,
       aimAngle: team === 0 ? 0 : 180, aimPower: 100
-    };
-  }
-
-  function tagRagdoll(character, rig) {
-    for (const piece of rig.pieces) {
-      const part = piece.name;
-      piece.body.setUserData({ kind: "character", team: character.team, number: character.number, part });
-      const location = part === "head" ? "head" :
-        part.includes("leg") || part.includes("foot") ? "legs" : "chest";
-      for (let fixture = piece.body.getFixtureList(); fixture; fixture = fixture.getNext()) {
-        fixture.setUserData({ kind: "character", location, part });
-      }
-    }
-    rig.settings = rigSettingsForX(rig.hull.getPosition().x);
-  }
-
-  function enterRagdoll(character, impulse = V(0, 0), hitPoint = null) {
-    if (character.rig || character.eliminated) return;
-    const active = character.active;
-    const sourceBody = active.body;
-    const sourcePosition = sourceBody.getPosition();
-    const sourceVelocity = sourceBody.getLinearVelocity();
-    const targetX = sourcePosition.x;
-    const targetY = sourcePosition.y + 0.95;
-    const settings = rigSettingsForX(targetX);
-    active.destroy();
-    character.active = null;
-
-    const rig = CharacterRig.createStanceRig(
-      world, targetX, heightAt, terrainAngleAt,
-      settings.stanceHalfWidth, settings.pelvisRatio, 0, 0, 0.6,
-      settings.bendMode, settings.highSideBend, settings.lowSideBend, character.collisionGroup
-    );
-    const hullPosition = rig.hull.getPosition();
-    const offset = V(targetX - hullPosition.x, targetY - hullPosition.y);
-    for (const body of rig.bodies) {
-      const position = body.getPosition();
-      body.setTransform(V(position.x + offset.x, position.y + offset.y), body.getAngle());
-      body.setLinearVelocity(sourceVelocity);
-      body.setAngularVelocity(0);
-    }
-    tagRagdoll(character, rig);
-    character.rig = rig;
-    character.body = rig.hull;
-    character.mode = "ragdoll";
-    character.ragdollElapsed = 0;
-    rig.hit(impulse, rig.hull, hitPoint);
-  }
-
-  function recoverCharacter(character, forceRelocate = false) {
-    const rig = character.rig;
-    if (!rig) return false;
-    const p = rig.hull.getPosition();
-    const originX = Math.max(0.35, Math.min(WORLD_WIDTH - 0.35, p.x));
-    let chosenX = originX;
-    if (forceRelocate || !CharacterRig.rigIsStable(rig)) {
-      const candidates = [0];
-      for (let step = 1; step <= 12; step++) candidates.push(step * 0.2, -step * 0.2);
-      const candidate = candidates.map(offset => originX + offset)
-        .filter(x => x >= 0.35 && x <= WORLD_WIDTH - 0.35)
-        .sort((a, b) => Math.abs(a - originX) - Math.abs(b - originX))
-        .find(x => Math.abs(terrainAngleAt(x)) <= 50 * Math.PI / 180 &&
-          characters.every(other => other === character || other.eliminated ||
-            Math.abs(other.body.getPosition().x - x) > 0.48));
-      if (candidate !== undefined) chosenX = candidate;
-    }
-    for (const body of rig.bodies) world.destroyBody(body);
-    character.rig = null;
-    character.active = ActiveCharacter.create(P, world, {
-      x: chosenX, heightAt, collisionGroup: character.collisionGroup,
-      team: character.team, number: character.number
     });
-    character.body = character.active.body;
-    character.body.setUserData({
-      kind: "character", team: character.team, number: character.number, part: "active-body"
-    });
-    for (let fixture = character.body.getFixtureList(); fixture; fixture = fixture.getNext()) {
-      fixture.setUserData({
-        kind: "character",
-        location: fixture.getUserData()?.location || "chest",
-        part: fixture.getUserData()?.part || "active-body"
-      });
-    }
-    character.mode = "active";
-    character.ragdollElapsed = 0;
-    character.stableTime = 0;
-    character.grounded = false;
-    return true;
+    return actor;
   }
 
   function updateCharacterRigs() {
     for (const character of characters) {
       if (character.eliminated) continue;
-      if (character.mode === "active") {
-        const moveDirection = character === activeCharacter()
-          ? ((held.right ? 1 : 0) - (held.left ? 1 : 0) ||
-            (tapMoveRemaining > 0 ? tapMoveDirection : 0))
-          : null;
-        character.active.update(FIXED_STEP, moveDirection);
-        character.grounded = character.active.grounded();
-        continue;
-      }
-      const rig = character.rig;
-      character.ragdollElapsed += FIXED_STEP;
-      const recovery = CharacterRig.updateRigRecovery(rig, FIXED_STEP, heightAt);
-      if (rig.recovering) {
-        const settings = rig.settings;
-        CharacterRig.stanceController(
-          rig, heightAt, terrainAngleAt, recovery.stiffness,
-          3.5, 0.06, 1.5, settings.stepReach, settings.stepLookahead,
-          6, 6, settings.swingHeight, settings.swingDuration,
-          1, settings.hipHeightBlend, settings.upperBodyTorqueScale
-        );
-      }
-      if (rig.mode === "active" && CharacterRig.rigIsStable(rig)) {
-        character.stableTime += FIXED_STEP;
-        if (character.stableTime >= 0.3) recoverCharacter(character, false);
-      } else {
-        character.stableTime = 0;
-      }
-      if (character.ragdollElapsed >= 6) recoverCharacter(character, true);
+      const direction = character === activeCharacter()
+        ? ((held.right ? 1 : 0) - (held.left ? 1 : 0) ||
+          (tapMoveRemaining > 0 ? tapMoveDirection : 0))
+        : null;
+      character.update(FIXED_STEP, direction);
     }
   }
 
@@ -432,7 +318,6 @@
   function moveActive() {
     const character = activeCharacter();
     if (!canMove(character) || activeAction === "attack") return;
-    const active = character.active;
     const heldDirection = (held.right ? 1 : 0) - (held.left ? 1 : 0);
     let direction = heldDirection || (tapMoveRemaining > 0 ? tapMoveDirection : 0);
     const requestedDirection = direction;
@@ -459,7 +344,7 @@
       updateHud();
     }
 
-    active.setMove(direction, FIXED_STEP);
+    character.setMove(direction, FIXED_STEP);
     const grounded = isGrounded(character);
     character.grounded = grounded;
     if (grounded) coyoteTime = 0.12;
@@ -469,7 +354,7 @@
     else jumpBufferTime = Math.max(0, jumpBufferTime - FIXED_STEP);
 
     if (jumpBufferTime > 0 && coyoteTime > 0) {
-      if (active.jump()) {
+      if (character.jump()) {
         jumpBufferTime = 0;
         coyoteTime = 0;
         jumpQueued = false;
@@ -617,26 +502,18 @@
           dx / length * deltaV * Math.max(0.2, 1 - distance / blastRadius),
           dy / length * deltaV * Math.max(0.2, 1 - distance / blastRadius) + 0.5
         );
-        if (character.mode === "active") enterRagdoll(character, dv, isDirectTarget ? point : null);
-        else character.rig.hit(dv, character.rig.hull, isDirectTarget ? point : null);
+        character.enterRagdoll(dv, isDirectTarget ? point : null);
         if (character.rig) applyBlastToRig(character.rig, point, isDirectTarget ? 11 : 10,
           blastRadius, null);
       } else if (knockback > 0) {
-        if (character.mode === "active") {
-          const mass = character.body.getMass();
-          character.active.applyImpulse(V(dx / Math.max(0.1, distance) * knockback * mass,
-            (dy / Math.max(0.1, distance) * knockback + 0.4) * mass));
-        } else applyBlastToRig(character.rig, point, knockback, blastRadius);
+        const mass = character.body.getMass();
+        character.applyImpulse(V(dx / Math.max(0.1, distance) * knockback * mass,
+          (dy / Math.max(0.1, distance) * knockback + 0.4) * mass));
       }
 
       if (character.health <= 0) {
         character.eliminated = true;
-        if (character.mode === "active") {
-          character.active.destroy();
-          character.active = null;
-        } else {
-          character.rig.bodies.forEach(body => body.setActive(false));
-        }
+        character.destroy();
       }
     }
 
@@ -712,8 +589,7 @@
       const p = character.body.getPosition();
       if (p.x < 0 || p.x > WORLD_WIDTH || p.y < 0) {
         character.eliminated = true;
-        if (character.mode === "active") character.active.destroy();
-        else character.rig.bodies.forEach(body => body.setActive(false));
+        character.destroy();
         statusEl.textContent = (character.team === 0 ? "Blue" : "Red") + " character crossed a lethal boundary";
       }
     }
@@ -738,7 +614,7 @@
   }
 
   function drawActiveCharacter(character, scale, offsetX) {
-    const pose = character.active.pose();
+    const pose = character.pose();
     const point = value => worldToScreen(value.x, value.y, scale, offsetX);
     const segment = (a, b, width) => {
       const from = point(a), to = point(b);
