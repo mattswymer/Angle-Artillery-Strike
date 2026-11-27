@@ -174,28 +174,20 @@
       });
       const leftKnee = knee(-1, stride, leftFoot);
       const rightKnee = knee(1, oppositeStride, rightFoot);
-      const armSwing = moving ? -stride * 0.12 : 0;
-      const arm = side => ({
-        x: hip.x + side * 0.34 + armSwing * side,
-        y: shoulderY - 0.27
-      });
-      const leftHand = arm(-1);
-      const rightHand = arm(1);
-      const leftElbow = {
-        x: hip.x - 0.17 + armSwing * 0.5,
-        y: shoulderY - 0.14
-      };
-      const rightElbow = {
-        x: hip.x + 0.17 + armSwing * 0.5,
-        y: shoulderY - 0.14
-      };
+      // Arms hang close to the torso instead of extending sideways.
+      const armSwing = moving ? -stride * 0.065 : 0;
+      const leftShoulder = { x: hip.x - 0.14, y: shoulderY };
+      const rightShoulder = { x: hip.x + 0.14, y: shoulderY };
+      const leftElbow = { x: hip.x - 0.17 + armSwing, y: shoulderY - 0.34 };
+      const rightElbow = { x: hip.x + 0.17 + armSwing, y: shoulderY - 0.34 };
+      const leftHand = { x: hip.x - 0.18 + armSwing * 1.5, y: shoulderY - 0.68 };
+      const rightHand = { x: hip.x + 0.18 + armSwing * 1.5, y: shoulderY - 0.68 };
       return {
         x: p.x, y: p.y, facing, grounded,
         head, torso: { x: hip.x, y: (head.y + hip.y) / 2 },
         hips: hip,
         leftFoot, rightFoot, leftKnee, rightKnee,
-        leftShoulder: { x: hip.x - 0.17, y: shoulderY },
-        rightShoulder: { x: hip.x + 0.17, y: shoulderY },
+        leftShoulder, rightShoulder,
         leftElbow, rightElbow, leftHand, rightHand
       };
     }
