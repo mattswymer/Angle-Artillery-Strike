@@ -137,3 +137,22 @@ test("50 seeded explosion handoffs never leave a combatant stuck in ragdoll mode
   }
   assert.deepEqual(failures, []);
 });
+
+
+test("hard downward ragdoll blasts cannot tunnel through the terrain", () => {
+  const failures = [];
+  for (let seed = 1; seed <= 30; seed++) {
+    const { world, actor } = makeActor(seed);
+    actor.enterRagdoll(Planck.Vec2((seed % 2 ? 1 : -1) * 18, -24));
+    const rig = actor.rig;
+    for (let i = 0; i < 300; i++) {
+      world.step(1 / 100, 180, 60);
+    }
+    for (const piece of rig.pieces) {
+      const position = piece.body.getPosition();
+      if (position.y < -0.25) failures.push({ seed, part: piece.name, y: position.y });
+    }
+    actor.destroy();
+  }
+  assert.deepEqual(failures, []);
+});
