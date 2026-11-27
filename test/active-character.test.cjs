@@ -202,23 +202,27 @@ test("active stickman walk cycle moves the hips and alternates full leg and arm 
 });
 
 
-test("active stickman uses the requested connected segment proportions", () => {
+test("active stickman matches ragdoll head size and connected segment proportions", () => {
   const { world, heightAt } = flatWorld();
   const character = ActiveCharacter.create(Planck, world, { x: 0, heightAt });
   const pose = character.pose();
-  const H = 1.28;
+  const H = 2.16;
   const near = (actual, expected, label) =>
     assert.ok(Math.abs(actual - expected) < 1e-9, label + ": " + actual + " != " + expected);
-  near(pose.head.y - pose.headRadius, pose.neckTop.y + pose.headRadius - pose.headRadius,
-    "head bottom joins neck");
+  near(pose.headRadius, 0.135, "head radius matches articulated ragdoll");
   near(pose.neckTop.y - pose.torsoTop.y, H / 16, "neck length");
   near(pose.torsoTop.y - pose.hips.y, 5 * H / 16, "torso length");
-  near(pose.leftElbow.y - pose.torsoTop.y, -3 * H / 16, "upper arm length");
-  near(pose.leftHand.y - pose.leftElbow.y, -3 * H / 16, "forearm length");
-  near(pose.hips.y - pose.leftKnee.y, H / 4, "thigh length");
-  near(pose.leftKnee.y - pose.leftFoot.y, H / 4, "lower leg length");
+  near(Math.hypot(pose.leftElbow.x - pose.torsoTop.x, pose.leftElbow.y - pose.torsoTop.y),
+    3 * H / 16, "upper arm length");
+  near(Math.hypot(pose.leftHand.x - pose.leftElbow.x, pose.leftHand.y - pose.leftElbow.y),
+    3 * H / 16, "forearm length");
+  near(Math.hypot(pose.hips.x - pose.leftKnee.x, pose.hips.y - pose.leftKnee.y),
+    H / 4, "thigh length");
+  near(Math.hypot(pose.leftKnee.x - pose.leftFoot.x, pose.leftKnee.y - pose.leftFoot.y),
+    H / 4, "lower leg length");
   assert.equal(pose.torso, pose.torsoTop);
 });
+
 
 test("active stickman arms hang beside the torso instead of forming a T pose", () => {
   const { world, heightAt } = flatWorld();
