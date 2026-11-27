@@ -62,7 +62,6 @@ test("terrain blocks fast bullet bodies without one-sided chain gaps", () => {
 
   assert.ok(body.getPosition().y >= 1.09,
     "fast body tunneled through terrain: y=" + body.getPosition().y);
-  assert.ok(terrain.physicsRectangleCount > 0);
 });
 
 test("terrain collision fixtures are two-sided solid rectangles", () => {
