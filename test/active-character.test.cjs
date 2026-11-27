@@ -9,7 +9,7 @@ function makeWorld(points, heightAt) {
   const world = new Planck.World({ gravity: Planck.Vec2(0, -10) });
   const terrain = world.createBody({ userData: { kind: "terrain" } });
   terrain.createFixture({
-    shape: new Planck.Chain(points.map(point => Planck.Vec2(point[0], point[1]))),
+    shape: new Planck.Chain(points.slice().reverse().map(point => Planck.Vec2(point[0], point[1]))),
     friction: 0.9
   });
   return { world, heightAt };
