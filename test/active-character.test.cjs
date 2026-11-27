@@ -59,7 +59,9 @@ for (const degrees of [0, 20, 35, 45]) {
     }
     character.update(1 / 50, 0);
     assert.equal(character.grounded(), true);
-    assert.ok(Math.abs(character.body.getPosition().y - (heightAt(5) + 0.055)) < 0.05);
+    assert.ok(Math.abs(character.body.getPosition().y - (heightAt(5) + 0.055)) < 0.05,
+      "body y=" + character.body.getPosition().y + " expected=" + (heightAt(5) + 0.055) +
+      " lastGroundY=" + character.lastGroundY);
     assert.equal(character.body.getAngle(), 0);
   });
 }
@@ -118,7 +120,8 @@ test("active character can step onto a 0.4 unit ledge using the forward ground r
     world.step(1 / 50, 8, 3);
     character.update(1 / 50, 1);
   }
-  assert.ok(character.body.getPosition().x > 0.1);
+  assert.ok(character.body.getPosition().x > 0.1,
+    "step x=" + character.body.getPosition().x + " y=" + character.body.getPosition().y);
   assert.ok(character.body.getPosition().y > 0.4);
 });
 
