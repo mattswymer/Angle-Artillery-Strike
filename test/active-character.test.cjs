@@ -206,7 +206,7 @@ test("active stickman matches ragdoll head size and connected segment proportion
   const { world, heightAt } = flatWorld();
   const character = ActiveCharacter.create(Planck, world, { x: 0, heightAt });
   const pose = character.pose();
-  const H = 2.16;
+  const H = 1.65;
   const near = (actual, expected, label) =>
     assert.ok(Math.abs(actual - expected) < 1e-9, label + ": " + actual + " != " + expected);
   near(pose.headRadius, 0.135, "head radius matches articulated ragdoll");
