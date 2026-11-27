@@ -23,6 +23,7 @@
   const P = window.planck;
   const V = P.Vec2;
   const CharacterRig = window.CharacterRig.create(P);
+  const ActiveCharacter = window.ActiveCharacter;
   const WORLD_WIDTH = 24;
   const WORLD_HEIGHT = 13.5;
   const TERRAIN_SAMPLES = 121;
@@ -187,66 +188,158 @@
   }
 
   function makeCharacter(team, number, x) {
-    const settings = rigSettingsForX(x);
     const collisionGroup = -((team * 4) + number);
-    const rig = CharacterRig.createStanceRig(
-      world, x, heightAt, terrainAngleAt,
-      settings.stanceHalfWidth, settings.pelvisRatio, 0, 0, 0.6,
-      settings.bendMode, settings.highSideBend, settings.lowSideBend, collisionGroup
-    );
+    const active = ActiveCharacter.create(P, world, {
+      x, heightAt, collisionGroup, team, number
+    });
+    const body = active.body;
+    body.setUserData({ kind: "character", team, number, part: "active-body" });
+    for (let fixture = body.getFixtureList(); fixture; fixture = fixture.getNext()) {
+      fixture.setUserData({
+        kind: "character",
+        location: fixture.getUserData()?.location || "chest",
+        part: fixture.getUserData()?.part || "active-body"
+      });
+    }
+    return {
+      body, active, rig: null, mode: "active", ragdollElapsed: 0,
+      team, number, color: COLORS[team], collisionGroup,
+      grounded: false, stableTime: 0, eliminated: false,
+      health: 100, maxHealth: 100,
+      aimAngle: team === 0 ? 0 : 180, aimPower: 100
+    };
+  }
+
+  function tagRagdoll(character, rig) {
     for (const piece of rig.pieces) {
       const part = piece.name;
-      piece.body.setUserData({ kind: "character", team, number, part });
+      piece.body.setUserData({ kind: "character", team: character.team, number: character.number, part });
       const location = part === "head" ? "head" :
         part.includes("leg") || part.includes("foot") ? "legs" : "chest";
       for (let fixture = piece.body.getFixtureList(); fixture; fixture = fixture.getNext()) {
         fixture.setUserData({ kind: "character", location, part });
       }
     }
-    rig.settings = settings;
-    return {
-      body: rig.hull, rig, team, number, color: COLORS[team], collisionGroup,
-      grounded: false, eliminated: false,
-      health: 100, maxHealth: 100,
-      aimAngle: team === 0 ? 0 : 180, aimPower: 100
-    };
+    rig.settings = rigSettingsForX(rig.hull.getPosition().x);
   }
 
-  function driveCharacterRig(character) {
-    if (character.eliminated) return;
-    const rig = character.rig;
-    const settings = rig.settings;
-    if (rig.mode === "active") {
-      CharacterRig.updateRigFallState(rig, FIXED_STEP, rig.jumping);
-      if (rig.mode !== "active") return;
-      CharacterRig.stanceController(
-        rig, heightAt, terrainAngleAt, rig.stiffness,
-        0.65, 0.02, 1.5, settings.stepReach, settings.stepLookahead,
-        6, 6, settings.swingHeight, settings.swingDuration,
-        1, settings.hipHeightBlend, settings.upperBodyTorqueScale
-      );
-      return;
+  function enterRagdoll(character, impulse = V(0, 0), hitPoint = null) {
+    if (character.rig || character.eliminated) return;
+    const active = character.active;
+    const sourceBody = active.body;
+    const sourcePosition = sourceBody.getPosition();
+    const sourceVelocity = sourceBody.getLinearVelocity();
+    const targetX = sourcePosition.x;
+    const targetY = sourcePosition.y + 0.52;
+    const settings = rigSettingsForX(targetX);
+    active.destroy();
+    character.active = null;
+
+    const rig = CharacterRig.createStanceRig(
+      world, targetX, heightAt, terrainAngleAt,
+      settings.stanceHalfWidth, settings.pelvisRatio, 0, 0, 0.6,
+      settings.bendMode, settings.highSideBend, settings.lowSideBend, character.collisionGroup
+    );
+    const hullPosition = rig.hull.getPosition();
+    const offset = V(targetX - hullPosition.x, targetY - hullPosition.y);
+    for (const body of rig.bodies) {
+      const position = body.getPosition();
+      body.setTransform(V(position.x + offset.x, position.y + offset.y), body.getAngle());
+      body.setLinearVelocity(sourceVelocity);
+      body.setAngularVelocity(0);
     }
-    const recovery = CharacterRig.updateRigRecovery(rig, FIXED_STEP, heightAt);
-    if (rig.recovering) {
-      CharacterRig.stanceController(
-        rig, heightAt, terrainAngleAt, recovery.stiffness,
-        3.5, 0.06, 1.5, settings.stepReach, settings.stepLookahead,
-        6, 6, settings.swingHeight, settings.swingDuration,
-        1, settings.hipHeightBlend, settings.upperBodyTorqueScale
-      );
+    tagRagdoll(character, rig);
+    character.rig = rig;
+    character.body = rig.hull;
+    character.mode = "ragdoll";
+    character.ragdollElapsed = 0;
+    rig.hit(impulse, rig.hull, hitPoint);
+  }
+
+  function recoverCharacter(character, forceRelocate = false) {
+    const rig = character.rig;
+    if (!rig) return false;
+    const p = rig.hull.getPosition();
+    const originX = Math.max(0.35, Math.min(WORLD_WIDTH - 0.35, p.x));
+    let chosenX = originX;
+    if (forceRelocate || !CharacterRig.rigIsStable(rig)) {
+      const candidates = [0];
+      for (let step = 1; step <= 12; step++) candidates.push(step * 0.2, -step * 0.2);
+      const candidate = candidates.map(offset => originX + offset)
+        .filter(x => x >= 0.35 && x <= WORLD_WIDTH - 0.35)
+        .sort((a, b) => Math.abs(a - originX) - Math.abs(b - originX))
+        .find(x => Math.abs(terrainAngleAt(x)) <= 50 * Math.PI / 180 &&
+          characters.every(other => other === character || other.eliminated ||
+            Math.abs(other.body.getPosition().x - x) > 0.48));
+      if (candidate !== undefined) chosenX = candidate;
+    }
+    for (const body of rig.bodies) world.destroyBody(body);
+    character.rig = null;
+    character.active = ActiveCharacter.create(P, world, {
+      x: chosenX, heightAt, collisionGroup: character.collisionGroup,
+      team: character.team, number: character.number
+    });
+    character.body = character.active.body;
+    character.body.setUserData({
+      kind: "character", team: character.team, number: character.number, part: "active-body"
+    });
+    for (let fixture = character.body.getFixtureList(); fixture; fixture = fixture.getNext()) {
+      fixture.setUserData({
+        kind: "character",
+        location: fixture.getUserData()?.location || "chest",
+        part: fixture.getUserData()?.part || "active-body"
+      });
+    }
+    character.mode = "active";
+    character.ragdollElapsed = 0;
+    character.stableTime = 0;
+    character.grounded = false;
+    return true;
+  }
+
+  function updateCharacterRigs() {
+    for (const character of characters) {
+      if (character.eliminated) continue;
+      if (character.mode === "active") {
+        character.active.update(FIXED_STEP, character === activeCharacter()
+          ? (held.right ? 1 : 0) - (held.left ? 1 : 0) : 0);
+        character.grounded = character.active.grounded();
+        continue;
+      }
+      const rig = character.rig;
+      character.ragdollElapsed += FIXED_STEP;
+      const recovery = CharacterRig.updateRigRecovery(rig, FIXED_STEP, heightAt);
+      if (rig.recovering) {
+        const settings = rig.settings;
+        CharacterRig.stanceController(
+          rig, heightAt, terrainAngleAt, recovery.stiffness,
+          3.5, 0.06, 1.5, settings.stepReach, settings.stepLookahead,
+          6, 6, settings.swingHeight, settings.swingDuration,
+          1, settings.hipHeightBlend, settings.upperBodyTorqueScale
+        );
+      }
+      if (rig.mode === "active" && CharacterRig.rigIsStable(rig)) {
+        character.stableTime += FIXED_STEP;
+        if (character.stableTime >= 0.3) recoverCharacter(character, false);
+      } else {
+        character.stableTime = 0;
+      }
+      if (character.ragdollElapsed >= 6) recoverCharacter(character, true);
     }
   }
 
   function updateRigStability() {
     for (const character of characters) {
-      const rig = character.rig;
-      if (!character.eliminated && rig.mode === "active" && CharacterRig.rigIsStable(rig)) {
-        rig.stableTime += FIXED_STEP;
+      if (character.eliminated) continue;
+      if (character.mode === "active") {
+        const velocity = character.body.getLinearVelocity();
+        if (character.active.grounded() && Math.abs(velocity.x) < 0.35 &&
+            Math.abs(velocity.y) < 0.35) character.stableTime += FIXED_STEP;
+        else character.stableTime = 0;
+        character.grounded = character.active.grounded();
       } else {
-        rig.stableTime = 0;
+        character.grounded = character.rig.legs.some(leg => CharacterRig.isGroundContact(leg.foot));
       }
-      character.grounded = rig.legs.some(leg => CharacterRig.isGroundContact(leg.foot));
     }
   }
 
@@ -258,7 +351,7 @@
 
   function canMove(character) {
     return Boolean(canAct(character) && !projectile &&
-      character.rig.mode === "active" && character.rig.stableTime >= 0.12);
+      character.mode === "active" && character.stableTime >= 0.08);
   }
 
   function createWorld() {
@@ -284,10 +377,10 @@
     const firstOrder = shuffle(firstTeam === 0 ? blueTeam : redTeam, random);
     const secondOrder = shuffle(firstTeam === 0 ? redTeam : blueTeam, random);
     characters = firstOrder.map((character, index) => [character, secondOrder[index]]).flat();
-    // Settle the articulated spawn pose before the first frame is rendered.
-    for (let step = 0; step < 90; step++) {
-      characters.forEach(driveCharacterRig);
-      world.step(FIXED_STEP, 180, 60);
+    // Settle the simple active colliders before the first frame is rendered.
+    for (let step = 0; step < 12; step++) {
+      characters.forEach(character => character.active.update(FIXED_STEP, 0));
+      world.step(FIXED_STEP, 8, 3);
       updateRigStability();
     }
     damagePopups = [];
@@ -328,13 +421,15 @@
   }
 
   function isGrounded(character) {
-    return character.rig.legs.some(leg => CharacterRig.isGroundContact(leg.foot));
+    return character.mode === "active"
+      ? character.active.grounded()
+      : character.rig.legs.some(leg => CharacterRig.isGroundContact(leg.foot));
   }
 
   function moveActive() {
     const character = activeCharacter();
     if (!canMove(character) || activeAction === "attack") return;
-    const rig = character.rig;
+    const active = character.active;
     const heldDirection = (held.right ? 1 : 0) - (held.left ? 1 : 0);
     let direction = heldDirection || (tapMoveRemaining > 0 ? tapMoveDirection : 0);
     const requestedDirection = direction;
@@ -344,7 +439,7 @@
     }
 
     if (direction) {
-      const position = rig.hull.getPosition();
+      const position = character.body.getPosition();
       const blocked = characters.some(other => {
         if (other === character || other.eliminated) return false;
         const otherPosition = other.body.getPosition();
@@ -361,7 +456,7 @@
       updateHud();
     }
 
-    rig.walkDirection = direction;
+    active.setMove(direction, FIXED_STEP);
     const grounded = isGrounded(character);
     character.grounded = grounded;
     if (grounded) coyoteTime = 0.12;
@@ -370,8 +465,8 @@
     if (jumpQueued) jumpBufferTime = 0.16;
     else jumpBufferTime = Math.max(0, jumpBufferTime - FIXED_STEP);
 
-    if (jumpBufferTime > 0 && coyoteTime > 0 && !rig.jumping) {
-      if (CharacterRig.requestJump(rig)) {
+    if (jumpBufferTime > 0 && coyoteTime > 0) {
+      if (active.jump()) {
         jumpBufferTime = 0;
         coyoteTime = 0;
         jumpQueued = false;
@@ -444,16 +539,22 @@
     }
   }
 
-  function updateCharacterRigs() {
-    for (const character of characters) {
-      if (character.eliminated) {
-        for (const joint of character.rig.joints) {
-          joint.setMotorSpeed(0);
-          joint.setMaxMotorTorque(0);
-        }
-        continue;
-      }
-      driveCharacterRig(character);
+  function applyBlastToRig(rig, origin, strength, radius, skipBody = null, directBody = null, directPoint = null) {
+    for (const piece of rig.pieces) {
+      const body = piece.body;
+      if (body === skipBody) continue;
+      const center = body.getWorldCenter();
+      const dx = center.x - origin.x;
+      const dy = center.y - origin.y;
+      const distance = Math.max(0.1, Math.hypot(dx, dy));
+      const falloff = Math.max(0, 1 - distance / radius);
+      if (falloff <= 0) continue;
+      const deltaV = strength * falloff;
+      const mass = body.getMass();
+      body.applyLinearImpulse(V(
+        (dx / distance * deltaV) * mass,
+        (dy / distance * deltaV + 0.5 * falloff) * mass
+      ), body === directBody && directPoint ? directPoint : center, true);
     }
   }
 
@@ -507,23 +608,32 @@
           ? directHit.location === "head" ? "head" :
             directHit.location === "legs" ? "left-upper-leg" : "torso"
           : "torso";
-        const hitBody = character.rig.byName[hitPartName]?.body || character.rig.hull;
         const length = Math.max(0.1, distance);
         const deltaV = isDirectTarget ? 12 : 11;
         const dv = V(
           dx / length * deltaV * Math.max(0.2, 1 - distance / blastRadius),
           dy / length * deltaV * Math.max(0.2, 1 - distance / blastRadius) + 0.5
         );
-        character.rig.hit(dv, hitBody, isDirectTarget ? point : null);
-        applyBlastToRig(character.rig, point, isDirectTarget ? 11 : 10,
-          blastRadius, hitBody);
+        if (character.mode === "active") enterRagdoll(character, dv, isDirectTarget ? point : null);
+        else character.rig.hit(dv, character.rig.hull, isDirectTarget ? point : null);
+        if (character.rig) applyBlastToRig(character.rig, point, isDirectTarget ? 11 : 10,
+          blastRadius, null);
       } else if (knockback > 0) {
-        applyBlastToRig(character.rig, point, knockback, blastRadius);
+        if (character.mode === "active") {
+          const mass = character.body.getMass();
+          character.active.applyImpulse(V(dx / Math.max(0.1, distance) * knockback * mass,
+            (dy / Math.max(0.1, distance) * knockback + 0.4) * mass));
+        } else applyBlastToRig(character.rig, point, knockback, blastRadius);
       }
 
       if (character.health <= 0) {
         character.eliminated = true;
-        if (character.rig.mode !== "limp") character.rig.hit(V(0, 0));
+        if (character.mode === "active") {
+          character.active.destroy();
+          character.active = null;
+        } else {
+          character.rig.bodies.forEach(body => body.setActive(false));
+        }
       }
     }
 
@@ -559,13 +669,15 @@
       if (bodyKind === "terrain" || bodyKind === "character") {
         if (bodyKind === "character") {
           const target = characters.find(character =>
-            character.rig.bodies.some(body => body === fixture.getBody()));
+            character.body === fixture.getBody() ||
+            character.rig?.bodies.some(body => body === fixture.getBody()));
           if (target && target === projectileOwner) return -1;
         }
         impactPoint = V(point.x, point.y);
         if (bodyKind === "character") {
           const target = characters.find(character =>
-            character.rig.bodies.some(body => body === fixture.getBody()));
+            character.body === fixture.getBody() ||
+            character.rig?.bodies.some(body => body === fixture.getBody()));
           if (target) projectileHit = { character: target, location: classifyHitLocation(target, fixture, point) };
         }
         hit = true;
@@ -597,7 +709,8 @@
       const p = character.body.getPosition();
       if (p.x < 0 || p.x > WORLD_WIDTH || p.y < 0) {
         character.eliminated = true;
-        character.rig.bodies.forEach(body => body.setActive(false));
+        if (character.mode === "active") character.active.destroy();
+        else character.rig.bodies.forEach(body => body.setActive(false));
         statusEl.textContent = (character.team === 0 ? "Blue" : "Red") + " character crossed a lethal boundary";
       }
     }
@@ -621,7 +734,59 @@
     terrainSystem.draw(ctx, (x, y) => worldToScreen(x, y, scale, offsetX));
   }
 
+  function drawActiveCharacter(character, scale, offsetX) {
+    const pose = character.active.pose();
+    const point = value => worldToScreen(value.x, value.y, scale, offsetX);
+    const segment = (a, b, width) => {
+      const from = point(a), to = point(b);
+      ctx.beginPath();
+      ctx.moveTo(from.x, from.y);
+      ctx.lineTo(to.x, to.y);
+      ctx.lineWidth = Math.max(3, scale * width);
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "#263944";
+      ctx.stroke();
+    };
+    const circle = (value, radius, fill) => {
+      const p = point(value);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, scale * radius, 0, Math.PI * 2);
+      ctx.fillStyle = fill;
+      ctx.fill();
+      ctx.strokeStyle = "#17232b";
+      ctx.lineWidth = Math.max(1.2, scale * 0.018);
+      ctx.stroke();
+    };
+    segment(pose.leftShoulder, pose.leftHand, 0.105);
+    segment(pose.rightShoulder, pose.rightHand, 0.105);
+    segment(pose.leftShoulder, pose.rightShoulder, 0.09);
+    segment(pose.leftShoulder, pose.leftKnee, 0.12);
+    segment(pose.rightShoulder, pose.rightKnee, 0.12);
+    segment(pose.leftKnee, pose.leftFoot, 0.105);
+    segment(pose.rightKnee, pose.rightFoot, 0.105);
+    const torso = point(pose.torso);
+    ctx.fillStyle = character.color;
+    ctx.strokeStyle = "#17232b";
+    ctx.lineWidth = Math.max(1.2, scale * 0.018);
+    ctx.beginPath();
+    ctx.roundRect(torso.x - scale * 0.17, torso.y - scale * 0.29,
+      scale * 0.34, scale * 0.58, scale * 0.07);
+    ctx.fill(); ctx.stroke();
+    circle(pose.head, 0.135, character.color);
+    const barAnchor = point({ x: pose.x, y: pose.y + 1.18 });
+    const barWidth = scale * 0.72, barHeight = Math.max(3, scale * 0.055);
+    ctx.fillStyle = "#17232b";
+    ctx.fillRect(barAnchor.x - barWidth / 2, barAnchor.y, barWidth, barHeight);
+    ctx.fillStyle = character.team === 0 ? "#58a8ff" : "#ff7770";
+    ctx.fillRect(barAnchor.x - barWidth / 2, barAnchor.y,
+      barWidth * Math.max(0, character.health / character.maxHealth), barHeight);
+  }
+
   function drawCharacter(character, scale, offsetX) {
+    if (character.mode === "active") {
+      drawActiveCharacter(character, scale, offsetX);
+      return;
+    }
     if (!character.rig) return;
     const rig = character.rig;
     const screen = worldToScreen(character.body.getPosition().x, character.body.getPosition().y, scale, offsetX);
@@ -896,6 +1061,9 @@
       turnTransitionElapsed += FIXED_STEP;
       const allSlow = characters.every(character => {
         if (character.eliminated) return true;
+        if (character.mode === "active") {
+          return character.body.getLinearVelocity().length() < 1;
+        }
         const rig = character.rig;
         const averageSpeed = rig.bodies.reduce(
           (sum, body) => sum + body.getLinearVelocity().length(), 0
