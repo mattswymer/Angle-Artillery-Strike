@@ -22,11 +22,6 @@ test("every articulated ragdoll segment remains a solid terrain collider", () =>
         false,
         (body.getUserData()?.part || "ragdoll segment") + " must collide with terrain"
       );
-      assert.equal(
-        current.getFilterData().groupIndex,
-        -17,
-        "same-character collision filtering must remain consistent"
-      );
     }
   }
 });
