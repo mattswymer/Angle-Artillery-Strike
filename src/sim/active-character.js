@@ -153,19 +153,50 @@
     function pose() {
       const p = body.getPosition();
       const moving = Math.abs(body.getLinearVelocity().x) > 0.15 && grounded;
-      const swing = moving ? Math.sin(gaitPhase) * 0.22 : 0;
+      const phase = gaitPhase % (Math.PI * 2);
+      // Four readable walk-cycle beats: contact, down, passing, up.
+      const stride = moving ? Math.sin(phase) : 0;
+      const oppositeStride = -stride;
+      const bob = moving ? 0.025 * (1 - Math.cos(phase * 2)) : 0;
+      const hipSway = moving ? Math.sin(phase) * 0.025 : 0;
+      const hip = { x: p.x + hipSway, y: p.y + 0.44 + bob };
+      const head = { x: p.x + hipSway * 0.35, y: p.y + 1.16 + bob };
+      const shoulderY = p.y + 0.91 + bob;
+      const foot = (side, swing) => ({
+        x: p.x + side * 0.13 + swing * 0.20,
+        y: p.y + BODY.skin + (moving ? Math.max(0, swing) * 0.10 : 0)
+      });
+      const leftFoot = foot(-1, stride);
+      const rightFoot = foot(1, oppositeStride);
+      const knee = (side, swing, targetFoot) => ({
+        x: hip.x + (targetFoot.x - hip.x) * 0.5 + swing * 0.035,
+        y: hip.y + (targetFoot.y - hip.y) * 0.5 + 0.035 + Math.max(0, swing) * 0.035
+      });
+      const leftKnee = knee(-1, stride, leftFoot);
+      const rightKnee = knee(1, oppositeStride, rightFoot);
+      const armSwing = moving ? -stride * 0.12 : 0;
+      const arm = side => ({
+        x: hip.x + side * 0.34 + armSwing * side,
+        y: shoulderY - 0.27
+      });
+      const leftHand = arm(-1);
+      const rightHand = arm(1);
+      const leftElbow = {
+        x: hip.x - 0.17 + armSwing * 0.5,
+        y: shoulderY - 0.14
+      };
+      const rightElbow = {
+        x: hip.x + 0.17 + armSwing * 0.5,
+        y: shoulderY - 0.14
+      };
       return {
         x: p.x, y: p.y, facing, grounded,
-        head: { x: p.x, y: p.y + 1.16 },
-        torso: { x: p.x, y: p.y + 0.67 },
-        leftFoot: { x: p.x - 0.12 + swing, y: p.y + BODY.skin },
-        rightFoot: { x: p.x + 0.12 - swing, y: p.y + BODY.skin },
-        leftKnee: { x: p.x - 0.12 + swing * 0.45, y: p.y + 0.31 + Math.abs(swing) * 0.35 },
-        rightKnee: { x: p.x + 0.12 - swing * 0.45, y: p.y + 0.31 + Math.abs(swing) * 0.35 },
-        leftShoulder: { x: p.x - 0.17, y: p.y + 0.82 },
-        rightShoulder: { x: p.x + 0.17, y: p.y + 0.82 },
-        leftHand: { x: p.x - 0.2 - swing * 0.45, y: p.y + 0.48 },
-        rightHand: { x: p.x + 0.2 + swing * 0.45, y: p.y + 0.48 }
+        head, torso: { x: hip.x, y: (head.y + hip.y) / 2 },
+        hips: hip,
+        leftFoot, rightFoot, leftKnee, rightKnee,
+        leftShoulder: { x: hip.x - 0.17, y: shoulderY },
+        rightShoulder: { x: hip.x + 0.17, y: shoulderY },
+        leftElbow, rightElbow, leftHand, rightHand
       };
     }
 
