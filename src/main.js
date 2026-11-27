@@ -599,86 +599,65 @@
 
   function drawCharacter(character, scale, offsetX) {
     if (!character.rig) return;
-    const p = character.body.getPosition();
-    const screen = worldToScreen(p.x, p.y, scale, offsetX);
-    const unit = scale;
     const rig = character.rig;
-      const jointPoint = joint => {
-        const a = joint.getAnchorA();
-        const b = joint.getAnchorB();
-        return V((a.x + b.x) * 0.5, (a.y + b.y) * 0.5);
-      };
-      const screenPoint = point => worldToScreen(point.x, point.y, scale, offsetX);
-      const drawBone = (a, b) => {
-        const start = screenPoint(a);
-        const end = screenPoint(b);
-        ctx.beginPath();
-        ctx.moveTo(start.x, start.y);
-        ctx.lineTo(end.x, end.y);
-        ctx.stroke();
-      };
-      const points = {};
-      for (const [name, joint] of Object.entries(rig.jointMap)) {
-        points[name] = jointPoint(joint);
-      }
-      const leftHand = rig.byName["left-lower-arm"].body.getWorldPoint(V(0, -0.17));
-      const rightHand = rig.byName["right-lower-arm"].body.getWorldPoint(V(0, -0.17));
-      const leftAnkle = points.leftAnkle;
-      const rightAnkle = points.rightAnkle;
-      const leftFoot = rig.byName["left-foot"].body.getWorldPoint(V(0.09, 0));
-      const rightFoot = rig.byName["right-foot"].body.getWorldPoint(V(0.09, 0));
-      const head = rig.byName.head.body.getPosition();
-      const shoulderCenter = V((points.leftShoulder.x + points.rightShoulder.x) * 0.5,
-        (points.leftShoulder.y + points.rightShoulder.y) * 0.5);
-      const hipCenter = V((points.leftHip.x + points.rightHip.x) * 0.5,
-        (points.leftHip.y + points.rightHip.y) * 0.5);
+    const screen = worldToScreen(character.body.getPosition().x, character.body.getPosition().y, scale, offsetX);
+
+    // Render the actual rigid bodies. The old stick-figure renderer only drew
+    // joint-to-joint lines, hiding the rotation and independent motion that make
+    // the articulated ragdoll readable during impacts and recovery.
+    ctx.save();
+    for (const piece of rig.pieces) {
+      const body = piece.body;
+      const position = body.getPosition();
+      const point = worldToScreen(position.x, position.y, scale, offsetX);
+      const angle = body.getAngle();
 
       ctx.save();
-      // Match the original stickman: dark limbs and joints, team color
-      // reserved for the head and health bar.
+      ctx.translate(point.x, point.y);
+      ctx.rotate(-angle);
+      ctx.lineWidth = Math.max(1.25, scale * 0.018);
       ctx.strokeStyle = "#17232b";
-      ctx.lineWidth = Math.max(2.6, unit * 0.072);
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      // Render each bone between the live physics joint anchors. This keeps
-      // the stick figure visually connected even within solver tolerance.
-      drawBone(points.neck, head);
-      drawBone(shoulderCenter, hipCenter);
-      drawBone(points.leftShoulder, points.leftElbow);
-      drawBone(points.leftElbow, leftHand);
-      drawBone(points.rightShoulder, points.rightElbow);
-      drawBone(points.rightElbow, rightHand);
-      drawBone(points.leftHip, points.leftKnee);
-      drawBone(points.leftKnee, leftAnkle);
-      drawBone(leftAnkle, leftFoot);
-      drawBone(points.rightHip, points.rightKnee);
-      drawBone(points.rightKnee, rightAnkle);
-      drawBone(rightAnkle, rightFoot);
+      ctx.fillStyle = piece.name === "head" ? character.color : "#263944";
+      if (piece.name === "torso") ctx.fillStyle = character.color;
 
-      ctx.fillStyle = "#17232b";
-      for (const point of Object.values(points)) {
-        const screenPointValue = screenPoint(point);
+      if (piece.circle) {
+        const radius = piece.halfWidth * scale;
         ctx.beginPath();
-        ctx.arc(screenPointValue.x, screenPointValue.y, Math.max(2.2, unit * 0.045), 0, Math.PI * 2);
+        ctx.arc(0, 0, radius, 0, Math.PI * 2);
         ctx.fill();
-      }
-      const headScreen = screenPoint(head);
-      ctx.beginPath();
-      ctx.arc(headScreen.x, headScreen.y, Math.max(3.2, unit * 0.135), 0, Math.PI * 2);
-      ctx.fillStyle = character.color;
-      ctx.fill();
-      ctx.lineWidth = 1.4;
-      ctx.strokeStyle = "#17232b";
-      ctx.stroke();
-      ctx.restore();
+        ctx.stroke();
 
-      const barWidth = unit * 0.64;
-      const barY = -unit * 0.96;
-      ctx.fillStyle = "#17232b";
-      ctx.fillRect(screen.x - barWidth / 2, screen.y + barY, barWidth, Math.max(3, unit * 0.055));
-      ctx.fillStyle = character.team === 0 ? "#58a8ff" : "#ff7770";
-      ctx.fillRect(screen.x - barWidth / 2, screen.y + barY, barWidth * (character.health / character.maxHealth), Math.max(3, unit * 0.055));
-      return;
+        // A small face marker makes head rotation visible without imposing
+        // a fixed facing direction on the physics body.
+        ctx.fillStyle = "#17232b";
+        ctx.beginPath();
+        ctx.arc(radius * 0.38, -radius * 0.12, Math.max(1.2, radius * 0.11), 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        const halfWidth = piece.halfWidth * scale;
+        const halfHeight = piece.halfHeight * scale;
+        const radius = Math.min(halfWidth, halfHeight, Math.max(2, scale * 0.035));
+        ctx.beginPath();
+        ctx.roundRect(-halfWidth, -halfHeight, halfWidth * 2, halfHeight * 2, radius);
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+    ctx.restore();
+
+    const barWidth = scale * 0.72;
+    const barHeight = Math.max(3, scale * 0.055);
+    const barY = -scale * 1.02;
+    ctx.fillStyle = "#17232b";
+    ctx.fillRect(screen.x - barWidth / 2, screen.y + barY, barWidth, barHeight);
+    ctx.fillStyle = character.team === 0 ? "#58a8ff" : "#ff7770";
+    ctx.fillRect(
+      screen.x - barWidth / 2,
+      screen.y + barY,
+      barWidth * Math.max(0, character.health / character.maxHealth),
+      barHeight
+    );
   }
 
   function drawAim(scale, offsetX) {
