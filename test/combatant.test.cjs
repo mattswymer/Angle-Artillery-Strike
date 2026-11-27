@@ -85,17 +85,15 @@ test("ragdoll body and physical limbs remain supported by the terrain", () => {
   for (let i = 0; i < 75; i++) world.step(1 / 50, 180, 60);
   assert.ok(rig.hull.getPosition().y > 0.15,
     "ragdoll torso passed through the terrain");
-  const sensorFeet = rig.legs.filter(leg =>
-    leg.foot.getFixtureList().isSensor());
-  assert.equal(sensorFeet.length, 2);
-  assert.ok(rig.legs.every(leg =>
-    leg.upper.getFixtureList().isSensor() &&
-    leg.lower.getFixtureList().isSensor() &&
-    leg.foot.getFixtureList().isSensor()),
-    "ragdoll leg fixtures should not push against terrain");
-  assert.ok(rig.pieces.filter(piece => piece.name !== "torso").every(piece =>
-    piece.body.getFixtureList().isSensor()),
-    "only the torso should have a solid collision fixture");
+  for (const piece of rig.pieces) {
+    for (let fixture = piece.body.getFixtureList(); fixture; fixture = fixture.getNext()) {
+      assert.equal(
+        fixture.isSensor(),
+        false,
+        piece.name + " must have solid terrain collision during ragdoll"
+      );
+    }
+  }
   assert.equal(rig.hull.getFixtureList().isSensor(), false,
     "torso must retain physical terrain collision");
   assert.ok(CharacterRig.isGroundContact(rig.hull),
