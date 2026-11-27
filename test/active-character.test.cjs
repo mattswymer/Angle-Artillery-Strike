@@ -108,6 +108,39 @@ test("active character jumps once from ground and remains airborne until descend
   assert.ok(Math.abs(character.body.getPosition().y - 0.055) < 0.05);
 });
 
+test("active character can jump while moving and never snaps back to the jump origin", () => {
+  const { world, heightAt } = flatWorld();
+  const character = ActiveCharacter.create(Planck, world, { x: 0, heightAt });
+  for (let i = 0; i < 12; i++) {
+    character.update(1 / 50, 0);
+    world.step(1 / 50, 8, 3);
+  }
+  character.setMove(1);
+  assert.equal(character.jump(), true);
+  const jumpOriginX = character.body.getPosition().x;
+  let maxY = character.body.getPosition().y;
+  for (let i = 0; i < 18; i++) {
+    character.update(1 / 50, 1);
+    world.step(1 / 50, 8, 3);
+    maxY = Math.max(maxY, character.body.getPosition().y);
+  }
+  const airborneX = character.body.getPosition().x;
+  assert.ok(airborneX > jumpOriginX + 0.45, "movement stopped during jump");
+  assert.ok(maxY > 0.7, "jump did not gain height");
+  for (let i = 0; i < 8; i++) {
+    character.update(1 / 50, 0);
+    world.step(1 / 50, 8, 3);
+  }
+  assert.ok(character.body.getPosition().x >= airborneX - 0.08,
+    "releasing movement snapped back toward the jump origin");
+  for (let i = 0; i < 70; i++) {
+    character.update(1 / 50, 0);
+    world.step(1 / 50, 8, 3);
+  }
+  assert.equal(character.grounded(), true);
+  assert.ok(character.body.getPosition().x > jumpOriginX + 0.45);
+});
+
 test("active character can step onto a 0.4 unit ledge using the forward ground ray", () => {
   const { world, heightAt } = makeWorld(
     [[-5, 0], [0, 0], [0.01, 0.4], [5, 0.4]],
