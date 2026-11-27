@@ -200,3 +200,19 @@ test("active stickman walk cycle moves the hips and alternates full leg and arm 
     "arms should counter-swing with the legs");
   assert.notEqual(standing.hips.y, samples[10].hips.y);
 });
+
+
+test("active stickman arms hang beside the torso instead of forming a T pose", () => {
+  const { world, heightAt } = flatWorld();
+  const character = ActiveCharacter.create(Planck, world, { x: 0, heightAt });
+  const pose = character.pose();
+  for (const side of ["left", "right"]) {
+    const shoulder = pose[side + "Shoulder"];
+    const elbow = pose[side + "Elbow"];
+    const hand = pose[side + "Hand"];
+    assert.ok(shoulder.y > elbow.y, side + " elbow should hang below shoulder");
+    assert.ok(elbow.y > hand.y, side + " hand should hang below elbow");
+    assert.ok(Math.abs(hand.x - shoulder.x) < 0.1,
+      side + " arm should stay close to torso, not extend sideways");
+  }
+});
