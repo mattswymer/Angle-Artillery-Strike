@@ -197,7 +197,7 @@
         y: torsoTop.y - upperLimbLength * 2
       });
       return {
-        x: p.x, y: p.y, facing, grounded, head,
+        x: p.x, y: p.y, facing, grounded, head, headRadius,
         neckTop, torsoTop, torso: torsoTop, hips: hip,
         leftFoot, rightFoot, leftKnee, rightKnee,
         leftShoulder: shoulder(-1), rightShoulder: shoulder(1),
