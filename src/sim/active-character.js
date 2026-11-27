@@ -166,7 +166,7 @@
       
       // The reference walk is a forward-leaning, alternating two-leg gait.
       // Positive angles swing a limb in the facing direction.
-      const torsoLean = 10 - (moving ? Math.sin(phase) * 3 : 0);
+      const torsoLean = moving ? 10 - Math.sin(phase) * 3 : 0;
       const upperTorso = {
         x: hip.x + direction * Math.sin(torsoLean * Math.PI / 180) * torsoLength,
         y: hip.y + Math.cos(torsoLean * Math.PI / 180) * torsoLength
@@ -182,7 +182,8 @@
 
       const leg = (side, legPhase) => {
         const swing = moving ? Math.sin(legPhase) : 0;
-        const hipAngle = swing * 34;
+        // Slightly separate the legs at rest so both remain visible in profile.
+        const hipAngle = moving ? swing * 34 : side * 5;
         const kneeBend = moving ? -Math.max(0, Math.cos(legPhase)) * 42 : 0;
         const hipRad = hipAngle * Math.PI / 180;
         const kneeRad = (hipAngle + kneeBend) * Math.PI / 180;
@@ -200,9 +201,12 @@
       const leftLeg = leg(-1, phase + Math.PI);
       const rightLeg = leg(1, phase);
 
-      const arm = (armPhase) => {
-        const shoulderAngle = moving ? Math.sin(armPhase) * 30 : 0;
-        const elbowBend = 24 + (moving ? Math.max(0, -Math.sin(armPhase)) * 28 : 0);
+      const arm = (armPhase, side) => {
+        // Opposing idle angles distinguish the near and far arms.
+        const shoulderAngle = moving ? Math.sin(armPhase) * 30 : side * 9;
+        const elbowBend = moving
+          ? 24 + Math.max(0, -Math.sin(armPhase)) * 28
+          : 8;
         const shoulderRad = shoulderAngle * Math.PI / 180;
         const handRad = (shoulderAngle + elbowBend) * Math.PI / 180;
         const elbow = {
@@ -215,8 +219,8 @@
         };
         return { elbow, hand };
       };
-      const leftArm = arm(phase);
-      const rightArm = arm(phase + Math.PI);
+      const leftArm = arm(phase, -1);
+      const rightArm = arm(phase + Math.PI, 1);
 
       return {
         x: p.x, y: p.y, facing, grounded, head, headRadius,
