@@ -230,7 +230,7 @@
     const sourcePosition = sourceBody.getPosition();
     const sourceVelocity = sourceBody.getLinearVelocity();
     const targetX = sourcePosition.x;
-    const targetY = sourcePosition.y + 0.52;
+    const targetY = sourcePosition.y + 0.95;
     const settings = rigSettingsForX(targetX);
     active.destroy();
     character.active = null;
