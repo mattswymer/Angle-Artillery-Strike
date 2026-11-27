@@ -905,7 +905,9 @@
         ) / rig.bodies.length;
         return averageSpeed < 1 && averageSpin < 2.8;
       });
-      if (allSlow || turnTransitionElapsed >= 4) finishTurnChange();
+      // A pile of knocked-down ragdolls should not hold the next player's
+      // turn hostage. Give impacts a brief settling window, then continue.
+      if (allSlow || turnTransitionElapsed >= 1.25) finishTurnChange();
       return;
     }
 
