@@ -85,11 +85,21 @@ test("ragdoll body and physical limbs remain supported by the terrain", () => {
   for (let i = 0; i < 75; i++) world.step(1 / 50, 180, 60);
   assert.ok(rig.hull.getPosition().y > 0.15,
     "ragdoll torso passed through the terrain");
-  const physicalFeet = rig.legs.filter(leg =>
-    !leg.foot.getFixtureList().isSensor());
-  assert.equal(physicalFeet.length, 2);
-  assert.ok(physicalFeet.some(leg => CharacterRig.isGroundContact(leg.foot)),
-    "ragdoll has no physical foot support contact");
+  const sensorFeet = rig.legs.filter(leg =>
+    leg.foot.getFixtureList().isSensor());
+  assert.equal(sensorFeet.length, 2);
+  assert.ok(rig.legs.every(leg =>
+    leg.upper.getFixtureList().isSensor() &&
+    leg.lower.getFixtureList().isSensor() &&
+    leg.foot.getFixtureList().isSensor()),
+    "ragdoll leg fixtures should not push against terrain");
+  assert.ok(rig.pieces.filter(piece => piece.name !== "torso").every(piece =>
+    piece.body.getFixtureList().isSensor()),
+    "only the torso should have a solid collision fixture");
+  assert.equal(rig.hull.getFixtureList().isSensor(), false,
+    "torso must retain physical terrain collision");
+  assert.ok(CharacterRig.isGroundContact(rig.hull),
+    "ragdoll torso has no physical terrain support contact");
 });
 
 test("ragdoll timeout relocates a stuck character and restores one active body", () => {
