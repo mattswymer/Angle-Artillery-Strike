@@ -2,7 +2,7 @@ name: Physics tests
 
 on:
   push:
-    branches: [main, feature/physics-foundation]
+    branches: [main, feature/physics-foundation, feature/gameplay-visual-ragdoll]
   pull_request:
     branches: [main]
   workflow_dispatch:
