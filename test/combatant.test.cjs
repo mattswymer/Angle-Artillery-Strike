@@ -78,12 +78,14 @@ test("hit hands the active collider to the articulated ragdoll and preserves mom
 test("ragdoll body and physical limbs remain supported by the terrain", () => {
   const { world, actor } = makeActor(17);
   actor.enterRagdoll(Planck.Vec2(0, 0));
+  const rig = actor.rig;
+  assert.ok(rig, "hit did not create the articulated ragdoll");
   // Exercise raw rigid-body collision without allowing the recovery state
   // machine to replace the ragdoll while this contact test is running.
   for (let i = 0; i < 75; i++) world.step(1 / 50, 180, 60);
-  assert.ok(actor.rig.hull.getPosition().y > 0.15,
+  assert.ok(rig.hull.getPosition().y > 0.15,
     "ragdoll torso passed through the terrain");
-  const physicalFeet = actor.rig.legs.filter(leg =>
+  const physicalFeet = rig.legs.filter(leg =>
     !leg.foot.getFixtureList().isSensor());
   assert.equal(physicalFeet.length, 2);
   assert.ok(physicalFeet.some(leg => CharacterRig.isGroundContact(leg.foot)),
