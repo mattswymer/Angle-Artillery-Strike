@@ -702,7 +702,7 @@
   function drawCharacter(character, scale, offsetX) {
     if (character.mode === "active") {
       const pose = character.pose();
-      drawStickmanPose(character, { ...pose, headRadius: 1.28 / 16,
+      drawStickmanPose(character, { ...pose,
         healthBarY: pose.head.y + 0.23 }, scale, offsetX);
       return;
     }
