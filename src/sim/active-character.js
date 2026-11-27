@@ -8,15 +8,15 @@
   const BODY = Object.freeze({
     radius: 0.19,
     boxHalfWidth: 0.19,
-    boxHalfHeight: 0.34,
-    boxCenterY: 0.49,
+    boxHalfHeight: 0.4,
+    boxCenterY: 0.62,
     footCenterY: 0.16,
     height: 1.02,
     walkSpeed: 2.7,
     jumpSpeed: 4.8,
     maxSlopeDegrees: 50,
     maxStepHeight: 0.4,
-    snapDistance: 0.32,
+    snapDistance: 0.46,
     snapDownDistance: 0.42,
     skin: 0.025
   });
@@ -71,7 +71,7 @@
       world.rayCast(from, to, (fixture, point, normal, fraction) => {
         const data = fixture.getBody().getUserData();
         if (data?.kind !== "terrain") return -1;
-        if (normal.y < Math.cos(BODY.maxSlopeDegrees * Math.PI / 180)) return -1;
+        if (Math.abs(normal.y) < Math.cos(BODY.maxSlopeDegrees * Math.PI / 180)) return -1;
         if (!hit || fraction < hit.fraction) {
           hit = { x: point.x, y: point.y, normal: Vec2(normal.x, normal.y), fraction };
         }
@@ -143,16 +143,16 @@
       const swing = moving ? Math.sin(gaitPhase) * 0.22 : 0;
       return {
         x: p.x, y: p.y, facing, grounded,
-        head: { x: p.x, y: p.y + 0.86 },
-        torso: { x: p.x, y: p.y + 0.52 },
+        head: { x: p.x, y: p.y + 1.16 },
+        torso: { x: p.x, y: p.y + 0.67 },
         leftFoot: { x: p.x - 0.12 + swing, y: p.y + BODY.skin },
         rightFoot: { x: p.x + 0.12 - swing, y: p.y + BODY.skin },
-        leftKnee: { x: p.x - 0.12 + swing * 0.45, y: p.y + 0.24 + Math.abs(swing) * 0.35 },
-        rightKnee: { x: p.x + 0.12 - swing * 0.45, y: p.y + 0.24 + Math.abs(swing) * 0.35 },
-        leftShoulder: { x: p.x - 0.17, y: p.y + 0.64 },
-        rightShoulder: { x: p.x + 0.17, y: p.y + 0.64 },
-        leftHand: { x: p.x - 0.2 - swing * 0.45, y: p.y + 0.34 },
-        rightHand: { x: p.x + 0.2 + swing * 0.45, y: p.y + 0.34 }
+        leftKnee: { x: p.x - 0.12 + swing * 0.45, y: p.y + 0.31 + Math.abs(swing) * 0.35 },
+        rightKnee: { x: p.x + 0.12 - swing * 0.45, y: p.y + 0.31 + Math.abs(swing) * 0.35 },
+        leftShoulder: { x: p.x - 0.17, y: p.y + 0.82 },
+        rightShoulder: { x: p.x + 0.17, y: p.y + 0.82 },
+        leftHand: { x: p.x - 0.2 - swing * 0.45, y: p.y + 0.48 },
+        rightHand: { x: p.x + 0.2 + swing * 0.45, y: p.y + 0.48 }
       };
     }
 
