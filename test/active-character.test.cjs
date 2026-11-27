@@ -210,8 +210,8 @@ test("active stickman matches ragdoll head size and connected segment proportion
   const near = (actual, expected, label) =>
     assert.ok(Math.abs(actual - expected) < 1e-9, label + ": " + actual + " != " + expected);
   near(pose.headRadius, 0.135, "head radius matches articulated ragdoll");
-  near(pose.neckTop.y - pose.torsoTop.y, H / 16, "neck length");
-  near(pose.torsoTop.y - pose.hips.y, 5 * H / 16, "torso length");
+  near(Math.hypot(pose.neckTop.x - pose.torsoTop.x, pose.neckTop.y - pose.torsoTop.y), H / 16, "neck length");
+  near(Math.hypot(pose.torsoTop.x - pose.hips.x, pose.torsoTop.y - pose.hips.y), 5 * H / 16, "torso length");
   near(Math.hypot(pose.leftElbow.x - pose.torsoTop.x, pose.leftElbow.y - pose.torsoTop.y),
     3 * H / 16, "upper arm length");
   near(Math.hypot(pose.leftHand.x - pose.leftElbow.x, pose.leftHand.y - pose.leftElbow.y),
