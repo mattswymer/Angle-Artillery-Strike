@@ -482,6 +482,11 @@ function updateRigRecovery(walker, deltaTime = FIXED_DT, heightAt = () => 0) {
       walker.recovering = true;
       walker.recoveryElapsed = 0;
       walker.recoveryStableTime = 0;
+      // Rebuild the get-up stance around where the feet actually landed.
+      walker.stanceTargets = walker.legs.map(leg => leg.foot.getPosition().x);
+      walker.swingIndex = null;
+      walker.swingTime = 0;
+      walker.swingAirborne = false;
     }
     return {
       mode: walker.mode, recovering: walker.recovering,
@@ -501,17 +506,30 @@ function updateRigRecovery(walker, deltaTime = FIXED_DT, heightAt = () => 0) {
     walker.fallReason = null;
     walker.noContactTime = 0;
     walker.outsideSupportTime = 0;
-  } else if (walker.recoveryElapsed > 3 && !stable) {
-    const footContact = walker.legs.some(leg => isGroundContact(leg.foot));
-    if (footContact) {
-      const lowestFootY = Math.min(
-        ...walker.legs.map(leg => heightAt(walker.stanceTargets[walker.legs.indexOf(leg)]))
-      );
-      const targetY = lowestFootY + FOOT_HALF_HEIGHT * 2 +
-        walker.pelvisRatio * (UPPER_LENGTH + LOWER_LENGTH) - HIP_Y;
+  } else if (walker.recoveryElapsed > 0.15 && !stable) {
+    // A limp rig cannot get up by asking the normal walking IK to solve a
+    // sideways or inverted pelvis. Give the torso a bounded physical righting
+    // torque first; joint motors then bring the limbs back under it.
+    const angleError = wrapAngle(walker.hull.getAngle());
+    const angularVelocity = walker.hull.getAngularVelocity();
+    const mass = walker.hull.getMass();
+    const maxTorque = mass * GRAVITY * 0.85;
+    const requestedTorque = (-angleError * 7 - angularVelocity * 2.2) * mass;
+    const rightingTorque = Math.max(-maxTorque, Math.min(maxTorque, requestedTorque));
+    walker.hull.applyTorque(rightingTorque, true);
+
+    // Use any terrain contact as a brace, not only a foot contact. A character
+    // lying on its torso/head otherwise never receives the lift needed to
+    // bring its pelvis clear of the ground.
+    if (hasRigGroundContact(walker)) {
+      const stanceX = walker.stanceTargets?.length
+        ? walker.stanceTargets
+        : walker.legs.map(leg => leg.foot.getPosition().x);
+      const targetY = Math.min(...stanceX.map(heightAt)) +
+        FOOT_HALF_HEIGHT * 2 + walker.pelvisRatio * (UPPER_LENGTH + LOWER_LENGTH) - HIP_Y;
       const heightError = targetY - walker.hull.getPosition().y;
-      const force = recoveryAssistForce(walker.hull.getMass(), heightError, GRAVITY, footContact);
-      if (force > 0) walker.hull.applyForceToCenter(Vec2(0, force), true);
+      const force = recoveryAssistForce(mass, heightError, GRAVITY, true);
+      if (force > 0.05) walker.hull.applyForceToCenter(Vec2(0, force), true);
     }
   }
   return {
@@ -776,8 +794,11 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
     // Keep balance feedback corrective but bounded. Large torso angles
     // during a jump landing must not rotate the thighs sideways and prevent
     // the feet from reaching the ground.
+    // Negative feedback: tilt and angular velocity must command the hips
+    // in the opposite direction. Positive feedback makes the idle rig hunt
+    // between its feet and is the source of the visible standing vibration.
     const rawBalanceCorrection =
-      balanceKp * torsoTilt + balanceKd * hull.getAngularVelocity();
+      -balanceKp * torsoTilt - balanceKd * hull.getAngularVelocity();
     const balanceCorrection = walker.jumpPhase === "idle"
       ? rawBalanceCorrection
       : Math.max(-0.35, Math.min(0.35, rawBalanceCorrection));
