@@ -75,6 +75,22 @@ test("hit hands the active collider to the articulated ragdoll and preserves mom
   assert.ok(actor.rig.hull.getLinearVelocity().y > 0);
 });
 
+test("ragdoll body and physical limbs remain supported by the terrain", () => {
+  const { world, actor } = makeActor(17);
+  actor.enterRagdoll(Planck.Vec2(0, 0));
+  for (let i = 0; i < 150; i++) {
+    actor.update(1 / 50, null);
+    world.step(1 / 50, 180, 60);
+  }
+  assert.ok(actor.rig.hull.getPosition().y > 0.15,
+    "ragdoll torso passed through the terrain");
+  const physicalFeet = actor.rig.legs.filter(leg =>
+    !leg.foot.getFixtureList().isSensor());
+  assert.equal(physicalFeet.length, 2);
+  assert.ok(physicalFeet.some(leg => CharacterRig.isGroundContact(leg.foot)),
+    "ragdoll has no physical foot support contact");
+});
+
 test("ragdoll timeout relocates a stuck character and restores one active body", () => {
   const { world, actor } = makeActor(22);
   actor.enterRagdoll(Planck.Vec2(7, 9));
