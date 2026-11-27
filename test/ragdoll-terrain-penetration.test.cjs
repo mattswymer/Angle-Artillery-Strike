@@ -168,3 +168,66 @@ test("ragdoll segments remain outside sloped terrain during a downward impact", 
     }
   }
 });
+
+
+function topSolidYAt(terrain, x) {
+  const column = Math.floor(x / terrain.cellSize);
+  if (column < 0 || column >= terrain.columns) return null;
+  for (let row = terrain.rows - 1; row >= 0; row--) {
+    if (terrain.isSolid(column, row)) {
+      return terrain.originY + (row + 1) * terrain.cellSize;
+    }
+  }
+  return null;
+}
+
+function assertPieceOutsideTerrainMask(piece, terrain, step) {
+  const body = piece.body;
+  const samples = [];
+  if (piece.circle) {
+    const center = body.getPosition();
+    samples.push(center);
+    for (let i = 0; i < 16; i++) {
+      const angle = i * Math.PI / 8;
+      samples.push(body.getWorldPoint(Planck.Vec2(
+        Math.cos(angle) * piece.halfWidth,
+        Math.sin(angle) * piece.halfWidth
+      )));
+    }
+  } else {
+    for (let x = -2; x <= 2; x++) {
+      for (let y = -2; y <= 2; y++) {
+        samples.push(body.getWorldPoint(Planck.Vec2(
+          piece.halfWidth * x / 2,
+          piece.halfHeight * y / 2
+        )));
+      }
+    }
+  }
+  for (const point of samples) {
+    const topSolid = topSolidYAt(terrain, point.x);
+    if (topSolid === null) continue;
+    assert.ok(
+      point.y >= topSolid - 0.1,
+      `${piece.name} entered solid terrain at step ${step}: point=(${point.x.toFixed(3)}, ${point.y.toFixed(3)}), solidTop=${topSolid.toFixed(3)}`
+    );
+  }
+}
+
+test("ragdoll cannot pass through the solid walls or floor around a freshly carved crater", () => {
+  const { world, terrain } = createFlatArena();
+  terrain.carveCircle(5, 1, 0.85);
+  terrain.rebuildPhysics();
+  const rig = CharacterRig.createStanceRig(
+    world, 4, () => 1, () => 0,
+    0.12, 0.95, 0, 0, 0.6, "side", 0.4, 1, -17
+  );
+  rig.hit(Planck.Vec2(12, -8), rig.hull);
+
+  for (let step = 0; step < 360; step++) {
+    world.step(1 / 50, 180, 60);
+    for (const piece of rig.pieces) {
+      assertPieceOutsideTerrainMask(piece, terrain, step);
+    }
+  }
+});
