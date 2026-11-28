@@ -156,3 +156,25 @@ test("hard downward ragdoll blasts cannot tunnel through the terrain", () => {
   }
   assert.deepEqual(failures, []);
 });
+
+
+test("shoulder-based muzzle origin remains available in active and ragdoll modes", () => {
+  const { actor } = makeActor(37);
+  const activePose = actor.active.pose();
+  const activeMuzzle = actor.muzzlePosition(0);
+  assert.ok(Math.abs(activeMuzzle.x - (activePose.torsoTop.x + 0.42)) < 1e-9);
+  assert.ok(Math.abs(activeMuzzle.y - activePose.torsoTop.y) < 1e-9);
+
+  actor.enterRagdoll(Planck.Vec2(0, 0));
+  const head = actor.rig.head.getPosition();
+  const leftHip = actor.rig.jointMap.leftHip.getAnchorA();
+  const rightHip = actor.rig.jointMap.rightHip.getAnchorA();
+  const hipsX = (leftHip.x + rightHip.x) / 2;
+  const hipsY = (leftHip.y + rightHip.y) / 2;
+  const shoulderX = head.x + (hipsX - head.x) * 0.36;
+  const shoulderY = head.y - 0.135 + (hipsY - (head.y - 0.135)) * 0.36;
+  const ragdollMuzzle = actor.muzzlePosition(0);
+  assert.ok(Math.abs(ragdollMuzzle.x - (shoulderX + 0.42)) < 1e-9);
+  assert.ok(Math.abs(ragdollMuzzle.y - shoulderY) < 1e-9);
+  actor.destroy();
+});
