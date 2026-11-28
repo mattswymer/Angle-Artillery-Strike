@@ -465,7 +465,14 @@ test("limp recovery waits for low speed and ground contact, then smoothly raises
     }
     world.step(1 / 50, 180, 60);
   }
-  assert.equal(recoveryStarted, true);
+  assert.equal(recoveryStarted, true, JSON.stringify({
+    worldAllowsSleep: world.getAllowSleeping(),
+    grounded: productionRig.hasRigGroundContact(rig),
+    settleTime: rig.recoverySettleTime,
+    awake: rig.bodies.map(body => body.isAwake()),
+    linearSpeeds: rig.bodies.map(body => Number(body.getLinearVelocity().length().toFixed(3))),
+    angularSpeeds: rig.bodies.map(body => Number(Math.abs(body.getAngularVelocity()).toFixed(3)))
+  }));
   assert.ok(maxRecoveryStiffness > 0);
   assert.equal(rig.mode, "active");
   assert.equal(rig.stiffness, 1);
