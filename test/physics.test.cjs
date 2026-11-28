@@ -451,7 +451,7 @@ test("limp recovery waits for low speed and ground contact, then smoothly raises
       0.12, 0.41, 6, 6, 0.12, 0.2, 1, 1, 0.1);
     world.step(1 / 50, 180, 60);
   }
-  rig.hit(planck.Vec2(0, 0));
+  rig.hit(planck.Vec2(3, 0.8));
 
   let recoveryStarted = false;
   let maxRecoveryStiffness = 0;
