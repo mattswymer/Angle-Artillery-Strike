@@ -474,7 +474,24 @@ test("limp recovery waits for low speed and ground contact, then smoothly raises
     angularSpeeds: rig.bodies.map(body => Number(Math.abs(body.getAngularVelocity()).toFixed(3)))
   }));
   assert.ok(maxRecoveryStiffness > 0);
-  assert.equal(rig.mode, "active");
+  assert.equal(rig.mode, "active", JSON.stringify({
+    recovering: rig.recovering,
+    recoveryElapsed: rig.recoveryElapsed,
+    recoveryProgress: rig.recoveryProgress,
+    recoveryStableTime: rig.recoveryStableTime,
+    stiffness: rig.stiffness,
+    hullAngle: rig.hull.getAngle(),
+    hullPosition: rig.hull.getPosition(),
+    hullVelocity: rig.hull.getLinearVelocity(),
+    feet: rig.legs.map(leg => ({
+      contact: productionRig.isGroundContact(leg.foot),
+      position: leg.foot.getPosition(),
+      velocity: leg.foot.getLinearVelocity(),
+      angle: leg.foot.getAngle()
+    })),
+    centerX: productionRig.getRigCenterOfMassX(rig),
+    support: productionRig.rigSupportBounds(rig)
+  }));
   assert.equal(rig.stiffness, 1);
   assert.equal(rig.recovering, false);
 });
