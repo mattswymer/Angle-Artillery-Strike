@@ -12,7 +12,7 @@ function makeWorld(points, heightAt) {
     shape: new Planck.Chain(points.slice().reverse().map(point => Planck.Vec2(point[0], point[1]))),
     friction: 0.9
   });
-  return { world, heightAt };
+  return { world, heightAt, terrain };
 }
 
 function flatWorld() {
@@ -253,12 +253,51 @@ test("active stickman idle stance is upright and separates both near/far limb pa
     "both arms should remain visible instead of overlapping");
   assert.ok(Math.abs(pose.leftHand.x - pose.rightHand.x) > 0.1,
     "both hands should remain visible in the idle profile");
-  assert.ok(Math.abs(pose.leftFoot.x - pose.rightFoot.x) > 0.1,
-    "both legs should remain visible instead of overlapping");
+  assert.ok(Math.abs(pose.leftFoot.x - pose.rightFoot.x) > 0.18,
+    "idle legs should have a clearly visible but restrained separation");
   for (const side of ["left", "right"]) {
     assert.ok(pose[side + "Shoulder"].y > pose[side + "Elbow"].y);
     assert.ok(pose[side + "Elbow"].y > pose[side + "Hand"].y);
     assert.ok(pose.hips.y > pose[side + "Knee"].y);
     assert.ok(pose[side + "Knee"].y > pose[side + "Foot"].y);
   }
+});
+
+
+test("muzzle position follows the rendered shoulder rather than the body origin", () => {
+  const { world, heightAt } = flatWorld();
+  const character = ActiveCharacter.create(Planck, world, { x: 2, heightAt });
+  const pose = character.pose();
+  const muzzle = character.muzzlePosition(0);
+  assert.ok(Math.abs(muzzle.y - pose.torsoTop.y) < 1e-9);
+  assert.ok(Math.abs(muzzle.x - (pose.torsoTop.x + 0.42)) < 1e-9);
+});
+
+test("active character and muzzle follow the stickman after terrain is lowered", () => {
+  let surface = 0;
+  const heightAt = () => surface;
+  const { world, terrain } = flatWorld();
+  const character = ActiveCharacter.create(Planck, world, { x: 0, heightAt });
+  character.update(1 / 50, 0);
+  const oldBodyY = character.body.getPosition().y;
+  const oldMuzzleY = character.muzzlePosition(0).y;
+
+  world.destroyBody(terrain);
+  surface = -0.9;
+  const loweredGround = world.createBody({ userData: { kind: "terrain" } });
+  loweredGround.createFixture({
+    shape: new Planck.Chain([Planck.Vec2(10, surface), Planck.Vec2(-10, surface)]),
+    friction: 0.9
+  });
+
+  for (let i = 0; i < 100; i++) {
+    character.update(1 / 50, 0);
+    world.step(1 / 50, 8, 3);
+  }
+
+  const newBodyY = character.body.getPosition().y;
+  const newMuzzleY = character.muzzlePosition(0).y;
+  assert.ok(newBodyY < oldBodyY - 0.7, "body did not fall with the lowered terrain");
+  assert.ok(newMuzzleY < oldMuzzleY - 0.7, "muzzle remained at the old terrain height");
+  assert.equal(character.grounded(), true);
 });
