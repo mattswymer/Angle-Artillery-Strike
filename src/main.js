@@ -246,7 +246,7 @@
 
   function createWorld() {
     world = new P.World({ gravity: V(0, -GRAVITY) });
-    world.setAllowSleeping(false);
+    world.setAllowSleeping(true);
     world.on("begin-contact", contact => {
       const bodyA = contact.getFixtureA().getBody();
       const bodyB = contact.getFixtureB().getBody();
