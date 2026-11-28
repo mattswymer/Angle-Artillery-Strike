@@ -67,4 +67,6 @@ test("recovery waits for every segment to settle on terrain, then wakes the whol
   assert.equal(recoveryStarted, true, "settled ragdoll should enter recovery");
   assert.ok(rig.bodies.every(body => body.isAwake()),
     "the entire articulated rig must wake before get-up forces are applied");
+  assert.ok(rig.bodies.every(body => !body.isSleepingAllowed()),
+    "sleeping must stay disabled while the get-up controller is active");
 });
