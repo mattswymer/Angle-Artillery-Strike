@@ -143,6 +143,9 @@
       this.body = this.world.createBody({ type: "static", userData: { kind: "terrain" } });
       this.loops = this.buildContours();
 
+      // Keep the smooth contour collision surface. All articulated segments
+      // are solid terrain colliders; their shared negative collision group
+      // prevents self-collision without disabling contact with terrain.
       for (const loop of this.loops) {
         const hasOpenBoundary = loop.some((point, index) =>
           this.isWorldExitEdge(point, loop[(index + 1) % loop.length]));
@@ -150,8 +153,9 @@
         if (!hasOpenBoundary) {
           if (loop.length >= 3) {
             this.body.createFixture({
-              shape: new this.Planck.Chain(loop.map(point => this.toWorld(point)), true),
-              friction: 0.95
+              shape: new this.Planck.Chain(loop.slice().reverse().map(point => this.toWorld(point)), true),
+              friction: 0.95,
+              restitution: 0
             });
           }
           continue;
@@ -161,19 +165,18 @@
         const flush = () => {
           if (segment.length >= 2) {
             this.body.createFixture({
-              shape: new this.Planck.Chain(segment.map(point => this.toWorld(point))),
-              friction: 0.95
+              shape: new this.Planck.Chain(segment.slice().reverse().map(point => this.toWorld(point))),
+              friction: 0.95,
+              restitution: 0
             });
           }
           segment = [];
         };
-
         for (let i = 0; i < loop.length; i++) {
           const start = loop[i];
           const end = loop[(i + 1) % loop.length];
-          if (this.isWorldExitEdge(start, end)) {
-            flush();
-          } else {
+          if (this.isWorldExitEdge(start, end)) flush();
+          else {
             if (!segment.length) segment.push(start);
             segment.push(end);
           }

@@ -102,6 +102,7 @@
         settings.stanceHalfWidth, settings.pelvisRatio, 0, 0, 0.6,
         settings.bendMode, settings.highSideBend, settings.lowSideBend, collisionGroup
       );
+      // rig.hit() switches the articulated body parts to solid terrain collision.
       const target = Vec2(sourcePosition.x, sourcePosition.y + 0.95);
       const original = rig.hull.getPosition();
       const offset = Vec2(target.x - original.x, target.y - original.y);
@@ -171,6 +172,28 @@
       applyImpulse(impulse) {
         if (state.active) state.active.applyImpulse(impulse);
         else if (state.rig) state.rig.hull.applyLinearImpulse(impulse, state.rig.hull.getWorldCenter(), true);
+      },
+      muzzlePosition(angle = 0) {
+        let shoulder;
+        if (state.active) return state.active.muzzlePosition(angle);
+        if (state.rig) {
+          const head = state.rig.head.getPosition();
+          const leftHip = state.rig.jointMap.leftHip.getAnchorA();
+          const rightHip = state.rig.jointMap.rightHip.getAnchorA();
+          const hips = Vec2((leftHip.x + rightHip.x) / 2, (leftHip.y + rightHip.y) / 2);
+          const headBottom = Vec2(head.x, head.y - 0.135);
+          shoulder = Vec2(
+            headBottom.x + (hips.x - headBottom.x) * 0.36,
+            headBottom.y + (hips.y - headBottom.y) * 0.36
+          );
+        } else {
+          const position = state.body?.getPosition() || Vec2(0, 0);
+          shoulder = Vec2(position.x, position.y + 0.72);
+        }
+        const dx = Math.cos(angle);
+        const dy = Math.sin(angle);
+        const x = Math.max(0.05, Math.min((options.worldWidth || 24) - 0.05, shoulder.x + dx * 0.42));
+        return { x, y: Math.max(shoulder.y + dy * 0.12, heightAt(x) + 0.18) };
       },
       pose() {
         return state.active ? state.active.pose() : null;

@@ -45,7 +45,7 @@ const FOOT_HALF_HEIGHT = 0.03;
     angle: initialTerrainAngle,
     linearDamping: 0.08,
     angularDamping: 0.08,
-    allowSleep: false,
+    allowSleep: true,
       bullet: true,
     userData: { part: "torso" }
   });
@@ -64,7 +64,7 @@ const FOOT_HALF_HEIGHT = 0.03;
       angle: initialTerrainAngle,
       linearDamping: 0.08,
       angularDamping: 0.08,
-      allowSleep: false,
+      allowSleep: true,
       bullet: true,
       userData: { part: name }
     });
@@ -123,7 +123,7 @@ const FOOT_HALF_HEIGHT = 0.03;
       angle: upperAngle,
       linearDamping: 0.08,
       angularDamping: 0.08,
-      allowSleep: false,
+      allowSleep: true,
       bullet: true,
       userData: { part: side < 0 ? "left-upper-leg" : "right-upper-leg" }
     });
@@ -155,7 +155,7 @@ const FOOT_HALF_HEIGHT = 0.03;
       angle: lowerAngle,
       linearDamping: 0.08,
       angularDamping: 0.08,
-      allowSleep: false,
+      allowSleep: true,
       bullet: true,
       userData: { part: side < 0 ? "left-lower-leg" : "right-lower-leg" }
     });
@@ -187,7 +187,7 @@ const FOOT_HALF_HEIGHT = 0.03;
       angle: footAngle,
       linearDamping: 0.08,
       angularDamping: 0.08,
-      allowSleep: false,
+      allowSleep: true,
       bullet: true,
       userData: { part: side < 0 ? "left-foot" : "right-foot" }
     });
@@ -273,6 +273,7 @@ const FOOT_HALF_HEIGHT = 0.03;
     bodies,
     joints,
     legs,
+    ragdollTerrainFixtures: [leftLowerArm.getFixtureList(), rightLowerArm.getFixtureList()],
     stanceTargets: [stanceCenterX - stanceHalfWidth, stanceCenterX + stanceHalfWidth],
     stanceHalfWidth,
     pelvisRatio,
@@ -294,6 +295,8 @@ const FOOT_HALF_HEIGHT = 0.03;
     falling: false,
     recovering: false,
     recoveryElapsed: 0,
+    recoveryProgress: 0,
+    recoveryPelvisRatio: pelvisRatio,
     recoveryStableTime: 0,
     recoverySettleTime: 0,
     recoveryGroundTime: 0,
@@ -301,6 +304,7 @@ const FOOT_HALF_HEIGHT = 0.03;
     outsideSupportTime: 0,
     fallReason: null,
     hit(dv = Vec2(0, 0), targetBody = this.hull, impactPoint = null) {
+      setRagdollTerrainCollision(this, true);
       this.mode = "limp";
       this.stiffness = 0;
       this.falling = false;
@@ -313,6 +317,7 @@ const FOOT_HALF_HEIGHT = 0.03;
       this.jumpLandContactTime = 0;
       this.jumping = false;
       this.fallReason = "hit";
+      for (const body of this.bodies) body.setAwake(true);
       for (const joint of this.joints) {
         joint.setMotorSpeed(0);
         joint.setMaxMotorTorque(0);
@@ -384,8 +389,15 @@ function rigSupportBounds(walker) {
   };
 }
 
+function setRagdollTerrainCollision(walker, solid) {
+  for (const fixture of walker.ragdollTerrainFixtures || []) {
+    fixture.setSensor(!solid);
+  }
+}
+
 function updateRigFallState(walker, deltaTime = FIXED_DT, jumping = false) {
   if (walker.mode === "limp") {
+    setRagdollTerrainCollision(walker, true);
     walker.limpElapsed += deltaTime;
     walker.stiffness = 0;
     return { mode: walker.mode, stiffness: walker.stiffness, reason: walker.fallReason };
@@ -433,7 +445,10 @@ function updateRigFallState(walker, deltaTime = FIXED_DT, jumping = false) {
   if (walker.falling) {
     walker.limpElapsed += deltaTime;
     walker.stiffness = Math.max(0, 1 - walker.limpElapsed / 0.1);
-    if (walker.stiffness <= 0) walker.mode = "limp";
+    if (walker.stiffness <= 0) {
+      walker.mode = "limp";
+      setRagdollTerrainCollision(walker, true);
+    }
   }
   return { mode: walker.mode, stiffness: walker.stiffness, reason: walker.fallReason };
 }
@@ -478,27 +493,41 @@ function updateRigRecovery(walker, deltaTime = FIXED_DT, heightAt = () => 0) {
   }
 
   if (!walker.recovering) {
-    const averageSpeed = walker.bodies.reduce(
-      (sum, body) => sum + body.getLinearVelocity().length(), 0
-    ) / walker.bodies.length;
     const grounded = hasRigGroundContact(walker);
-    // A ragdoll can keep jittering against uneven terrain forever. Track
-    // grounded time separately so contact jitter cannot permanently prevent
-    // the get-up controller from engaging.
+    // Do not begin standing while any segment is still visibly moving.
+    // Every body must be nearly motionless and supported by actual terrain
+    // contact for a sustained interval; a low average can hide one limb
+    // continuing to bounce or scrape.
+    const allPartsSettled = walker.bodies.every(body =>
+      body.getLinearVelocity().length() < 0.1 &&
+      Math.abs(body.getAngularVelocity()) < 0.2
+    );
     walker.recoveryGroundTime = grounded
       ? walker.recoveryGroundTime + deltaTime
       : 0;
-    walker.recoverySettleTime = averageSpeed < 1.5 && grounded
+    walker.recoverySettleTime = allPartsSettled && grounded
       ? walker.recoverySettleTime + deltaTime
       : 0;
-    const settledEnough = walker.recoverySettleTime >= 0.18;
-    const groundedTimeout = walker.recoveryGroundTime >= 0.75;
-    if (settledEnough || groundedTimeout) {
+    if (walker.recoverySettleTime >= 0.5) {
+      // A settled ragdoll may have entered Planck's sleep state. Wake the
+      // complete joint island and keep it awake while the get-up controller
+      // is actively moving the articulated body.
+      for (const body of walker.bodies) {
+        body.setSleepingAllowed(false);
+        body.setAwake(true);
+      }
       walker.recovering = true;
       walker.recoveryElapsed = 0;
+      walker.recoveryProgress = 0;
+      walker.recoveryPelvisRatio = Math.min(walker.pelvisRatio, 0.72);
       walker.recoveryStableTime = 0;
-      // Rebuild the get-up stance around where the feet actually landed.
-      walker.stanceTargets = walker.legs.map(leg => leg.foot.getPosition().x);
+      // Rebuild the get-up stance under the pelvis, not at the feet's
+      // impact locations. A blast can leave the torso well ahead of both
+      // feet; preserving those old X positions makes the support target
+      // unreachable and strands the recovery controller.
+      const pelvisX = walker.hull.getPosition().x;
+      const halfStance = walker.stanceHalfWidth ?? 0.12;
+      walker.stanceTargets = [pelvisX - halfStance, pelvisX + halfStance];
       walker.swingIndex = null;
       walker.swingTime = 0;
       walker.swingAirborne = false;
@@ -510,11 +539,20 @@ function updateRigRecovery(walker, deltaTime = FIXED_DT, heightAt = () => 0) {
   }
 
   walker.recoveryElapsed += deltaTime;
-  walker.stiffness = Math.min(1, walker.recoveryElapsed / 0.5);
+  const smoothStep = value => {
+    const t = Math.max(0, Math.min(1, value));
+    return t * t * (3 - 2 * t);
+  };
+  walker.recoveryProgress = smoothStep(walker.recoveryElapsed / 0.95);
+  walker.recoveryPelvisRatio = Math.min(walker.pelvisRatio, 0.72) +
+    (walker.pelvisRatio - Math.min(walker.pelvisRatio, 0.72)) * walker.recoveryProgress;
+  walker.stiffness = smoothStep(walker.recoveryElapsed / 0.85);
   const stable = rigIsStable(walker);
   walker.recoveryStableTime = stable ? walker.recoveryStableTime + deltaTime : 0;
   if (walker.recoveryStableTime >= 0.3) {
     walker.mode = "active";
+    for (const body of walker.bodies) body.setSleepingAllowed(true);
+    setRagdollTerrainCollision(walker, false);
     walker.stiffness = 1;
     walker.recovering = false;
     walker.falling = false;
@@ -523,15 +561,19 @@ function updateRigRecovery(walker, deltaTime = FIXED_DT, heightAt = () => 0) {
     walker.outsideSupportTime = 0;
     walker.recoveryGroundTime = 0;
     walker.recoverySettleTime = 0;
-  } else if (walker.recoveryElapsed > 0.15 && !stable) {
+    walker.recoveryProgress = 1;
+    walker.recoveryPelvisRatio = walker.pelvisRatio;
+  } else if (walker.recoveryElapsed > 0.12 && !stable) {
+    const rightingT = Math.max(0, Math.min(1, (walker.recoveryElapsed - 0.12) / 0.55));
+    const rightingBlend = rightingT * rightingT * (3 - 2 * rightingT);
     // A limp rig cannot get up by asking the normal walking IK to solve a
     // sideways or inverted pelvis. Give the torso a bounded physical righting
     // torque first; joint motors then bring the limbs back under it.
     const angleError = wrapAngle(walker.hull.getAngle());
     const angularVelocity = walker.hull.getAngularVelocity();
     const mass = walker.hull.getMass();
-    const maxTorque = mass * GRAVITY * 0.85;
-    const requestedTorque = (-angleError * 7 - angularVelocity * 2.2) * mass;
+    const maxTorque = mass * GRAVITY * 0.85 * rightingBlend;
+    const requestedTorque = (-angleError * 7 - angularVelocity * 2.2) * mass * rightingBlend;
     const rightingTorque = Math.max(-maxTorque, Math.min(maxTorque, requestedTorque));
     walker.hull.applyTorque(rightingTorque, true);
 
@@ -545,7 +587,7 @@ function updateRigRecovery(walker, deltaTime = FIXED_DT, heightAt = () => 0) {
       const targetY = Math.min(...stanceX.map(heightAt)) +
         FOOT_HALF_HEIGHT * 2 + walker.pelvisRatio * (UPPER_LENGTH + LOWER_LENGTH) - HIP_Y;
       const heightError = targetY - walker.hull.getPosition().y;
-      const force = recoveryAssistForce(mass, heightError, GRAVITY, true);
+      const force = recoveryAssistForce(mass, heightError, GRAVITY, true) * rightingBlend;
       if (force > 0.05) walker.hull.applyForceToCenter(Vec2(0, force), true);
     }
   }
@@ -774,7 +816,9 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
   const walking = walkDirection !== 0 && walker.jumpPhase === "idle";
   const pelvisRatio = walking
     ? (walker.walkingPelvisRatio ?? 0.82)
-    : (walker.pelvisRatio ?? 0.95);
+    : (walker.recovering
+      ? (walker.recoveryPelvisRatio ?? walker.pelvisRatio ?? 0.95)
+      : (walker.pelvisRatio ?? 0.95));
   const pelvisTargetY = Math.min(
     heightAt(walker.stanceTargets[0]) + FOOT_HALF_HEIGHT * 2,
     heightAt(walker.stanceTargets[1]) + FOOT_HALF_HEIGHT * 2

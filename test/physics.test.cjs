@@ -440,8 +440,9 @@ test("intentional jump airtime does not accumulate toward the no-contact fall tr
   assert.equal(rig.noContactTime, 0);
 });
 
-test("limp recovery waits for low speed and ground contact, then ramps stiffness over 500 ms", () => {
+test("limp recovery waits for low speed and ground contact, then smoothly raises the pelvis and ramps stiffness", () => {
   const world = new planck.World({ gravity: planck.Vec2(0, -10) });
+  world.setAllowSleeping(true);
   const ground = world.createBody();
   ground.createFixture({ shape: new planck.Edge(planck.Vec2(-5, 0), planck.Vec2(5, 0)), friction: 2.5 });
   const rig = createStanceRig(world, 0, () => 0, () => 0);
@@ -450,11 +451,11 @@ test("limp recovery waits for low speed and ground contact, then ramps stiffness
       0.12, 0.41, 6, 6, 0.12, 0.2, 1, 1, 0.1);
     world.step(1 / 50, 180, 60);
   }
-  rig.hit(planck.Vec2(0, 0));
+  rig.hit(planck.Vec2(3, 0.8));
 
   let recoveryStarted = false;
   let maxRecoveryStiffness = 0;
-  for (let i = 0; i < 400 && rig.mode === "limp"; i++) {
+  for (let i = 0; i < 1000 && rig.mode === "limp"; i++) {
     const state = updateRigRecovery(rig, 0.02, () => 0);
     if (rig.recovering) {
       recoveryStarted = true;
@@ -464,9 +465,46 @@ test("limp recovery waits for low speed and ground contact, then ramps stiffness
     }
     world.step(1 / 50, 180, 60);
   }
-  assert.equal(recoveryStarted, true);
+  assert.equal(recoveryStarted, true, JSON.stringify({
+    worldAllowsSleep: world.getAllowSleeping(),
+    grounded: productionRig.hasRigGroundContact(rig),
+    settleTime: rig.recoverySettleTime,
+    awake: rig.bodies.map(body => body.isAwake()),
+    linearSpeeds: rig.bodies.map(body => Number(body.getLinearVelocity().length().toFixed(3))),
+    angularSpeeds: rig.bodies.map(body => Number(Math.abs(body.getAngularVelocity()).toFixed(3)))
+  }));
   assert.ok(maxRecoveryStiffness > 0);
-  assert.equal(rig.mode, "active");
+  assert.equal(rig.mode, "active", JSON.stringify({
+    recovering: rig.recovering,
+    recoveryElapsed: rig.recoveryElapsed,
+    recoveryProgress: rig.recoveryProgress,
+    recoveryStableTime: rig.recoveryStableTime,
+    stiffness: rig.stiffness,
+    worldAllowsSleep: world.getAllowSleeping(),
+    awake: rig.bodies.map(body => body.isAwake()),
+    sleepingAllowed: rig.bodies.map(body => body.isSleepingAllowed()),
+    terrainContact: productionRig.hasRigGroundContact(rig),
+    contactCounts: rig.bodies.map(body => {
+      let count = 0;
+      for (let edge = body.getContactList(); edge; edge = edge.next) {
+        if (edge.contact.isTouching() &&
+            (edge.contact.getFixtureA().getBody().isStatic() ||
+             edge.contact.getFixtureB().getBody().isStatic())) count++;
+      }
+      return count;
+    }),
+    hullAngle: rig.hull.getAngle(),
+    hullPosition: rig.hull.getPosition(),
+    hullVelocity: rig.hull.getLinearVelocity(),
+    feet: rig.legs.map(leg => ({
+      contact: productionRig.isGroundContact(leg.foot),
+      position: leg.foot.getPosition(),
+      velocity: leg.foot.getLinearVelocity(),
+      angle: leg.foot.getAngle()
+    })),
+    centerX: productionRig.getRigCenterOfMassX(rig),
+    support: productionRig.rigSupportBounds(rig)
+  }));
   assert.equal(rig.stiffness, 1);
   assert.equal(rig.recovering, false);
 });

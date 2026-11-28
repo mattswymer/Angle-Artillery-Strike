@@ -75,6 +75,31 @@ test("hit hands the active collider to the articulated ragdoll and preserves mom
   assert.ok(actor.rig.hull.getLinearVelocity().y > 0);
 });
 
+test("ragdoll body and physical limbs remain supported by the terrain", () => {
+  const { world, actor } = makeActor(17);
+  actor.enterRagdoll(Planck.Vec2(0, 0));
+  const rig = actor.rig;
+  assert.ok(rig, "hit did not create the articulated ragdoll");
+  // Exercise raw rigid-body collision without allowing the recovery state
+  // machine to replace the ragdoll while this contact test is running.
+  for (let i = 0; i < 75; i++) world.step(1 / 50, 180, 60);
+  assert.ok(rig.hull.getPosition().y > 0.15,
+    "ragdoll torso passed through the terrain");
+  for (const piece of rig.pieces) {
+    for (let fixture = piece.body.getFixtureList(); fixture; fixture = fixture.getNext()) {
+      assert.equal(
+        fixture.isSensor(),
+        false,
+        piece.name + " must have solid terrain collision during ragdoll"
+      );
+    }
+  }
+  assert.equal(rig.hull.getFixtureList().isSensor(), false,
+    "torso must retain physical terrain collision");
+  assert.ok(rig.bodies.some(body => CharacterRig.isGroundContact(body)),
+    "no articulated ragdoll segment has physical terrain support contact");
+});
+
 test("ragdoll timeout relocates a stuck character and restores one active body", () => {
   const { world, actor } = makeActor(22);
   actor.enterRagdoll(Planck.Vec2(7, 9));
@@ -111,4 +136,45 @@ test("50 seeded explosion handoffs never leave a combatant stuck in ragdoll mode
     actor.destroy();
   }
   assert.deepEqual(failures, []);
+});
+
+
+test("hard downward ragdoll blasts cannot tunnel through the terrain", () => {
+  const failures = [];
+  for (let seed = 1; seed <= 30; seed++) {
+    const { world, actor } = makeActor(seed);
+    actor.enterRagdoll(Planck.Vec2((seed % 2 ? 1 : -1) * 18, -24));
+    const rig = actor.rig;
+    for (let i = 0; i < 300; i++) {
+      world.step(1 / 100, 180, 60);
+    }
+    for (const piece of rig.pieces) {
+      const position = piece.body.getPosition();
+      if (position.y < -0.25) failures.push({ seed, part: piece.name, y: position.y });
+    }
+    actor.destroy();
+  }
+  assert.deepEqual(failures, []);
+});
+
+
+test("shoulder-based muzzle origin remains available in active and ragdoll modes", () => {
+  const { actor } = makeActor(37);
+  const activePose = actor.active.pose();
+  const activeMuzzle = actor.muzzlePosition(0);
+  assert.ok(Math.abs(activeMuzzle.x - (activePose.torsoTop.x + 0.42)) < 1e-9);
+  assert.ok(Math.abs(activeMuzzle.y - activePose.torsoTop.y) < 1e-9);
+
+  actor.enterRagdoll(Planck.Vec2(0, 0));
+  const head = actor.rig.head.getPosition();
+  const leftHip = actor.rig.jointMap.leftHip.getAnchorA();
+  const rightHip = actor.rig.jointMap.rightHip.getAnchorA();
+  const hipsX = (leftHip.x + rightHip.x) / 2;
+  const hipsY = (leftHip.y + rightHip.y) / 2;
+  const shoulderX = head.x + (hipsX - head.x) * 0.36;
+  const shoulderY = head.y - 0.135 + (hipsY - (head.y - 0.135)) * 0.36;
+  const ragdollMuzzle = actor.muzzlePosition(0);
+  assert.ok(Math.abs(ragdollMuzzle.x - (shoulderX + 0.42)) < 1e-9);
+  assert.ok(Math.abs(ragdollMuzzle.y - shoulderY) < 1e-9);
+  actor.destroy();
 });

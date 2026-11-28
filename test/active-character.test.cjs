@@ -12,7 +12,7 @@ function makeWorld(points, heightAt) {
     shape: new Planck.Chain(points.slice().reverse().map(point => Planck.Vec2(point[0], point[1]))),
     friction: 0.9
   });
-  return { world, heightAt };
+  return { world, heightAt, terrain };
 }
 
 function flatWorld() {
@@ -108,6 +108,39 @@ test("active character jumps once from ground and remains airborne until descend
   assert.ok(Math.abs(character.body.getPosition().y - 0.055) < 0.05);
 });
 
+test("active character can jump while moving and never snaps back to the jump origin", () => {
+  const { world, heightAt } = flatWorld();
+  const character = ActiveCharacter.create(Planck, world, { x: 0, heightAt });
+  for (let i = 0; i < 12; i++) {
+    character.update(1 / 50, 0);
+    world.step(1 / 50, 8, 3);
+  }
+  character.setMove(1);
+  assert.equal(character.jump(), true);
+  const jumpOriginX = character.body.getPosition().x;
+  let maxY = character.body.getPosition().y;
+  for (let i = 0; i < 18; i++) {
+    character.update(1 / 50, 1);
+    world.step(1 / 50, 8, 3);
+    maxY = Math.max(maxY, character.body.getPosition().y);
+  }
+  const airborneX = character.body.getPosition().x;
+  assert.ok(airborneX > jumpOriginX + 0.45, "movement stopped during jump");
+  assert.ok(maxY > 0.7, "jump did not gain height");
+  for (let i = 0; i < 8; i++) {
+    character.update(1 / 50, 0);
+    world.step(1 / 50, 8, 3);
+  }
+  assert.ok(character.body.getPosition().x >= airborneX - 0.08,
+    "releasing movement snapped back toward the jump origin");
+  for (let i = 0; i < 70; i++) {
+    character.update(1 / 50, 0);
+    world.step(1 / 50, 8, 3);
+  }
+  assert.equal(character.grounded(), true);
+  assert.ok(character.body.getPosition().x > jumpOriginX + 0.45);
+});
+
 test("active character can step onto a 0.4 unit ledge using the forward ground ray", () => {
   const { world, heightAt } = makeWorld(
     [[-5, 0], [0, 0], [0.01, 0.4], [5, 0.4]],
@@ -138,4 +171,133 @@ test("active pose supplies renderer-only articulated limbs without physics joint
   let joints = 0;
   for (let joint = world.getJointList(); joint; joint = joint.getNext()) joints++;
   assert.equal(joints, 0);
+});
+
+
+test("active stickman walk cycle moves the hips and alternates full leg and arm swings", () => {
+  const { world, heightAt } = flatWorld();
+  const character = ActiveCharacter.create(Planck, world, { x: 0, heightAt });
+  character.update(1 / 50, 0);
+  const standing = character.pose();
+  const samples = [];
+  for (let i = 0; i < 40; i++) {
+    character.setMove(1, 1 / 50);
+    world.step(1 / 50, 8, 3);
+    character.update(1 / 50, 1);
+    samples.push(character.pose());
+  }
+  const hipHeights = samples.map(p => p.hips.y);
+  const leftFootXs = samples.map(p => p.leftFoot.x - p.x);
+  const rightFootXs = samples.map(p => p.rightFoot.x - p.x);
+  const leftHandXs = samples.map(p => p.leftHand.x - p.x);
+  assert.ok(Math.max(...hipHeights) - Math.min(...hipHeights) > 0.015,
+    "hips should rise and fall through the walk cycle");
+  assert.ok(Math.max(...leftFootXs) - Math.min(...leftFootXs) > 0.2,
+    "left leg should swing from the hip");
+  assert.ok(Math.max(...rightFootXs) - Math.min(...rightFootXs) > 0.2,
+    "right leg should swing from the hip");
+  assert.ok(Math.max(...leftHandXs) - Math.min(...leftHandXs) > 0.04,
+    "arms should counter-swing with the legs");
+  assert.notEqual(standing.hips.y, samples[10].hips.y);
+});
+
+
+test("active stickman matches ragdoll head size and connected segment proportions", () => {
+  const { world, heightAt } = flatWorld();
+  const character = ActiveCharacter.create(Planck, world, { x: 0, heightAt });
+  const pose = character.pose();
+  const H = 1.65;
+  const near = (actual, expected, label) =>
+    assert.ok(Math.abs(actual - expected) < 1e-9, label + ": " + actual + " != " + expected);
+  near(pose.headRadius, 0.135, "head radius matches articulated ragdoll");
+  near(Math.hypot(pose.neckTop.x - pose.torsoTop.x, pose.neckTop.y - pose.torsoTop.y), H / 16, "neck length");
+  near(Math.hypot(pose.torsoTop.x - pose.hips.x, pose.torsoTop.y - pose.hips.y), 5 * H / 16, "torso length");
+  near(Math.hypot(pose.leftElbow.x - pose.torsoTop.x, pose.leftElbow.y - pose.torsoTop.y),
+    3 * H / 16, "upper arm length");
+  near(Math.hypot(pose.leftHand.x - pose.leftElbow.x, pose.leftHand.y - pose.leftElbow.y),
+    3 * H / 16, "forearm length");
+  near(Math.hypot(pose.hips.x - pose.leftKnee.x, pose.hips.y - pose.leftKnee.y),
+    H / 4, "thigh length");
+  near(Math.hypot(pose.leftKnee.x - pose.leftFoot.x, pose.leftKnee.y - pose.leftFoot.y),
+    H / 4, "lower leg length");
+  assert.equal(pose.torso, pose.torsoTop);
+});
+
+
+test("active stickman arms hang beside the torso instead of forming a T pose", () => {
+  const { world, heightAt } = flatWorld();
+  const character = ActiveCharacter.create(Planck, world, { x: 0, heightAt });
+  const pose = character.pose();
+  for (const side of ["left", "right"]) {
+    const shoulder = pose[side + "Shoulder"];
+    const elbow = pose[side + "Elbow"];
+    const hand = pose[side + "Hand"];
+    assert.ok(shoulder.y > elbow.y, side + " elbow should hang below shoulder");
+    assert.ok(elbow.y > hand.y, side + " hand should hang below elbow");
+    assert.ok(Math.abs(hand.x - shoulder.x) < 0.1,
+      side + " arm should stay close to torso, not extend sideways");
+  }
+});
+
+
+test("active stickman idle stance is upright and separates both near/far limb pairs", () => {
+  const { world, heightAt } = flatWorld();
+  const character = ActiveCharacter.create(Planck, world, { x: 0, heightAt });
+  const pose = character.pose();
+
+  assert.ok(Math.abs(pose.torsoTop.x - pose.hips.x) < 1e-9,
+    "idle torso should be vertical, not leaning toward the camera");
+  assert.ok(Math.abs(pose.head.x - pose.hips.x) < 0.03,
+    "head should remain aligned over the upright torso");
+  assert.ok(Math.abs(pose.leftElbow.x - pose.rightElbow.x) > 0.05,
+    "both arms should remain visible instead of overlapping");
+  assert.ok(Math.abs(pose.leftHand.x - pose.rightHand.x) > 0.1,
+    "both hands should remain visible in the idle profile");
+  assert.ok(Math.abs(pose.leftFoot.x - pose.rightFoot.x) > 0.18,
+    "idle legs should have a clearly visible but restrained separation");
+  for (const side of ["left", "right"]) {
+    assert.ok(pose[side + "Shoulder"].y > pose[side + "Elbow"].y);
+    assert.ok(pose[side + "Elbow"].y > pose[side + "Hand"].y);
+    assert.ok(pose.hips.y > pose[side + "Knee"].y);
+    assert.ok(pose[side + "Knee"].y > pose[side + "Foot"].y);
+  }
+});
+
+
+test("muzzle position follows the rendered shoulder rather than the body origin", () => {
+  const { world, heightAt } = flatWorld();
+  const character = ActiveCharacter.create(Planck, world, { x: 2, heightAt });
+  const pose = character.pose();
+  const muzzle = character.muzzlePosition(0);
+  assert.ok(Math.abs(muzzle.y - pose.torsoTop.y) < 1e-9);
+  assert.ok(Math.abs(muzzle.x - (pose.torsoTop.x + 0.42)) < 1e-9);
+});
+
+test("active character and muzzle follow the stickman after terrain is lowered", () => {
+  let surface = 0;
+  const heightAt = () => surface;
+  const { world, terrain } = flatWorld();
+  const character = ActiveCharacter.create(Planck, world, { x: 0, heightAt });
+  character.update(1 / 50, 0);
+  const oldBodyY = character.body.getPosition().y;
+  const oldMuzzleY = character.muzzlePosition(0).y;
+
+  world.destroyBody(terrain);
+  surface = -0.9;
+  const loweredGround = world.createBody({ userData: { kind: "terrain" } });
+  loweredGround.createFixture({
+    shape: new Planck.Chain([Planck.Vec2(10, surface), Planck.Vec2(-10, surface)]),
+    friction: 0.9
+  });
+
+  for (let i = 0; i < 100; i++) {
+    character.update(1 / 50, 0);
+    world.step(1 / 50, 8, 3);
+  }
+
+  const newBodyY = character.body.getPosition().y;
+  const newMuzzleY = character.muzzlePosition(0).y;
+  assert.ok(newBodyY < oldBodyY - 0.7, "body did not fall with the lowered terrain");
+  assert.ok(newMuzzleY < oldMuzzleY - 0.7, "muzzle remained at the old terrain height");
+  assert.equal(character.grounded(), true);
 });

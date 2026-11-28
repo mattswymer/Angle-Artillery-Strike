@@ -84,6 +84,8 @@
 
     function snapToGround(direction = 0) {
       const position = body.getPosition();
+      // Keep a stable support sample while standing on a slope, but refresh it
+      // continuously during a jump so releasing direction cannot snap backward.
       const sampleX = direction === 0 ? lockedX : position.x;
       const centerHit = rayGround(sampleX, position.y);
       if (!centerHit) {
@@ -102,6 +104,7 @@
       const velocity = body.getLinearVelocity();
       const canSnap = !jumpLock && velocity.y <= 0.65 &&
         gap <= BODY.snapDistance && gap >= -BODY.snapDownDistance;
+      if (direction !== 0) lockedX = sampleX;
       if (!canSnap) {
         grounded = false;
         return false;
@@ -109,7 +112,6 @@
       const nextY = target.y - BODY.footCenterY + BODY.radius + BODY.skin;
       body.setTransform(Vec2(sampleX, nextY), 0);
       body.setLinearVelocity(Vec2(direction === 0 ? 0 : velocity.x, 0));
-      if (direction !== 0) lockedX = sampleX;
       grounded = true;
       lastGroundY = target.y;
       return true;
@@ -121,7 +123,7 @@
       const velocity = body.getLinearVelocity();
       if (direction !== 0) gaitPhase += dt * BODY.walkSpeed * 3.2;
       body.setLinearVelocity(Vec2(direction * BODY.walkSpeed, velocity.y));
-      snapToGround(direction);
+      if (!jumpLock) snapToGround(direction);
       return grounded;
     }
 
@@ -136,31 +138,107 @@
 
     function update(dt = 1 / 50, direction = 0) {
       const velocity = body.getLinearVelocity();
+      if (jumpLock) lockedX = body.getPosition().x;
       if (jumpLock && velocity.y <= 0) jumpLock = false;
       if (direction !== null) {
         if (direction === 0) body.setLinearVelocity(Vec2(0, velocity.y));
-        else body.setLinearVelocity(Vec2(direction * BODY.walkSpeed, velocity.y));
+        else {
+          body.setLinearVelocity(Vec2(direction * BODY.walkSpeed, velocity.y));
+          lockedX = body.getPosition().x;
+        }
       }
-      snapToGround(direction || 0);
+      if (!jumpLock) snapToGround(direction || 0);
     }
 
     function pose() {
       const p = body.getPosition();
       const moving = Math.abs(body.getLinearVelocity().x) > 0.15 && grounded;
-      const swing = moving ? Math.sin(gaitPhase) * 0.22 : 0;
-      return {
-        x: p.x, y: p.y, facing, grounded,
-        head: { x: p.x, y: p.y + 1.16 },
-        torso: { x: p.x, y: p.y + 0.67 },
-        leftFoot: { x: p.x - 0.12 + swing, y: p.y + BODY.skin },
-        rightFoot: { x: p.x + 0.12 - swing, y: p.y + BODY.skin },
-        leftKnee: { x: p.x - 0.12 + swing * 0.45, y: p.y + 0.31 + Math.abs(swing) * 0.35 },
-        rightKnee: { x: p.x + 0.12 - swing * 0.45, y: p.y + 0.31 + Math.abs(swing) * 0.35 },
-        leftShoulder: { x: p.x - 0.17, y: p.y + 0.82 },
-        rightShoulder: { x: p.x + 0.17, y: p.y + 0.82 },
-        leftHand: { x: p.x - 0.2 - swing * 0.45, y: p.y + 0.48 },
-        rightHand: { x: p.x + 0.2 + swing * 0.45, y: p.y + 0.48 }
+      const phase = gaitPhase % (Math.PI * 2);
+      const H = 1.65;
+      const headRadius = 0.135; // Match the physical ragdoll head exactly.
+      const neckLength = H / 16;
+      const torsoLength = H * 5 / 16;
+      const armLength = H * 3 / 16;
+      const legLength = H / 4;
+      const direction = facing >= 0 ? 1 : -1;
+      const bob = moving ? Math.abs(Math.sin(phase)) * 0.065 : 0;
+      const hip = { x: p.x, y: p.y + BODY.skin + legLength * 2 + bob };
+      
+      // The reference walk is a forward-leaning, alternating two-leg gait.
+      // Positive angles swing a limb in the facing direction.
+      const torsoLean = moving ? 10 - Math.sin(phase) * 3 : 0;
+      const upperTorso = {
+        x: hip.x + direction * Math.sin(torsoLean * Math.PI / 180) * torsoLength,
+        y: hip.y + Math.cos(torsoLean * Math.PI / 180) * torsoLength
       };
+      const neckTip = {
+        x: upperTorso.x + direction * Math.sin((torsoLean - 2) * Math.PI / 180) * neckLength,
+        y: upperTorso.y + Math.cos((torsoLean - 2) * Math.PI / 180) * neckLength
+      };
+      const head = {
+        x: neckTip.x + direction * Math.sin((torsoLean - 4) * Math.PI / 180) * headRadius,
+        y: neckTip.y + Math.cos((torsoLean - 4) * Math.PI / 180) * headRadius
+      };
+
+      const leg = (side, legPhase) => {
+        const swing = moving ? Math.sin(legPhase) : 0;
+        // Slightly separate the legs at rest so both remain visible in profile.
+        const hipAngle = moving ? swing * 34 : side * 8;
+        const kneeBend = moving ? -Math.max(0, Math.cos(legPhase)) * 42 : 0;
+        const hipRad = hipAngle * Math.PI / 180;
+        const kneeRad = (hipAngle + kneeBend) * Math.PI / 180;
+        const knee = {
+          x: hip.x + direction * Math.sin(hipRad) * legLength,
+          y: hip.y - Math.cos(hipRad) * legLength
+        };
+        const ankle = {
+          x: knee.x + direction * Math.sin(kneeRad) * legLength,
+          y: knee.y - Math.cos(kneeRad) * legLength +
+            (moving ? Math.max(0, swing) * 0.11 : 0)
+        };
+        return { knee, foot: ankle };
+      };
+      const leftLeg = leg(-1, phase + Math.PI);
+      const rightLeg = leg(1, phase);
+
+      const arm = (armPhase, side) => {
+        // Opposing idle angles distinguish the near and far arms.
+        const shoulderAngle = moving ? Math.sin(armPhase) * 30 : side * 6;
+        const elbowBend = moving
+          ? 24 + Math.max(0, -Math.sin(armPhase)) * 28
+          : side * 5;
+        const shoulderRad = shoulderAngle * Math.PI / 180;
+        const handRad = (shoulderAngle + elbowBend) * Math.PI / 180;
+        const elbow = {
+          x: upperTorso.x + direction * Math.sin(shoulderRad) * armLength,
+          y: upperTorso.y - Math.cos(shoulderRad) * armLength
+        };
+        const hand = {
+          x: elbow.x + direction * Math.sin(handRad) * armLength,
+          y: elbow.y - Math.cos(handRad) * armLength
+        };
+        return { elbow, hand };
+      };
+      const leftArm = arm(phase, -1);
+      const rightArm = arm(phase + Math.PI, 1);
+
+      return {
+        x: p.x, y: p.y, facing, grounded, head, headRadius,
+        neckTop: neckTip, torsoTop: upperTorso, torso: upperTorso, hips: hip,
+        leftFoot: leftLeg.foot, rightFoot: rightLeg.foot,
+        leftKnee: leftLeg.knee, rightKnee: rightLeg.knee,
+        leftShoulder: upperTorso, rightShoulder: upperTorso,
+        leftElbow: leftArm.elbow, rightElbow: rightArm.elbow,
+        leftHand: leftArm.hand, rightHand: rightArm.hand
+      };
+    }
+
+    function muzzlePosition(angle = 0) {
+      const shoulder = pose().torsoTop;
+      const dx = Math.cos(angle);
+      const dy = Math.sin(angle);
+      const x = Math.max(0.05, Math.min((options.worldWidth || 24) - 0.05, shoulder.x + dx * 0.42));
+      return { x, y: Math.max(shoulder.y + dy * 0.12, heightAt(x) + 0.18) };
     }
 
     function applyImpulse(impulse) {
@@ -174,7 +252,7 @@
 
     return {
       body, grounded: () => grounded, setMove, jump, update, snapToGround,
-      pose, applyImpulse, destroy, get lastGroundY() { return lastGroundY; },
+      pose, muzzlePosition, applyImpulse, destroy, get lastGroundY() { return lastGroundY; },
       get facing() { return facing; }, get mode() { return "active"; }
     };
   }

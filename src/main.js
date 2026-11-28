@@ -240,12 +240,13 @@
 
   function canMove(character) {
     return Boolean(canAct(character) && !projectile &&
-      character.mode === "active" && character.stableTime >= 0.08);
+      character.mode === "active" &&
+      (activeAction === "move" || character.stableTime >= 0.08));
   }
 
   function createWorld() {
     world = new P.World({ gravity: V(0, -GRAVITY) });
-    world.setAllowSleeping(false);
+    world.setAllowSleeping(true);
     world.on("begin-contact", contact => {
       const bodyA = contact.getFixtureA().getBody();
       const bodyB = contact.getFixtureB().getBody();
@@ -371,12 +372,8 @@
     const power = Number(powerInput.value) / 100;
     const dx = Math.cos(angle);
     const dy = Math.sin(angle);
-    const p = character.body.getPosition();
-    const startX = Math.max(0.05, Math.min(WORLD_WIDTH - 0.05, p.x + dx * 0.62));
-    // A prone torso may be partly inside the ground. Lift the muzzle clear
-    // before launching so the first collision is not the shooter's own crater.
-    const startY = Math.max(p.y + dy * 0.62 + 0.05, heightAt(startX) + 0.18);
-    const start = V(startX, startY);
+    const muzzle = character.muzzlePosition(angle);
+    const start = V(muzzle.x, muzzle.y);
     const body = world.createBody({
       type: "dynamic",
       position: start,
@@ -613,129 +610,110 @@
     terrainSystem.draw(ctx, (x, y) => worldToScreen(x, y, scale, offsetX));
   }
 
-  function drawActiveCharacter(character, scale, offsetX) {
-    const pose = character.pose();
+  function drawStickmanPose(character, pose, scale, offsetX) {
     const point = value => worldToScreen(value.x, value.y, scale, offsetX);
-    const segment = (a, b, width) => {
-      const from = point(a), to = point(b);
-      ctx.beginPath();
-      ctx.moveTo(from.x, from.y);
-      ctx.lineTo(to.x, to.y);
-      ctx.lineWidth = Math.max(3, scale * width);
-      ctx.lineCap = "round";
-      ctx.strokeStyle = "#263944";
-      ctx.stroke();
+    const stroke = (from, to, width = 0.042) => {
+      const a = point(from), b = point(to);
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+      ctx.lineWidth = Math.max(2.5, scale * width);
+      ctx.lineCap = "round"; ctx.stroke();
     };
-    const circle = (value, radius, fill) => {
+    const jointDot = value => {
       const p = point(value);
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, scale * radius, 0, Math.PI * 2);
-      ctx.fillStyle = fill;
-      ctx.fill();
-      ctx.strokeStyle = "#17232b";
-      ctx.lineWidth = Math.max(1.2, scale * 0.018);
-      ctx.stroke();
+      ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(2, scale * 0.027), 0, Math.PI * 2);
+      ctx.fillStyle = "#17232b"; ctx.fill();
     };
-    segment(pose.leftShoulder, pose.leftHand, 0.105);
-    segment(pose.rightShoulder, pose.rightHand, 0.105);
-    segment(pose.leftShoulder, pose.rightShoulder, 0.09);
-    segment(pose.leftShoulder, pose.leftKnee, 0.12);
-    segment(pose.rightShoulder, pose.rightKnee, 0.12);
-    segment(pose.leftKnee, pose.leftFoot, 0.105);
-    segment(pose.rightKnee, pose.rightFoot, 0.105);
-    const torso = point(pose.torso);
-    ctx.fillStyle = character.color;
+    const radius = pose.headRadius;
+    const headBottom = { x: pose.head.x, y: pose.head.y - radius };
+    const head = point(pose.head);
+    ctx.save();
     ctx.strokeStyle = "#17232b";
-    ctx.lineWidth = Math.max(1.2, scale * 0.018);
-    ctx.beginPath();
-    ctx.roundRect(torso.x - scale * 0.17, torso.y - scale * 0.29,
-      scale * 0.34, scale * 0.58, scale * 0.07);
-    ctx.fill(); ctx.stroke();
-    circle(pose.head, 0.135, character.color);
-    const barAnchor = point({ x: pose.x, y: pose.y + 1.18 });
+    stroke(headBottom, pose.neckTop, 0.052);
+    stroke(pose.neckTop, pose.torsoTop, 0.052);
+    stroke(pose.torsoTop, pose.hips, 0.052);
+    // Both modes use this exact connected stickman renderer.
+    stroke(pose.torsoTop, pose.leftElbow);
+    stroke(pose.leftElbow, pose.leftHand);
+    stroke(pose.torsoTop, pose.rightElbow);
+    stroke(pose.rightElbow, pose.rightHand);
+    stroke(pose.hips, pose.leftKnee);
+    stroke(pose.leftKnee, pose.leftFoot);
+    stroke(pose.hips, pose.rightKnee);
+    stroke(pose.rightKnee, pose.rightFoot);
+    [pose.leftElbow, pose.rightElbow, pose.leftKnee, pose.rightKnee].forEach(jointDot);
+    ctx.beginPath(); ctx.arc(head.x, head.y, radius * scale, 0, Math.PI * 2);
+    ctx.fillStyle = "#ffffff"; ctx.fill();
+    ctx.strokeStyle = "#17232b"; ctx.lineWidth = Math.max(2, scale * 0.035); ctx.stroke();
+    ctx.restore();
+
     const barWidth = scale * 0.72, barHeight = Math.max(3, scale * 0.055);
+    const barPoint = worldToScreen(pose.head.x, pose.healthBarY, scale, offsetX);
+    const barY = barPoint.y;
     ctx.fillStyle = "#17232b";
-    ctx.fillRect(barAnchor.x - barWidth / 2, barAnchor.y, barWidth, barHeight);
+    ctx.fillRect(head.x - barWidth / 2, barY, barWidth, barHeight);
     ctx.fillStyle = character.team === 0 ? "#58a8ff" : "#ff7770";
-    ctx.fillRect(barAnchor.x - barWidth / 2, barAnchor.y,
+    ctx.fillRect(head.x - barWidth / 2, barY,
       barWidth * Math.max(0, character.health / character.maxHealth), barHeight);
+  }
+
+  function ragdollStickmanPose(character) {
+    const rig = character.rig;
+    const joint = name => {
+      const p = rig.jointMap[name].getAnchorA();
+      return { x: p.x, y: p.y };
+    };
+    const head = rig.head.getPosition();
+    const headRadius = 0.135;
+    const headBottom = { x: head.x, y: head.y - headRadius };
+    const hipsLeft = joint("leftHip"), hipsRight = joint("rightHip");
+    const hips = { x: (hipsLeft.x + hipsRight.x) / 2, y: (hipsLeft.y + hipsRight.y) / 2 };
+    const torsoTop = {
+      x: headBottom.x + (hips.x - headBottom.x) * 0.36,
+      y: headBottom.y + (hips.y - headBottom.y) * 0.36
+    };
+    const neckTop = {
+      x: headBottom.x + (torsoTop.x - headBottom.x) * 0.45,
+      y: headBottom.y + (torsoTop.y - headBottom.y) * 0.45
+    };
+    const leftHand = rig.byName["left-lower-arm"].body.getWorldPoint(V(0, -0.17));
+    const rightHand = rig.byName["right-lower-arm"].body.getWorldPoint(V(0, -0.17));
+    const leftFoot = rig.byName["left-foot"].body.getWorldPoint(V(0.12, 0));
+    const rightFoot = rig.byName["right-foot"].body.getWorldPoint(V(0.12, 0));
+    const highestPiece = Math.max(...rig.pieces.map(piece => {
+      const p = piece.body.getPosition();
+      return p.y + (piece.circle ? piece.halfWidth : piece.halfHeight);
+    }));
+    return {
+      head, headRadius, neckTop, torsoTop, hips,
+      leftElbow: joint("leftElbow"), rightElbow: joint("rightElbow"),
+      leftKnee: joint("leftKnee"), rightKnee: joint("rightKnee"),
+      leftHand: { x: leftHand.x, y: leftHand.y },
+      rightHand: { x: rightHand.x, y: rightHand.y },
+      leftFoot: { x: leftFoot.x, y: leftFoot.y },
+      rightFoot: { x: rightFoot.x, y: rightFoot.y },
+      healthBarY: highestPiece + 0.28
+    };
   }
 
   function drawCharacter(character, scale, offsetX) {
     if (character.mode === "active") {
-      drawActiveCharacter(character, scale, offsetX);
+      const pose = character.pose();
+      drawStickmanPose(character, { ...pose,
+        healthBarY: pose.head.y + 0.23 }, scale, offsetX);
       return;
     }
     if (!character.rig) return;
-    const rig = character.rig;
-    const screen = worldToScreen(character.body.getPosition().x, character.body.getPosition().y, scale, offsetX);
-
-    // Render the actual rigid bodies. The old stick-figure renderer only drew
-    // joint-to-joint lines, hiding the rotation and independent motion that make
-    // the articulated ragdoll readable during impacts and recovery.
-    ctx.save();
-    for (const piece of rig.pieces) {
-      const body = piece.body;
-      const position = body.getPosition();
-      const point = worldToScreen(position.x, position.y, scale, offsetX);
-      const angle = body.getAngle();
-
-      ctx.save();
-      ctx.translate(point.x, point.y);
-      ctx.rotate(-angle);
-      ctx.lineWidth = Math.max(1.25, scale * 0.018);
-      ctx.strokeStyle = "#17232b";
-      ctx.fillStyle = piece.name === "head" ? character.color : "#263944";
-      if (piece.name === "torso") ctx.fillStyle = character.color;
-
-      if (piece.circle) {
-        const radius = piece.halfWidth * scale;
-        ctx.beginPath();
-        ctx.arc(0, 0, radius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-
-        // A small face marker makes head rotation visible without imposing
-        // a fixed facing direction on the physics body.
-        ctx.fillStyle = "#17232b";
-        ctx.beginPath();
-        ctx.arc(radius * 0.38, -radius * 0.12, Math.max(1.2, radius * 0.11), 0, Math.PI * 2);
-        ctx.fill();
-      } else {
-        const halfWidth = piece.halfWidth * scale;
-        const halfHeight = piece.halfHeight * scale;
-        const radius = Math.min(halfWidth, halfHeight, Math.max(2, scale * 0.035));
-        ctx.beginPath();
-        ctx.roundRect(-halfWidth, -halfHeight, halfWidth * 2, halfHeight * 2, radius);
-        ctx.fill();
-        ctx.stroke();
-      }
-      ctx.restore();
-    }
-    ctx.restore();
-
-    const barWidth = scale * 0.72;
-    const barHeight = Math.max(3, scale * 0.055);
-    const barY = -scale * 1.02;
-    ctx.fillStyle = "#17232b";
-    ctx.fillRect(screen.x - barWidth / 2, screen.y + barY, barWidth, barHeight);
-    ctx.fillStyle = character.team === 0 ? "#58a8ff" : "#ff7770";
-    ctx.fillRect(
-      screen.x - barWidth / 2,
-      screen.y + barY,
-      barWidth * Math.max(0, character.health / character.maxHealth),
-      barHeight
-    );
+    drawStickmanPose(character, ragdollStickmanPose(character), scale, offsetX);
   }
 
   function drawAim(scale, offsetX) {
     const character = activeCharacter();
     if (!canAct(character) || projectile || activeAction === "attack") return;
 
-    const p = character.body.getPosition();
     const angle = Number(angleInput.value) * Math.PI / 180;
     const power = Number(powerInput.value) / 100;
-    const start = worldToScreen(p.x, p.y + 0.04, scale, offsetX);
+    const muzzle = character.muzzlePosition(angle);
+    const start = worldToScreen(muzzle.x, muzzle.y, scale, offsetX);
     const length = scale * (0.42 + power * 1.05);
     const endX = start.x + Math.cos(angle) * length;
     const endY = start.y - Math.sin(angle) * length;
