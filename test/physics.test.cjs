@@ -480,6 +480,19 @@ test("limp recovery waits for low speed and ground contact, then smoothly raises
     recoveryProgress: rig.recoveryProgress,
     recoveryStableTime: rig.recoveryStableTime,
     stiffness: rig.stiffness,
+    worldAllowsSleep: world.getAllowSleeping(),
+    awake: rig.bodies.map(body => body.isAwake()),
+    sleepingAllowed: rig.bodies.map(body => body.isSleepingAllowed()),
+    terrainContact: productionRig.hasRigGroundContact(rig),
+    contactCounts: rig.bodies.map(body => {
+      let count = 0;
+      for (let edge = body.getContactList(); edge; edge = edge.next) {
+        if (edge.contact.isTouching() &&
+            (edge.contact.getFixtureA().getBody().isStatic() ||
+             edge.contact.getFixtureB().getBody().isStatic())) count++;
+      }
+      return count;
+    }),
     hullAngle: rig.hull.getAngle(),
     hullPosition: rig.hull.getPosition(),
     hullVelocity: rig.hull.getLinearVelocity(),
