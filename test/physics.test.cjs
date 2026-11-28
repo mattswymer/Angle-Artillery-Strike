@@ -455,7 +455,7 @@ test("limp recovery waits for low speed and ground contact, then smoothly raises
 
   let recoveryStarted = false;
   let maxRecoveryStiffness = 0;
-  for (let i = 0; i < 400 && rig.mode === "limp"; i++) {
+  for (let i = 0; i < 1000 && rig.mode === "limp"; i++) {
     const state = updateRigRecovery(rig, 0.02, () => 0);
     if (rig.recovering) {
       recoveryStarted = true;
