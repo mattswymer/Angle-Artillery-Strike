@@ -183,7 +183,7 @@
       const leg = (side, legPhase) => {
         const swing = moving ? Math.sin(legPhase) : 0;
         // Slightly separate the legs at rest so both remain visible in profile.
-        const hipAngle = moving ? swing * 34 : side * 5;
+        const hipAngle = moving ? swing * 34 : side * 8;
         const kneeBend = moving ? -Math.max(0, Math.cos(legPhase)) * 42 : 0;
         const hipRad = hipAngle * Math.PI / 180;
         const kneeRad = (hipAngle + kneeBend) * Math.PI / 180;
@@ -233,6 +233,14 @@
       };
     }
 
+    function muzzlePosition(angle = 0) {
+      const shoulder = pose().torsoTop;
+      const dx = Math.cos(angle);
+      const dy = Math.sin(angle);
+      const x = Math.max(0.05, Math.min((options.worldWidth || 24) - 0.05, shoulder.x + dx * 0.42));
+      return { x, y: Math.max(shoulder.y + dy * 0.12, heightAt(x) + 0.18) };
+    }
+
     function applyImpulse(impulse) {
       body.applyLinearImpulse(impulse, body.getWorldCenter(), true);
       grounded = false;
@@ -244,7 +252,7 @@
 
     return {
       body, grounded: () => grounded, setMove, jump, update, snapToGround,
-      pose, applyImpulse, destroy, get lastGroundY() { return lastGroundY; },
+      pose, muzzlePosition, applyImpulse, destroy, get lastGroundY() { return lastGroundY; },
       get facing() { return facing; }, get mode() { return "active"; }
     };
   }
