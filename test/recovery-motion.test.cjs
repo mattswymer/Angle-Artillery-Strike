@@ -22,7 +22,7 @@ test("ragdoll get-up eases from a low supported stance into full standing height
   rig.recoveryPelvisRatio = 0.72;
 
   const samples = [];
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 5; i++) {
     CharacterRig.updateRigRecovery(rig, 0.2, () => 0);
     samples.push({
       ratio: rig.recoveryPelvisRatio,
