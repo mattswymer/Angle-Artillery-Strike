@@ -45,7 +45,7 @@ const FOOT_HALF_HEIGHT = 0.03;
     angle: initialTerrainAngle,
     linearDamping: 0.08,
     angularDamping: 0.08,
-    allowSleep: false,
+    allowSleep: true,
       bullet: true,
     userData: { part: "torso" }
   });
@@ -64,7 +64,7 @@ const FOOT_HALF_HEIGHT = 0.03;
       angle: initialTerrainAngle,
       linearDamping: 0.08,
       angularDamping: 0.08,
-      allowSleep: false,
+      allowSleep: true,
       bullet: true,
       userData: { part: name }
     });
@@ -123,7 +123,7 @@ const FOOT_HALF_HEIGHT = 0.03;
       angle: upperAngle,
       linearDamping: 0.08,
       angularDamping: 0.08,
-      allowSleep: false,
+      allowSleep: true,
       bullet: true,
       userData: { part: side < 0 ? "left-upper-leg" : "right-upper-leg" }
     });
@@ -155,7 +155,7 @@ const FOOT_HALF_HEIGHT = 0.03;
       angle: lowerAngle,
       linearDamping: 0.08,
       angularDamping: 0.08,
-      allowSleep: false,
+      allowSleep: true,
       bullet: true,
       userData: { part: side < 0 ? "left-lower-leg" : "right-lower-leg" }
     });
@@ -187,7 +187,7 @@ const FOOT_HALF_HEIGHT = 0.03;
       angle: footAngle,
       linearDamping: 0.08,
       angularDamping: 0.08,
-      allowSleep: false,
+      allowSleep: true,
       bullet: true,
       userData: { part: side < 0 ? "left-foot" : "right-foot" }
     });
@@ -317,6 +317,7 @@ const FOOT_HALF_HEIGHT = 0.03;
       this.jumpLandContactTime = 0;
       this.jumping = false;
       this.fallReason = "hit";
+      for (const body of this.bodies) body.setAwake(true);
       for (const joint of this.joints) {
         joint.setMotorSpeed(0);
         joint.setMaxMotorTorque(0);
@@ -492,22 +493,25 @@ function updateRigRecovery(walker, deltaTime = FIXED_DT, heightAt = () => 0) {
   }
 
   if (!walker.recovering) {
-    const averageSpeed = walker.bodies.reduce(
-      (sum, body) => sum + body.getLinearVelocity().length(), 0
-    ) / walker.bodies.length;
     const grounded = hasRigGroundContact(walker);
-    // A ragdoll can keep jittering against uneven terrain forever. Track
-    // grounded time separately so contact jitter cannot permanently prevent
-    // the get-up controller from engaging.
+    // Do not begin standing while any segment is still visibly moving.
+    // Every body must be nearly motionless and supported by actual terrain
+    // contact for a sustained interval; a low average can hide one limb
+    // continuing to bounce or scrape.
+    const allPartsSettled = walker.bodies.every(body =>
+      body.getLinearVelocity().length() < 0.04 &&
+      Math.abs(body.getAngularVelocity()) < 0.08
+    );
     walker.recoveryGroundTime = grounded
       ? walker.recoveryGroundTime + deltaTime
       : 0;
-    walker.recoverySettleTime = averageSpeed < 1.5 && grounded
+    walker.recoverySettleTime = allPartsSettled && grounded
       ? walker.recoverySettleTime + deltaTime
       : 0;
-    const settledEnough = walker.recoverySettleTime >= 0.18;
-    const groundedTimeout = walker.recoveryGroundTime >= 0.75;
-    if (settledEnough || groundedTimeout) {
+    if (walker.recoverySettleTime >= 0.5) {
+      // A settled ragdoll may have entered Planck's sleep state. Wake the
+      // complete joint island before applying the get-up controller.
+      for (const body of walker.bodies) body.setAwake(true);
       walker.recovering = true;
       walker.recoveryElapsed = 0;
       walker.recoveryProgress = 0;
