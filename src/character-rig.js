@@ -510,8 +510,12 @@ function updateRigRecovery(walker, deltaTime = FIXED_DT, heightAt = () => 0) {
       : 0;
     if (walker.recoverySettleTime >= 0.5) {
       // A settled ragdoll may have entered Planck's sleep state. Wake the
-      // complete joint island before applying the get-up controller.
-      for (const body of walker.bodies) body.setAwake(true);
+      // complete joint island and keep it awake while the get-up controller
+      // is actively moving the articulated body.
+      for (const body of walker.bodies) {
+        body.setSleepingAllowed(false);
+        body.setAwake(true);
+      }
       walker.recovering = true;
       walker.recoveryElapsed = 0;
       walker.recoveryProgress = 0;
@@ -542,6 +546,7 @@ function updateRigRecovery(walker, deltaTime = FIXED_DT, heightAt = () => 0) {
   walker.recoveryStableTime = stable ? walker.recoveryStableTime + deltaTime : 0;
   if (walker.recoveryStableTime >= 0.3) {
     walker.mode = "active";
+    for (const body of walker.bodies) body.setSleepingAllowed(true);
     setRagdollTerrainCollision(walker, false);
     walker.stiffness = 1;
     walker.recovering = false;
