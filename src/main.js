@@ -372,12 +372,8 @@
     const power = Number(powerInput.value) / 100;
     const dx = Math.cos(angle);
     const dy = Math.sin(angle);
-    const p = character.body.getPosition();
-    const muzzleHeight = 0.72;
-    const startX = Math.max(0.05, Math.min(WORLD_WIDTH - 0.05, p.x + dx * 0.42));
-    // Match the preview arrow's shoulder-height origin.
-    const startY = Math.max(p.y + muzzleHeight + dy * 0.12, heightAt(startX) + 0.18);
-    const start = V(startX, startY);
+    const muzzle = character.muzzlePosition(angle);
+    const start = V(muzzle.x, muzzle.y);
     const body = world.createBody({
       type: "dynamic",
       position: start,
@@ -714,12 +710,10 @@
     const character = activeCharacter();
     if (!canAct(character) || projectile || activeAction === "attack") return;
 
-    const p = character.body.getPosition();
     const angle = Number(angleInput.value) * Math.PI / 180;
     const power = Number(powerInput.value) / 100;
-    // The projectile and its preview originate around chest/shoulder height,
-    // not at the collider's ground-level origin.
-    const start = worldToScreen(p.x, p.y + 0.72, scale, offsetX);
+    const muzzle = character.muzzlePosition(angle);
+    const start = worldToScreen(muzzle.x, muzzle.y, scale, offsetX);
     const length = scale * (0.42 + power * 1.05);
     const endX = start.x + Math.cos(angle) * length;
     const endY = start.y - Math.sin(angle) * length;
