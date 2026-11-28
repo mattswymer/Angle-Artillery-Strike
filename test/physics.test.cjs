@@ -442,6 +442,7 @@ test("intentional jump airtime does not accumulate toward the no-contact fall tr
 
 test("limp recovery waits for low speed and ground contact, then smoothly raises the pelvis and ramps stiffness", () => {
   const world = new planck.World({ gravity: planck.Vec2(0, -10) });
+  world.setAllowSleeping(true);
   const ground = world.createBody();
   ground.createFixture({ shape: new planck.Edge(planck.Vec2(-5, 0), planck.Vec2(5, 0)), friction: 2.5 });
   const rig = createStanceRig(world, 0, () => 0, () => 0);
