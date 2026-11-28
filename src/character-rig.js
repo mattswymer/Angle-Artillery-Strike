@@ -521,8 +521,13 @@ function updateRigRecovery(walker, deltaTime = FIXED_DT, heightAt = () => 0) {
       walker.recoveryProgress = 0;
       walker.recoveryPelvisRatio = Math.min(walker.pelvisRatio, 0.72);
       walker.recoveryStableTime = 0;
-      // Rebuild the get-up stance around where the feet actually landed.
-      walker.stanceTargets = walker.legs.map(leg => leg.foot.getPosition().x);
+      // Rebuild the get-up stance under the pelvis, not at the feet's
+      // impact locations. A blast can leave the torso well ahead of both
+      // feet; preserving those old X positions makes the support target
+      // unreachable and strands the recovery controller.
+      const pelvisX = walker.hull.getPosition().x;
+      const halfStance = walker.stanceHalfWidth ?? 0.12;
+      walker.stanceTargets = [pelvisX - halfStance, pelvisX + halfStance];
       walker.swingIndex = null;
       walker.swingTime = 0;
       walker.swingAirborne = false;
