@@ -69,4 +69,9 @@ test("recovery waits for every segment to settle on terrain, then wakes the whol
     "the entire articulated rig must wake before get-up forces are applied");
   assert.ok(rig.bodies.every(body => !body.isSleepingAllowed()),
     "sleeping must stay disabled while the get-up controller is active");
+  const pelvisX = rig.hull.getPosition().x;
+  const halfStance = rig.stanceHalfWidth;
+  assert.ok(Math.abs(rig.stanceTargets[0] - (pelvisX - halfStance)) < 1e-9);
+  assert.ok(Math.abs(rig.stanceTargets[1] - (pelvisX + halfStance)) < 1e-9,
+    "recovery foot targets should be rebuilt beneath the displaced pelvis");
 });
