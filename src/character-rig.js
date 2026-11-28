@@ -499,8 +499,8 @@ function updateRigRecovery(walker, deltaTime = FIXED_DT, heightAt = () => 0) {
     // contact for a sustained interval; a low average can hide one limb
     // continuing to bounce or scrape.
     const allPartsSettled = walker.bodies.every(body =>
-      body.getLinearVelocity().length() < 0.04 &&
-      Math.abs(body.getAngularVelocity()) < 0.08
+      body.getLinearVelocity().length() < 0.1 &&
+      Math.abs(body.getAngularVelocity()) < 0.2
     );
     walker.recoveryGroundTime = grounded
       ? walker.recoveryGroundTime + deltaTime
