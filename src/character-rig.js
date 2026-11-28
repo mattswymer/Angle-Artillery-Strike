@@ -295,6 +295,8 @@ const FOOT_HALF_HEIGHT = 0.03;
     falling: false,
     recovering: false,
     recoveryElapsed: 0,
+    recoveryProgress: 0,
+    recoveryPelvisRatio: pelvisRatio,
     recoveryStableTime: 0,
     recoverySettleTime: 0,
     recoveryGroundTime: 0,
@@ -508,6 +510,8 @@ function updateRigRecovery(walker, deltaTime = FIXED_DT, heightAt = () => 0) {
     if (settledEnough || groundedTimeout) {
       walker.recovering = true;
       walker.recoveryElapsed = 0;
+      walker.recoveryProgress = 0;
+      walker.recoveryPelvisRatio = Math.min(walker.pelvisRatio, 0.72);
       walker.recoveryStableTime = 0;
       // Rebuild the get-up stance around where the feet actually landed.
       walker.stanceTargets = walker.legs.map(leg => leg.foot.getPosition().x);
@@ -522,7 +526,14 @@ function updateRigRecovery(walker, deltaTime = FIXED_DT, heightAt = () => 0) {
   }
 
   walker.recoveryElapsed += deltaTime;
-  walker.stiffness = Math.min(1, walker.recoveryElapsed / 0.5);
+  const smoothStep = value => {
+    const t = Math.max(0, Math.min(1, value));
+    return t * t * (3 - 2 * t);
+  };
+  walker.recoveryProgress = smoothStep(walker.recoveryElapsed / 0.95);
+  walker.recoveryPelvisRatio = Math.min(walker.pelvisRatio, 0.72) +
+    (walker.pelvisRatio - Math.min(walker.pelvisRatio, 0.72)) * walker.recoveryProgress;
+  walker.stiffness = smoothStep(walker.recoveryElapsed / 0.85);
   const stable = rigIsStable(walker);
   walker.recoveryStableTime = stable ? walker.recoveryStableTime + deltaTime : 0;
   if (walker.recoveryStableTime >= 0.3) {
@@ -536,15 +547,19 @@ function updateRigRecovery(walker, deltaTime = FIXED_DT, heightAt = () => 0) {
     walker.outsideSupportTime = 0;
     walker.recoveryGroundTime = 0;
     walker.recoverySettleTime = 0;
-  } else if (walker.recoveryElapsed > 0.15 && !stable) {
+    walker.recoveryProgress = 1;
+    walker.recoveryPelvisRatio = walker.pelvisRatio;
+  } else if (walker.recoveryElapsed > 0.12 && !stable) {
+    const rightingT = Math.max(0, Math.min(1, (walker.recoveryElapsed - 0.12) / 0.55));
+    const rightingBlend = rightingT * rightingT * (3 - 2 * rightingT);
     // A limp rig cannot get up by asking the normal walking IK to solve a
     // sideways or inverted pelvis. Give the torso a bounded physical righting
     // torque first; joint motors then bring the limbs back under it.
     const angleError = wrapAngle(walker.hull.getAngle());
     const angularVelocity = walker.hull.getAngularVelocity();
     const mass = walker.hull.getMass();
-    const maxTorque = mass * GRAVITY * 0.85;
-    const requestedTorque = (-angleError * 7 - angularVelocity * 2.2) * mass;
+    const maxTorque = mass * GRAVITY * 0.85 * rightingBlend;
+    const requestedTorque = (-angleError * 7 - angularVelocity * 2.2) * mass * rightingBlend;
     const rightingTorque = Math.max(-maxTorque, Math.min(maxTorque, requestedTorque));
     walker.hull.applyTorque(rightingTorque, true);
 
@@ -558,7 +573,7 @@ function updateRigRecovery(walker, deltaTime = FIXED_DT, heightAt = () => 0) {
       const targetY = Math.min(...stanceX.map(heightAt)) +
         FOOT_HALF_HEIGHT * 2 + walker.pelvisRatio * (UPPER_LENGTH + LOWER_LENGTH) - HIP_Y;
       const heightError = targetY - walker.hull.getPosition().y;
-      const force = recoveryAssistForce(mass, heightError, GRAVITY, true);
+      const force = recoveryAssistForce(mass, heightError, GRAVITY, true) * rightingBlend;
       if (force > 0.05) walker.hull.applyForceToCenter(Vec2(0, force), true);
     }
   }
@@ -787,7 +802,9 @@ function driveJoint(joint, target, kp, wMax, tauMax, stiffness) {
   const walking = walkDirection !== 0 && walker.jumpPhase === "idle";
   const pelvisRatio = walking
     ? (walker.walkingPelvisRatio ?? 0.82)
-    : (walker.pelvisRatio ?? 0.95);
+    : (walker.recovering
+      ? (walker.recoveryPelvisRatio ?? walker.pelvisRatio ?? 0.95)
+      : (walker.pelvisRatio ?? 0.95));
   const pelvisTargetY = Math.min(
     heightAt(walker.stanceTargets[0]) + FOOT_HALF_HEIGHT * 2,
     heightAt(walker.stanceTargets[1]) + FOOT_HALF_HEIGHT * 2
